@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  SUPER_ADMIN
+  ADMIN_EMPRESA
+  USUARIO_EMPRESA
+}
+
+model Empresa {
+  id        String   @id @default(uuid())
+  nome      String
+  cnpj      String?  @unique
+  ativa     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuarios Usuario[]
+  modulos EmpresaModulo[]
+  categoriasProduto CategoriaProduto[]
+  produtos Produto[]
+  estoquesProduto EstoqueProduto[]
+  movimentacoesEstoque MovimentacaoEstoque[]
+  auditoriaLogs AuditoriaLog[]
+  agendaEventos AgendaEvento[]
+  clientes Cliente[]
+  ordensServico OrdemServico[]
+}
+
+model Usuario {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senha     String
+  tipo      UserType
+  ativo     Boolean  @default(true)
+
+  empresaId String?
+  empresa   Empresa? @relation(fields: [empresaId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  movimentacoesEstoque MovimentacaoEstoque[]
+  auditoriaLogs AuditoriaLog[]
+  agendaEventos AgendaEvento[]
+  agendaHistoricos AgendaEventoHistorico[]
+  clienteHistoricos ClienteHistorico[]
+  ordensResponsavel OrdemServico[]
+  ordemServicoHistoricos OrdemServicoHistorico[]
+}
+
+model ModuloSistema {
+  id        String   @id @default(uuid())
+  nome      String   @unique
+  chave     String   @unique
+  descricao String?
+  ativo     Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresas EmpresaModulo[]
+}
+
+model EmpresaModulo {
+  id        String   @id @default(uuid())
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  moduloId String
+  modulo   ModuloSistema @relation(fields: [moduloId], references: [id])
+
+  ativo     Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, moduloId])
+}
+
+model CategoriaProduto {
+  id        String   @id @default(uuid())
+  nome      String
+  descricao String?
+  ativo     Boolean  @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, nome])
+  produtos Produto[]
+}
+
+model Produto {
+  id          String   @id @default(uuid())
+  nome        String
+  descricao   String?
+  codigo      String?
+  precoVenda  Decimal  @default(0)
+  ativo       Boolean  @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  categoriaId String?
+  categoria   CategoriaProduto? @relation(fields: [categoriaId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, nome])
+  estoque EstoqueProduto?
+  movimentacoesEstoque MovimentacaoEstoque[]
+}
+
+model EstoqueProduto {
+  id              String   @id @default(uuid())
+  quantidadeAtual Decimal  @default(0)
+  estoqueMinimo   Decimal  @default(0)
+  estoqueMaximo   Decimal?
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  produtoId String  @unique
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, produtoId])
+}
+
+enum TipoMovimentacaoEstoque {
+  ENTRADA
+  SAIDA
+  AJUSTE
+  INVENTARIO
+}
+
+model MovimentacaoEstoque {
+  id          String                  @id @default(uuid())
+  tipo        TipoMovimentacaoEstoque
+  quantidade  Decimal
+  observacao  String?
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model AuditoriaLog {
+  id          String   @id @default(uuid())
+  acao        String
+  entidade    String
+  entidadeId  String?
+  dadosAntigos Json?
+  dadosNovos   Json?
+  ip          String?
+
+  empresaId String?
+  empresa   Empresa? @relation(fields: [empresaId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model AgendaEvento {
+  id          String   @id @default(uuid())
+  titulo      String
+  descricao  String?
+  dataInicio  DateTime
+  dataFim     DateTime
+  status      String   @default("AGENDADO")
+  local       String?
+  clienteNome String?
+  clienteContato String?
+  ativo       Boolean  @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  historicos AgendaEventoHistorico[]
+
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+  ordensServico OrdemServico[]
+}
+
+model AgendaEventoHistorico {
+  id        String   @id @default(uuid())
+  descricao String
+
+  agendaEventoId String
+  agendaEvento   AgendaEvento @relation(fields: [agendaEventoId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Cliente {
+  id          String   @id @default(uuid())
+  nome        String
+  tipo        String   @default("PF")
+  documento   String?
+  email       String?
+  telefone    String?
+  celular     String?
+  endereco    String?
+  cidade      String?
+  estado      String?
+  cep         String?
+  observacao  String?
+  ativo       Boolean  @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  agendaEventos AgendaEvento[]
+  historicos ClienteHistorico[]
+  ordensServico OrdemServico[]
+}
+
+model ClienteHistorico {
+  id        String   @id @default(uuid())
+  descricao String
+
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model OrdemServico {
+  id          String   @id @default(uuid())
+  numero      Int
+  titulo      String
+  descricao  String?
+  status      String   @default("ABERTA")
+  prioridade  String   @default("NORMAL")
+  dataAbertura DateTime @default(now())
+  dataPrevista DateTime?
+  dataConclusao DateTime?
+  observacao  String?
+  ativo       Boolean  @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+
+  responsavelId String?
+  responsavel   Usuario? @relation(fields: [responsavelId], references: [id])
+
+  agendaEventoId String?
+  agendaEvento   AgendaEvento? @relation(fields: [agendaEventoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  historicos OrdemServicoHistorico[]
+}
+
+model OrdemServicoHistorico {
+  id        String   @id @default(uuid())
+  descricao String
+  statusAnterior String?
+  statusNovo String?
+
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+}
