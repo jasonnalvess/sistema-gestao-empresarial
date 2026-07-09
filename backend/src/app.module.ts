@@ -21,6 +21,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { OrdensServicoModule } from './ordens-servico/ordens-servico.module';
+import { UnidadesMedidaModule } from './unidades-medida/unidades-medida.module';
+import { MarcasProdutosModule } from './marcas-produtos/marcas-produtos.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { OrdensServicoModule } from './ordens-servico/ordens-servico.module';
     AgendaModule,
     ClientesModule,
     OrdensServicoModule,
+    UnidadesMedidaModule,
+    MarcasProdutosModule,
   ],
   controllers: [AppController],
   providers: [

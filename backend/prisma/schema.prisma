@@ -31,6 +31,8 @@ model Empresa {
   agendaEventos AgendaEvento[]
   clientes Cliente[]
   ordensServico OrdemServico[]
+  marcasProdutos MarcaProduto[]
+  unidadesMedida UnidadeMedida[]
 }
 
 model Usuario {
@@ -101,13 +103,56 @@ model CategoriaProduto {
   produtos Produto[]
 }
 
+model MarcaProduto {
+  id        String   @id @default(uuid())
+  nome      String
+  descricao String?
+  ativo     Boolean  @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  produtos Produto[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, nome])
+}
+
+model UnidadeMedida {
+  id        String   @id @default(uuid())
+  nome      String
+  sigla     String
+  ativo     Boolean  @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  produtos Produto[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, sigla])
+}
+
 model Produto {
-  id          String   @id @default(uuid())
-  nome        String
-  descricao   String?
-  codigo      String?
-  precoVenda  Decimal  @default(0)
-  ativo       Boolean  @default(true)
+  id              String   @id @default(uuid())
+  nome            String
+  descricao       String?
+  codigo          String?
+  codigoBarras    String?
+  ncm             String?
+  precoCusto      Decimal  @default(0)
+  precoVenda      Decimal  @default(0)
+  peso            Decimal?
+  altura          Decimal?
+  largura         Decimal?
+  comprimento     Decimal?
+  estoqueMinimo   Decimal  @default(0)
+  estoqueMaximo   Decimal?
+  ativo           Boolean  @default(true)
 
   empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id])
@@ -115,10 +160,19 @@ model Produto {
   categoriaId String?
   categoria   CategoriaProduto? @relation(fields: [categoriaId], references: [id])
 
+  marcaId String?
+  marca   MarcaProduto? @relation(fields: [marcaId], references: [id])
+
+  unidadeMedidaId String?
+  unidadeMedida   UnidadeMedida? @relation(fields: [unidadeMedidaId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([empresaId, nome])
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, codigoBarras])
+
   estoque EstoqueProduto?
   movimentacoesEstoque MovimentacaoEstoque[]
 }
