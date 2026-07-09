@@ -12,6 +12,8 @@ import {
   CalendarDays,
   UsersRound,
   Wrench,
+  Ruler,
+  Tags,
 } from "lucide-react";
 
 export const menu = [
@@ -34,6 +36,11 @@ export const menu = [
     titulo: "Categorias",
     href: "/categorias",
     icon: Boxes,
+  },
+  {
+    titulo: "Marcas",
+    href: "/marcas-produtos",
+    icon: Tags,
   },
   {
     titulo: "Estoque",
@@ -79,5 +86,10 @@ export const menu = [
     titulo: "Configurações",
     href: "/configuracoes",
     icon: Settings,
+  },
+  {
+    titulo: "Unidades",
+    href: "/unidades-medida",
+    icon: Ruler,
   },
 ];

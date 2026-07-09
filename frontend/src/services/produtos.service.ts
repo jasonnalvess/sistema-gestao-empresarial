@@ -3,18 +3,48 @@ import { api } from "./api";
 export type Produto = {
   id: string;
   nome: string;
-  descricao?: string;
-  codigo?: string;
+  descricao?: string | null;
+  codigo?: string | null;
+  codigoBarras?: string | null;
+  ncm?: string | null;
+  precoCusto: string;
   precoVenda: string;
+  peso?: string | null;
+  altura?: string | null;
+  largura?: string | null;
+  comprimento?: string | null;
+  estoqueMinimo: string;
+  estoqueMaximo?: string | null;
   ativo: boolean;
   empresaId: string;
-  categoriaId?: string;
+  categoriaId?: string | null;
+  marcaId?: string | null;
+  unidadeMedidaId?: string | null;
   createdAt: string;
   updatedAt: string;
+
   categoria?: {
     id: string;
     nome: string;
-  };
+  } | null;
+
+  marca?: {
+    id: string;
+    nome: string;
+  } | null;
+
+  unidadeMedida?: {
+    id: string;
+    nome: string;
+    sigla: string;
+  } | null;
+
+  estoque?: {
+    id: string;
+    quantidadeAtual: string;
+    estoqueMinimo: string;
+    estoqueMaximo?: string | null;
+  } | null;
 };
 
 export type ProdutosResponse = {
@@ -46,8 +76,19 @@ export type CriarProdutoInput = {
   nome: string;
   descricao?: string;
   codigo?: string;
+  codigoBarras?: string;
+  ncm?: string;
+  precoCusto?: number;
   precoVenda: number;
+  peso?: number;
+  altura?: number;
+  largura?: number;
+  comprimento?: number;
+  estoqueMinimo?: number;
+  estoqueMaximo?: number;
   categoriaId?: string;
+  marcaId?: string;
+  unidadeMedidaId?: string;
 };
 
 export async function criarProduto(dados: CriarProdutoInput) {
@@ -55,13 +96,7 @@ export async function criarProduto(dados: CriarProdutoInput) {
   return resposta.data;
 }
 
-export type AtualizarProdutoInput = {
-  nome?: string;
-  descricao?: string;
-  codigo?: string;
-  precoVenda?: number;
-  categoriaId?: string;
-};
+export type AtualizarProdutoInput = Partial<CriarProdutoInput>;
 
 export async function atualizarProduto(id: string, dados: AtualizarProdutoInput) {
   const resposta = await api.patch(`/produtos/${id}`, dados);

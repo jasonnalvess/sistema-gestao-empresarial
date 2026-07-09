@@ -1,11 +1,9 @@
-
 "use client";
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { listarProdutos } from "@/services/produtos.service";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -66,7 +64,7 @@ export default function ProdutosPage() {
               value={search}
               onChange={setSearch}
               onSearch={pesquisar}
-              placeholder="Pesquisar por nome, código ou descrição..."
+              placeholder="Pesquisar por nome, código, código de barras, NCM, marca ou categoria..."
             />
           </CrudToolbar>
 
@@ -84,10 +82,14 @@ export default function ProdutosPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Nome</TableHead>
+                      <TableHead>Produto</TableHead>
                       <TableHead>Código</TableHead>
                       <TableHead>Categoria</TableHead>
-                      <TableHead>Preço</TableHead>
+                      <TableHead>Marca</TableHead>
+                      <TableHead>Unidade</TableHead>
+                      <TableHead>Custo</TableHead>
+                      <TableHead>Venda</TableHead>
+                      <TableHead>Estoque</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -96,31 +98,61 @@ export default function ProdutosPage() {
                   <TableBody>
                     {produtos.map((produto) => (
                       <TableRow key={produto.id}>
-                        <TableCell className="font-medium">
-                          {produto.nome}
-                        </TableCell>
-                        <TableCell>{produto.codigo || "-"}</TableCell>
-                        <TableCell>{produto.categoria?.nome || "-"}</TableCell>
                         <TableCell>
-                          R$ {Number(produto.precoVenda).toFixed(2)}
+                          <div>
+                            <p className="font-medium text-slate-900">{produto.nome}</p>
+                            {produto.descricao && (
+                              <p className="text-xs text-slate-500">{produto.descricao}</p>
+                            )}
+                          </div>
                         </TableCell>
+
+                        <TableCell>
+                          <div>
+                            <p>{produto.codigo || "-"}</p>
+                            {produto.codigoBarras && (
+                              <p className="text-xs text-slate-500">
+                                Barras: {produto.codigoBarras}
+                              </p>
+                            )}
+                            {produto.ncm && (
+                              <p className="text-xs text-slate-500">NCM: {produto.ncm}</p>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        <TableCell>{produto.categoria?.nome || "-"}</TableCell>
+
+                        <TableCell>{produto.marca?.nome || "-"}</TableCell>
+
+                        <TableCell>{produto.unidadeMedida?.sigla || "-"}</TableCell>
+
+                        <TableCell>R$ {Number(produto.precoCusto).toFixed(2)}</TableCell>
+
+                        <TableCell>R$ {Number(produto.precoVenda).toFixed(2)}</TableCell>
+
+                        <TableCell>
+                          {produto.estoque
+                            ? Number(produto.estoque.quantidadeAtual).toFixed(2)
+                            : "-"}
+                        </TableCell>
+
                         <TableCell>
                           <CrudStatusBadge ativo={produto.ativo} />
                         </TableCell>
 
-<TableCell className="text-right">
-  <div className="flex justify-end gap-2">
-    <EditarProdutoModal produto={produto} />
-    <AlterarStatusProdutoButton produto={produto} />
-  </div>
-</TableCell>                       
-
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <EditarProdutoModal produto={produto} />
+                            <AlterarStatusProdutoButton produto={produto} />
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
 
                     {produtos.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6}>
+                        <TableCell colSpan={10}>
                           <CrudEmpty message="Nenhum produto encontrado." />
                         </TableCell>
                       </TableRow>
