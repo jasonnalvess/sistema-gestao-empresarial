@@ -23,17 +23,70 @@ import { CrudEmpty } from "@/components/crud/CrudEmpty";
 import { CrudLoading } from "@/components/crud/CrudLoading";
 import { EditarProdutoModal } from "@/components/produtos/EditarProdutoModal";
 import { AlterarStatusProdutoButton } from "@/components/produtos/AlterarStatusProdutoButton";
+import { listarCategorias } from "@/services/categorias.service";
+import { listarMarcasProdutos } from "@/services/marcas-produtos.service";
+import { listarUnidadesMedida } from "@/services/unidades-medida.service";
+import { ProdutosSummaryCards } from "@/components/produtos/ProdutosSummaryCards";
+import { DetailsButton } from "@/components/actions/DetailsButton";
 
 export default function ProdutosPage() {
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [page, setPage] = useState(1);
+  const [categoriaId, setCategoriaId] = useState("");
+  const [marcaId, setMarcaId] = useState("");
+  const [unidadeMedidaId, setUnidadeMedidaId] = useState("");
+  const [ativo, setAtivo] = useState("");
+
+  const { data: categoriasResponse } = useQuery({
+    queryKey: ["categorias-select"],
+    queryFn: () =>
+      listarCategorias({
+        page: 1,
+        limit: 100,
+        sortBy: "nome",
+        order: "asc",
+      }),
+  });
+
+  const { data: marcasResponse } = useQuery({
+    queryKey: ["marcas-select"],
+    queryFn: () =>
+      listarMarcasProdutos({
+        page: 1,
+        limit: 100,
+      }),
+  });
+
+  const { data: unidadesResponse } = useQuery({
+    queryKey: ["unidades-select"],
+    queryFn: () =>
+      listarUnidadesMedida({
+        page: 1,
+        limit: 100,
+      }),
+  });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["produtos", searchAplicado, page],
+    queryKey: [
+      "produtos",
+      searchAplicado,
+      categoriaId,
+      marcaId,
+      unidadeMedidaId,
+      ativo,
+      page,
+    ],
     queryFn: () =>
       listarProdutos({
         search: searchAplicado,
+        categoriaId: categoriaId || undefined,
+        marcaId: marcaId || undefined,
+        unidadeMedidaId: unidadeMedidaId || undefined,
+        ativo:
+          ativo === ""
+            ? undefined
+            : ativo === "true",
         page,
         limit: 10,
         sortBy: "createdAt",
@@ -58,6 +111,8 @@ export default function ProdutosPage() {
           actions={<NovoProdutoModal />}
         />
 
+        <ProdutosSummaryCards produtos={produtos} />
+
         <CrudCard>
           <CrudToolbar>
             <CrudSearch
@@ -67,6 +122,72 @@ export default function ProdutosPage() {
               placeholder="Pesquisar por nome, código, código de barras, NCM, marca ou categoria..."
             />
           </CrudToolbar>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+            <select
+              value={categoriaId}
+              onChange={(e) => {
+                setCategoriaId(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">Todas as categorias</option>
+
+              {categoriasResponse?.data.map((categoria) => (
+                <option key={categoria.id} value={categoria.id}>
+                  {categoria.nome}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={marcaId}
+              onChange={(e) => {
+                setMarcaId(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">Todas as marcas</option>
+
+              {marcasResponse?.data.map((marca) => (
+                <option key={marca.id} value={marca.id}>
+                  {marca.nome}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={unidadeMedidaId}
+              onChange={(e) => {
+                setUnidadeMedidaId(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">Todas as unidades</option>
+
+              {unidadesResponse?.data.map((unidade) => (
+                <option key={unidade.id} value={unidade.id}>
+                  {unidade.sigla}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={ativo}
+              onChange={(e) => {
+                setAtivo(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">Todos os status</option>
+              <option value="true">Ativos</option>
+              <option value="false">Inativos</option>
+            </select>
+          </div>
 
           {error && (
             <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
@@ -143,6 +264,7 @@ export default function ProdutosPage() {
 
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            <DetailsButton href={`/produtos/${produto.id}`} />
                             <EditarProdutoModal produto={produto} />
                             <AlterarStatusProdutoButton produto={produto} />
                           </div>

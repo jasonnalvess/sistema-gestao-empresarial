@@ -60,6 +60,10 @@ export type ProdutosResponse = {
 
 export async function listarProdutos(params?: {
   search?: string;
+  ativo?: boolean;
+  categoriaId?: string;
+  marcaId?: string;
+  unidadeMedidaId?: string;
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -111,4 +115,52 @@ export async function ativarProduto(id: string) {
 export async function desativarProduto(id: string) {
   const resposta = await api.patch(`/produtos/${id}/desativar`);
   return resposta.data;
+}
+
+export type ProdutoDetalhado = Produto;
+
+export async function buscarProdutoPorId(id: string) {
+  const { data } = await api.get<{
+    success: boolean;
+    data: ProdutoDetalhado;
+  }>(`/produtos/${id}`);
+
+  return data.data;
+}
+
+// ===== NOVAS FUNÇÕES DE HISTÓRICO =====
+
+export type ProdutoHistorico = {
+  id: string;
+  descricao: string;
+  produtoId: string;
+  usuarioId?: string | null;
+  createdAt: string;
+  usuario?: {
+    id: string;
+    nome: string;
+    email: string;
+    tipo: string;
+  };
+};
+
+export async function listarProdutoHistorico(produtoId: string) {
+  const { data } = await api.get<{
+    success: boolean;
+    data: ProdutoHistorico[];
+  }>(`/produtos/${produtoId}/historico`);
+
+  return data.data;
+}
+
+export async function adicionarProdutoHistorico(
+  produtoId: string,
+  descricao: string
+) {
+  const { data } = await api.post(
+    `/produtos/${produtoId}/historico`,
+    { descricao }
+  );
+
+  return data;
 }

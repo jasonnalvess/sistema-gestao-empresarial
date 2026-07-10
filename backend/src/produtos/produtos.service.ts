@@ -1,54 +1,260 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
+import { calcularPaginacao } from '../common/utils/paginacao';
+import { respostaPaginada } from '../common/utils/resposta-paginada';
+
 import { CriarProdutoDto } from './dto/criar-produto.dto';
 import { AtualizarProdutoDto } from './dto/atualizar-produto.dto';
 import { FiltroProdutosDto } from './dto/filtro-produtos.dto';
-import { calcularPaginacao } from '../common/utils/paginacao';
-import { respostaPaginada } from '../common/utils/resposta-paginada';
+import { CriarProdutoHistoricoDto } from './dto/criar-produto-historico.dto';
 
 @Injectable()
 export class ProdutosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private includeProduto = {
+  private readonly includeProduto = {
     categoria: true,
     marca: true,
     unidadeMedida: true,
     estoque: true,
   };
 
-  private async validarVinculos(dados: {
-    categoriaId?: string;
-    marcaId?: string;
-    unidadeMedidaId?: string;
-  }, empresaId: string) {
+  private tratarErroPrisma(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.map(String)
+        : [];
+
+      if (target.includes('codigoBarras')) {
+        throw new ConflictException(
+          'Já existe um produto com este código de barras nesta empresa',
+        );
+      }
+
+      if (target.includes('codigo')) {
+        throw new ConflictException(
+          'Já existe um produto com este código interno nesta empresa',
+        );
+      }
+
+      if (target.includes('nome')) {
+        throw new ConflictException(
+          'Já existe um produto com este nome nesta empresa',
+        );
+      }
+
+      throw new ConflictException('Já existe um produto com esses dados');
+    }
+
+    throw error;
+  }
+
+  private valorComparavel(valor: unknown): string {
+    if (valor === null || valor === undefined) {
+      return '';
+    }
+
+    return String(valor);
+  }
+
+  private valorExibicao(valor: unknown): string {
+    if (valor === null || valor === undefined || valor === '') {
+      return 'não informado';
+    }
+
+    return String(valor);
+  }
+
+  private montarDescricaoAlteracoes(anterior: any, atualizado: any): string | null {
+    const campos = [
+      {
+        label: 'Nome',
+        anterior: anterior.nome,
+        atualizado: atualizado.nome,
+      },
+      {
+        label: 'Descrição',
+        anterior: anterior.descricao,
+        atualizado: atualizado.descricao,
+      },
+      {
+        label: 'Código interno',
+        anterior: anterior.codigo,
+        atualizado: atualizado.codigo,
+      },
+      {
+        label: 'Código de barras',
+        anterior: anterior.codigoBarras,
+        atualizado: atualizado.codigoBarras,
+      },
+      {
+        label: 'NCM',
+        anterior: anterior.ncm,
+        atualizado: atualizado.ncm,
+      },
+      {
+        label: 'Preço de custo',
+        anterior: anterior.precoCusto,
+        atualizado: atualizado.precoCusto,
+      },
+      {
+        label: 'Preço de venda',
+        anterior: anterior.precoVenda,
+        atualizado: atualizado.precoVenda,
+      },
+      {
+        label: 'Estoque mínimo',
+        anterior: anterior.estoqueMinimo,
+        atualizado: atualizado.estoqueMinimo,
+      },
+      {
+        label: 'Estoque máximo',
+        anterior: anterior.estoqueMaximo,
+        atualizado: atualizado.estoqueMaximo,
+      },
+      {
+        label: 'Peso',
+        anterior: anterior.peso,
+        atualizado: atualizado.peso,
+      },
+      {
+        label: 'Altura',
+        anterior: anterior.altura,
+        atualizado: atualizado.altura,
+      },
+      {
+        label: 'Largura',
+        anterior: anterior.largura,
+        atualizado: atualizado.largura,
+      },
+      {
+        label: 'Comprimento',
+        anterior: anterior.comprimento,
+        atualizado: atualizado.comprimento,
+      },
+      {
+        label: 'Categoria',
+        anterior: anterior.categoria?.nome,
+        atualizado: atualizado.categoria?.nome,
+      },
+      {
+        label: 'Marca',
+        anterior: anterior.marca?.nome,
+        atualizado: atualizado.marca?.nome,
+      },
+      {
+        label: 'Unidade de medida',
+        anterior: anterior.unidadeMedida
+          ? `${anterior.unidadeMedida.sigla} - ${anterior.unidadeMedida.nome}`
+          : null,
+        atualizado: atualizado.unidadeMedida
+          ? `${atualizado.unidadeMedida.sigla} - ${atualizado.unidadeMedida.nome}`
+          : null,
+      },
+    ];
+
+    const alteracoes = campos
+      .filter(
+        (campo) =>
+          this.valorComparavel(campo.anterior) !==
+          this.valorComparavel(campo.atualizado),
+      )
+      .map(
+        (campo) =>
+          `${campo.label}: ${this.valorExibicao(
+            campo.anterior,
+          )} → ${this.valorExibicao(campo.atualizado)}`,
+      );
+
+    if (alteracoes.length === 0) {
+      return null;
+    }
+
+    return `Produto atualizado.\n${alteracoes.join('\n')}`;
+  }
+
+  private async registrarHistorico(
+    produtoId: string,
+    descricao: string,
+    usuarioLogado: any,
+  ) {
+    return this.prisma.produtoHistorico.create({
+      data: {
+        produtoId,
+        descricao,
+        usuarioId: usuarioLogado.id ?? usuarioLogado.sub,
+      },
+    });
+  }
+
+  private async validarVinculos(
+    dados: {
+      categoriaId?: string;
+      marcaId?: string;
+      unidadeMedidaId?: string;
+    },
+    empresaId: string,
+  ) {
     if (dados.categoriaId) {
       const categoria = await this.prisma.categoriaProduto.findUnique({
-        where: { id: dados.categoriaId },
+        where: {
+          id: dados.categoriaId,
+        },
       });
 
-      if (!categoria) throw new NotFoundException('Categoria não encontrada');
+      if (!categoria) {
+        throw new NotFoundException('Categoria não encontrada');
+      }
 
       if (categoria.empresaId !== empresaId) {
         throw new ForbiddenException('Categoria pertence a outra empresa');
+      }
+
+      if (!categoria.ativo) {
+        throw new BadRequestException(
+          'Não é possível vincular uma categoria inativa',
+        );
       }
     }
 
     if (dados.marcaId) {
       const marca = await this.prisma.marcaProduto.findUnique({
-        where: { id: dados.marcaId },
+        where: {
+          id: dados.marcaId,
+        },
       });
 
-      if (!marca) throw new NotFoundException('Marca não encontrada');
+      if (!marca) {
+        throw new NotFoundException('Marca não encontrada');
+      }
 
       if (marca.empresaId !== empresaId) {
         throw new ForbiddenException('Marca pertence a outra empresa');
+      }
+
+      if (!marca.ativo) {
+        throw new BadRequestException(
+          'Não é possível vincular uma marca inativa',
+        );
       }
     }
 
     if (dados.unidadeMedidaId) {
       const unidade = await this.prisma.unidadeMedida.findUnique({
-        where: { id: dados.unidadeMedidaId },
+        where: {
+          id: dados.unidadeMedidaId,
+        },
       });
 
       if (!unidade) {
@@ -56,7 +262,15 @@ export class ProdutosService {
       }
 
       if (unidade.empresaId !== empresaId) {
-        throw new ForbiddenException('Unidade de medida pertence a outra empresa');
+        throw new ForbiddenException(
+          'Unidade de medida pertence a outra empresa',
+        );
+      }
+
+      if (!unidade.ativo) {
+        throw new BadRequestException(
+          'Não é possível vincular uma unidade de medida inativa',
+        );
       }
     }
   }
@@ -73,55 +287,103 @@ export class ProdutosService {
       empresaId,
     );
 
-    return this.prisma.produto.create({
-      data: {
-        nome: dados.nome,
-        descricao: dados.descricao,
-        codigo: dados.codigo,
-        codigoBarras: dados.codigoBarras,
-        ncm: dados.ncm,
-        precoCusto: dados.precoCusto ?? 0,
-        precoVenda: dados.precoVenda,
-        peso: dados.peso,
-        altura: dados.altura,
-        largura: dados.largura,
-        comprimento: dados.comprimento,
-        estoqueMinimo: dados.estoqueMinimo ?? 0,
-        estoqueMaximo: dados.estoqueMaximo,
-        categoriaId: dados.categoriaId,
-        marcaId: dados.marcaId,
-        unidadeMedidaId: dados.unidadeMedidaId,
-        empresaId,
-      },
-      include: this.includeProduto,
-    });
+    try {
+      const produto = await this.prisma.produto.create({
+        data: {
+          nome: dados.nome,
+          descricao: dados.descricao,
+          codigo: dados.codigo,
+          codigoBarras: dados.codigoBarras,
+          ncm: dados.ncm,
+          precoCusto: dados.precoCusto ?? 0,
+          precoVenda: dados.precoVenda,
+          peso: dados.peso,
+          altura: dados.altura,
+          largura: dados.largura,
+          comprimento: dados.comprimento,
+          estoqueMinimo: dados.estoqueMinimo ?? 0,
+          estoqueMaximo: dados.estoqueMaximo,
+          categoriaId: dados.categoriaId,
+          marcaId: dados.marcaId,
+          unidadeMedidaId: dados.unidadeMedidaId,
+          empresaId,
+        },
+        include: this.includeProduto,
+      });
+
+      await this.registrarHistorico(
+        produto.id,
+        `Produto criado com preço de venda de R$ ${Number(
+          produto.precoVenda,
+        ).toFixed(2)}.`,
+        usuarioLogado,
+      );
+
+      return produto;
+    } catch (error) {
+      this.tratarErroPrisma(error);
+    }
   }
 
   async listar(usuarioLogado: any, filtros: FiltroProdutosDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
+
     const { skip, take } = calcularPaginacao(page, limit);
 
     const where: any =
       usuarioLogado.tipo === 'SUPER_ADMIN'
         ? {}
-        : { empresaId: usuarioLogado.empresaId };
+        : {
+            empresaId: usuarioLogado.empresaId,
+          };
 
     if (filtros.search) {
       where.OR = [
-        { nome: { contains: filtros.search, mode: 'insensitive' } },
-        { descricao: { contains: filtros.search, mode: 'insensitive' } },
-        { codigo: { contains: filtros.search, mode: 'insensitive' } },
-        { codigoBarras: { contains: filtros.search, mode: 'insensitive' } },
-        { ncm: { contains: filtros.search, mode: 'insensitive' } },
+        {
+          nome: {
+            contains: filtros.search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          descricao: {
+            contains: filtros.search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          codigo: {
+            contains: filtros.search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          codigoBarras: {
+            contains: filtros.search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          ncm: {
+            contains: filtros.search,
+            mode: 'insensitive',
+          },
+        },
         {
           categoria: {
-            nome: { contains: filtros.search, mode: 'insensitive' },
+            nome: {
+              contains: filtros.search,
+              mode: 'insensitive',
+            },
           },
         },
         {
           marca: {
-            nome: { contains: filtros.search, mode: 'insensitive' },
+            nome: {
+              contains: filtros.search,
+              mode: 'insensitive',
+            },
           },
         },
       ];
@@ -135,6 +397,14 @@ export class ProdutosService {
       where.categoriaId = filtros.categoriaId;
     }
 
+    if (filtros.marcaId) {
+      where.marcaId = filtros.marcaId;
+    }
+
+    if (filtros.unidadeMedidaId) {
+      where.unidadeMedidaId = filtros.unidadeMedidaId;
+    }
+
     const [data, total] = await this.prisma.$transaction([
       this.prisma.produto.findMany({
         where,
@@ -145,7 +415,10 @@ export class ProdutosService {
         skip,
         take,
       }),
-      this.prisma.produto.count({ where }),
+
+      this.prisma.produto.count({
+        where,
+      }),
     ]);
 
     return respostaPaginada(data, total, page, limit);
@@ -153,7 +426,9 @@ export class ProdutosService {
 
   async buscarPorId(id: string, usuarioLogado: any) {
     const produto = await this.prisma.produto.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
       include: this.includeProduto,
     });
 
@@ -165,14 +440,20 @@ export class ProdutosService {
       usuarioLogado.tipo !== 'SUPER_ADMIN' &&
       produto.empresaId !== usuarioLogado.empresaId
     ) {
-      throw new ForbiddenException('Acesso negado a produto de outra empresa');
+      throw new ForbiddenException(
+        'Acesso negado a produto de outra empresa',
+      );
     }
 
     return produto;
   }
 
-  async atualizar(id: string, dados: AtualizarProdutoDto, usuarioLogado: any) {
-    const produto = await this.buscarPorId(id, usuarioLogado);
+  async atualizar(
+    id: string,
+    dados: AtualizarProdutoDto,
+    usuarioLogado: any,
+  ) {
+    const produtoAnterior = await this.buscarPorId(id, usuarioLogado);
 
     await this.validarVinculos(
       {
@@ -180,50 +461,152 @@ export class ProdutosService {
         marcaId: dados.marcaId,
         unidadeMedidaId: dados.unidadeMedidaId,
       },
-      produto.empresaId,
+      produtoAnterior.empresaId,
     );
 
-    return this.prisma.produto.update({
-      where: { id },
-      data: {
-        nome: dados.nome,
-        descricao: dados.descricao,
-        codigo: dados.codigo,
-        codigoBarras: dados.codigoBarras,
-        ncm: dados.ncm,
-        precoCusto: dados.precoCusto,
-        precoVenda: dados.precoVenda,
-        peso: dados.peso,
-        altura: dados.altura,
-        largura: dados.largura,
-        comprimento: dados.comprimento,
-        estoqueMinimo: dados.estoqueMinimo,
-        estoqueMaximo: dados.estoqueMaximo,
-        categoriaId: dados.categoriaId,
-        marcaId: dados.marcaId,
-        unidadeMedidaId: dados.unidadeMedidaId,
-      },
-      include: this.includeProduto,
-    });
+    try {
+      const produtoAtualizado = await this.prisma.produto.update({
+        where: {
+          id,
+        },
+        data: {
+          nome: dados.nome,
+          descricao: dados.descricao,
+          codigo: dados.codigo,
+          codigoBarras: dados.codigoBarras,
+          ncm: dados.ncm,
+          precoCusto: dados.precoCusto,
+          precoVenda: dados.precoVenda,
+          peso: dados.peso,
+          altura: dados.altura,
+          largura: dados.largura,
+          comprimento: dados.comprimento,
+          estoqueMinimo: dados.estoqueMinimo,
+          estoqueMaximo: dados.estoqueMaximo,
+          categoriaId: dados.categoriaId,
+          marcaId: dados.marcaId,
+          unidadeMedidaId: dados.unidadeMedidaId,
+        },
+        include: this.includeProduto,
+      });
+
+      const descricaoHistorico = this.montarDescricaoAlteracoes(
+        produtoAnterior,
+        produtoAtualizado,
+      );
+
+      if (descricaoHistorico) {
+        await this.registrarHistorico(
+          id,
+          descricaoHistorico,
+          usuarioLogado,
+        );
+      }
+
+      return produtoAtualizado;
+    } catch (error) {
+      this.tratarErroPrisma(error);
+    }
   }
 
   async ativar(id: string, usuarioLogado: any) {
-    await this.buscarPorId(id, usuarioLogado);
+    const produto = await this.buscarPorId(id, usuarioLogado);
 
-    return this.prisma.produto.update({
-      where: { id },
-      data: { ativo: true },
+    if (produto.ativo) {
+      return produto;
+    }
+
+    const produtoAtualizado = await this.prisma.produto.update({
+      where: {
+        id,
+      },
+      data: {
+        ativo: true,
+      },
       include: this.includeProduto,
     });
+
+    await this.registrarHistorico(
+      id,
+      'Produto ativado.',
+      usuarioLogado,
+    );
+
+    return produtoAtualizado;
   }
 
   async desativar(id: string, usuarioLogado: any) {
-    await this.buscarPorId(id, usuarioLogado);
+    const produto = await this.buscarPorId(id, usuarioLogado);
 
-    return this.prisma.produto.update({
-      where: { id },
-      data: { ativo: false },
+    if (!produto.ativo) {
+      return produto;
+    }
+
+    const produtoAtualizado = await this.prisma.produto.update({
+      where: {
+        id,
+      },
+      data: {
+        ativo: false,
+      },
       include: this.includeProduto,
+    });
+
+    await this.registrarHistorico(
+      id,
+      'Produto desativado.',
+      usuarioLogado,
+    );
+
+    return produtoAtualizado;
+  }
+
+  async adicionarHistorico(
+    produtoId: string,
+    dados: CriarProdutoHistoricoDto,
+    usuarioLogado: any,
+  ) {
+    await this.buscarPorId(produtoId, usuarioLogado);
+
+    return this.prisma.produtoHistorico.create({
+      data: {
+        produtoId,
+        descricao: dados.descricao,
+        usuarioId: usuarioLogado.id ?? usuarioLogado.sub,
+      },
+      include: {
+        usuario: {
+          select: {
+            id: true,
+            nome: true,
+            email: true,
+            tipo: true,
+          },
+        },
+      },
+    });
+  }
+
+  async listarHistorico(produtoId: string, usuarioLogado: any) {
+    await this.buscarPorId(produtoId, usuarioLogado);
+
+    return this.prisma.produtoHistorico.findMany({
+      where: {
+        produtoId,
+      },
+      include: {
+        usuario: {
+          select: {
+            id: true,
+            nome: true,
+            email: true,
+            tipo: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
   }
 }

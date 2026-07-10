@@ -11,4 +11,12 @@ export class FiltroProdutosDto extends QueryBaseDto {
   @IsOptional()
   @IsUUID()
   categoriaId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  marcaId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  unidadeMedidaId?: string;
 }

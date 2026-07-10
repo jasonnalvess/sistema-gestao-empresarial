@@ -55,6 +55,7 @@ model Usuario {
   clienteHistoricos ClienteHistorico[]
   ordensResponsavel OrdemServico[]
   ordemServicoHistoricos OrdemServicoHistorico[]
+  produtoHistoricos ProdutoHistorico[]
 }
 
 model ModuloSistema {
@@ -175,6 +176,7 @@ model Produto {
 
   estoque EstoqueProduto?
   movimentacoesEstoque MovimentacaoEstoque[]
+  historicos ProdutoHistorico[]
 }
 
 model EstoqueProduto {
@@ -354,6 +356,19 @@ model OrdemServicoHistorico {
 
   ordemServicoId String
   ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model ProdutoHistorico {
+  id        String   @id @default(uuid())
+  descricao String
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
 
   usuarioId String?
   usuario   Usuario? @relation(fields: [usuarioId], references: [id])
