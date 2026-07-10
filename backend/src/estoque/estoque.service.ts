@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CriarEstoqueProdutoDto } from './dto/criar-estoque-produto.dto';
 import { AtualizarEstoqueProdutoDto } from './dto/atualizar-estoque-produto.dto';
@@ -23,9 +28,30 @@ export class EstoqueService {
       throw new ForbiddenException('Produto pertence a outra empresa');
     }
 
+    const deposito = await this.prisma.deposito.findUnique({
+      where: {
+        id: dados.depositoId,
+      },
+    });
+
+    if (!deposito) {
+      throw new NotFoundException('Depósito não encontrado');
+    }
+
+    if (deposito.empresaId !== usuarioLogado.empresaId) {
+      throw new ForbiddenException('Depósito pertence a outra empresa');
+    }
+
+    if (!deposito.ativo) {
+      throw new BadRequestException(
+        'Não é possível utilizar um depósito inativo',
+      );
+    }
+
     return this.prisma.estoqueProduto.create({
       data: {
         produtoId: dados.produtoId,
+        depositoId: dados.depositoId,
         empresaId: usuarioLogado.empresaId,
         quantidadeAtual: dados.quantidadeAtual ?? 0,
         estoqueMinimo: dados.estoqueMinimo ?? 0,
@@ -33,6 +59,7 @@ export class EstoqueService {
       },
       include: {
         produto: true,
+        deposito: true,
       },
     });
   }
@@ -51,6 +78,10 @@ export class EstoqueService {
       where.produtoId = filtros.produtoId;
     }
 
+    if (filtros.depositoId) {
+      where.depositoId = filtros.depositoId;
+    }
+
     if (filtros.search) {
       where.produto = {
         OR: [
@@ -65,10 +96,11 @@ export class EstoqueService {
         where,
         include: {
           produto: true,
+          deposito: true,
         },
         orderBy: {
-  [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
-},
+          [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
+        },
         skip,
         take,
       }),
@@ -85,6 +117,7 @@ export class EstoqueService {
       where: { id },
       include: {
         produto: true,
+        deposito: true,
       },
     });
 
@@ -99,6 +132,26 @@ export class EstoqueService {
     return estoque;
   }
 
+  async buscarPorProdutoDeposito(
+    produtoId: string,
+    depositoId: string,
+    usuarioLogado: any,
+  ) {
+    const estoque = await this.prisma.estoqueProduto.findFirst({
+      where: {
+        produtoId,
+        depositoId,
+        empresaId: usuarioLogado.empresaId,
+      },
+      include: {
+        produto: true,
+        deposito: true,
+      },
+    });
+
+    return estoque;
+  }
+
   async atualizar(id: string, dados: AtualizarEstoqueProdutoDto, usuarioLogado: any) {
     await this.buscarPorId(id, usuarioLogado);
 
@@ -107,6 +160,7 @@ export class EstoqueService {
       data: dados,
       include: {
         produto: true,
+        deposito: true,
       },
     });
   }

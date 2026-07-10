@@ -5,4 +5,8 @@ export class FiltroEstoqueDto extends QueryBaseDto {
   @IsOptional()
   @IsUUID()
   produtoId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  depositoId?: string;
 }

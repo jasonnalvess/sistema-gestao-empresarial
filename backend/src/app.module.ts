@@ -23,6 +23,7 @@ import { ClientesModule } from './clientes/clientes.module';
 import { OrdensServicoModule } from './ordens-servico/ordens-servico.module';
 import { UnidadesMedidaModule } from './unidades-medida/unidades-medida.module';
 import { MarcasProdutosModule } from './marcas-produtos/marcas-produtos.module';
+import { DepositosModule } from './depositos/depositos.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { MarcasProdutosModule } from './marcas-produtos/marcas-produtos.module';
     OrdensServicoModule,
     UnidadesMedidaModule,
     MarcasProdutosModule,
+    DepositosModule,
   ],
   controllers: [AppController],
   providers: [

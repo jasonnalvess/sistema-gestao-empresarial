@@ -4,6 +4,9 @@ export class CriarEstoqueProdutoDto {
   @IsUUID()
   produtoId: string;
 
+  @IsUUID()
+  depositoId: string;
+
   @IsOptional()
   @IsNumber()
   @Min(0)

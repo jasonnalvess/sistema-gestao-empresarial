@@ -48,6 +48,11 @@ export const menu = [
     icon: Warehouse,
   },
   {
+    titulo: "Depósitos",
+    href: "/depositos",
+    icon: Warehouse,
+  },
+  {
     titulo: "Movimentações",
     href: "/movimentacoes",
     icon: ArrowLeftRight,
