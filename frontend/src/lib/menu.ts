@@ -14,6 +14,7 @@ import {
   Wrench,
   Ruler,
   Tags,
+  Truck,
 } from "lucide-react";
 
 export const menu = [
@@ -31,6 +32,11 @@ export const menu = [
     titulo: "Produtos",
     href: "/produtos",
     icon: Package,
+  },
+  {
+    titulo: "Fornecedores",
+    href: "/fornecedores",
+    icon: Truck,
   },
   {
     titulo: "Categorias",

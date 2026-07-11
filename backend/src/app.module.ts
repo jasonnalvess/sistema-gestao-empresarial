@@ -24,6 +24,8 @@ import { OrdensServicoModule } from './ordens-servico/ordens-servico.module';
 import { UnidadesMedidaModule } from './unidades-medida/unidades-medida.module';
 import { MarcasProdutosModule } from './marcas-produtos/marcas-produtos.module';
 import { DepositosModule } from './depositos/depositos.module';
+import { InventariosEstoqueModule } from './inventarios-estoque/inventarios-estoque.module';
+import { FornecedoresModule } from './fornecedores/fornecedores.module';
 
 @Module({
   imports: [
@@ -49,6 +51,8 @@ import { DepositosModule } from './depositos/depositos.module';
     UnidadesMedidaModule,
     MarcasProdutosModule,
     DepositosModule,
+    InventariosEstoqueModule,
+    FornecedoresModule,
   ],
   controllers: [AppController],
   providers: [

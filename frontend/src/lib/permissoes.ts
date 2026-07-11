@@ -21,7 +21,8 @@ export const permissoes = {
     "/ordens-servico",
     "/usuarios",
     "/unidades-medida",
-  ],
+    "/fornecedores",  
+],
 
   USUARIO_EMPRESA: [
     "/dashboard",
@@ -33,5 +34,6 @@ export const permissoes = {
     "/ordens-servico",
     "/marcas-produtos",
     "/unidades-medida",
-  ],
+    "/fornecedores",  
+],
 };
