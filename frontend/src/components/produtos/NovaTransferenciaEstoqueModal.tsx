@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-
 import {
   Dialog,
   DialogContent,
@@ -19,37 +18,23 @@ import {
 
 import { listarProdutos } from "@/services/produtos.service";
 import { listarDepositos } from "@/services/depositos.service";
+import { criarTransferenciaEstoque } from "@/services/movimentacoes.service";
 
-import {
-  criarMovimentacao,
-  CriarMovimentacaoInput,
-} from "@/services/movimentacoes.service";
-
-type TipoPermitido =
-  | "ENTRADA"
-  | "SAIDA"
-  | "AJUSTE"
-  | "INVENTARIO";
-
-export function NovaMovimentacaoModal() {
+export function NovaTransferenciaEstoqueModal() {
   const queryClient = useQueryClient();
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   const [produtoId, setProdutoId] = useState("");
-  const [depositoId, setDepositoId] = useState("");
-  const [tipo, setTipo] =
-    useState<TipoPermitido>("ENTRADA");
-
+  const [depositoOrigemId, setDepositoOrigemId] = useState("");
+  const [depositoDestinoId, setDepositoDestinoId] = useState("");
   const [quantidade, setQuantidade] = useState("");
-  const [custoUnitario, setCustoUnitario] = useState("");
-  const [documentoReferencia, setDocumentoReferencia] =
-    useState("");
+  const [documentoReferencia, setDocumentoReferencia] = useState("");
   const [observacao, setObservacao] = useState("");
 
   const { data: produtosResponse } = useQuery({
-    queryKey: ["produtos-select-movimentacao"],
+    queryKey: ["produtos-select-transferencia"],
     queryFn: () =>
       listarProdutos({
         page: 1,
@@ -61,7 +46,7 @@ export function NovaMovimentacaoModal() {
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-movimentacao"],
+    queryKey: ["depositos-select-transferencia"],
     queryFn: () =>
       listarDepositos({
         page: 1,
@@ -74,10 +59,9 @@ export function NovaMovimentacaoModal() {
 
   function limparCampos() {
     setProdutoId("");
-    setDepositoId("");
-    setTipo("ENTRADA");
+    setDepositoOrigemId("");
+    setDepositoDestinoId("");
     setQuantidade("");
-    setCustoUnitario("");
     setDocumentoReferencia("");
     setObservacao("");
   }
@@ -88,8 +72,13 @@ export function NovaMovimentacaoModal() {
       return;
     }
 
-    if (!depositoId) {
-      toast.error("Selecione o depósito.");
+    if (!depositoOrigemId || !depositoDestinoId) {
+      toast.error("Selecione os depósitos de origem e destino.");
+      return;
+    }
+
+    if (depositoOrigemId === depositoDestinoId) {
+      toast.error("Origem e destino devem ser diferentes.");
       return;
     }
 
@@ -103,23 +92,17 @@ export function NovaMovimentacaoModal() {
     try {
       setSalvando(true);
 
-      const dados: CriarMovimentacaoInput = {
+      await criarTransferenciaEstoque({
         produtoId,
-        depositoId,
-        tipo,
+        depositoOrigemId,
+        depositoDestinoId,
         quantidade: quantidadeNumero,
-        custoUnitario:
-          tipo === "ENTRADA" && custoUnitario
-            ? Number(custoUnitario)
-            : undefined,
         documentoReferencia:
           documentoReferencia.trim() || undefined,
         observacao: observacao.trim() || undefined,
-      };
+      });
 
-      await criarMovimentacao(dados);
-
-      toast.success("Movimentação registrada com sucesso!");
+      toast.success("Transferência realizada com sucesso!");
 
       limparCampos();
       setAberto(false);
@@ -142,81 +125,64 @@ export function NovaMovimentacaoModal() {
     } catch (error: any) {
       toast.error(
         error.response?.data?.message ||
-          "Erro ao registrar movimentação"
+          "Erro ao realizar transferência"
       );
     } finally {
       setSalvando(false);
     }
   }
 
-  function obterAjudaTipo() {
-    switch (tipo) {
-      case "ENTRADA":
-        return "A quantidade será somada ao saldo atual.";
-
-      case "SAIDA":
-        return "A quantidade será subtraída do saldo atual.";
-
-      case "AJUSTE":
-        return "A quantidade informada será o novo saldo do depósito.";
-
-      case "INVENTARIO":
-        return "A quantidade informada será considerada o saldo contado fisicamente.";
-
-      default:
-        return "";
-    }
-  }
-
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus size={16} className="mr-2" />
-          Nova movimentação
+        <Button variant="outline">
+          <ArrowRightLeft size={16} className="mr-2" />
+          Nova transferência
         </Button>
       </DialogTrigger>
 
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nova movimentação de estoque</DialogTitle>
+          <DialogTitle>Transferência entre depósitos</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5">
+          <div>
+            <label className="text-sm font-medium text-slate-700">
+              Produto *
+            </label>
+
+            <select
+              value={produtoId}
+              onChange={(e) => setProdutoId(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Selecione um produto</option>
+
+              {produtosResponse?.data.map((produto) => (
+                <option key={produto.id} value={produto.id}>
+                  {produto.codigo
+                    ? `${produto.codigo} - ${produto.nome}`
+                    : produto.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
-                Produto *
+                Depósito de origem *
               </label>
 
               <select
-                value={produtoId}
-                onChange={(e) => setProdutoId(e.target.value)}
+                value={depositoOrigemId}
+                onChange={(e) =>
+                  setDepositoOrigemId(e.target.value)
+                }
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
               >
-                <option value="">Selecione um produto</option>
-
-                {produtosResponse?.data.map((produto) => (
-                  <option key={produto.id} value={produto.id}>
-                    {produto.codigo
-                      ? `${produto.codigo} - ${produto.nome}`
-                      : produto.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-slate-700">
-                Depósito *
-              </label>
-
-              <select
-                value={depositoId}
-                onChange={(e) => setDepositoId(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">Selecione um depósito</option>
+                <option value="">Selecionar origem</option>
 
                 {depositosResponse?.data.map((deposito) => (
                   <option key={deposito.id} value={deposito.id}>
@@ -225,69 +191,47 @@ export function NovaMovimentacaoModal() {
                 ))}
               </select>
             </div>
+
+            <div>
+              <label className="text-sm font-medium text-slate-700">
+                Depósito de destino *
+              </label>
+
+              <select
+                value={depositoDestinoId}
+                onChange={(e) =>
+                  setDepositoDestinoId(e.target.value)
+                }
+                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">Selecionar destino</option>
+
+                {depositosResponse?.data
+                  .filter(
+                    (deposito) =>
+                      deposito.id !== depositoOrigemId
+                  )
+                  .map((deposito) => (
+                    <option key={deposito.id} value={deposito.id}>
+                      {deposito.codigo} - {deposito.nome}
+                    </option>
+                  ))}
+              </select>
+            </div>
           </div>
 
           <div>
             <label className="text-sm font-medium text-slate-700">
-              Tipo de movimentação *
+              Quantidade *
             </label>
 
-            <select
-              value={tipo}
-              onChange={(e) =>
-                setTipo(e.target.value as TipoPermitido)
-              }
-              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="ENTRADA">Entrada</option>
-              <option value="SAIDA">Saída</option>
-              <option value="AJUSTE">Ajuste de saldo</option>
-              <option value="INVENTARIO">
-                Contagem de inventário
-              </option>
-            </select>
-
-            <p className="mt-1 text-xs text-slate-500">
-              {obterAjudaTipo()}
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium text-slate-700">
-                Quantidade *
-              </label>
-
-              <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={quantidade}
-                onChange={(e) => setQuantidade(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-slate-700">
-                Custo unitário
-              </label>
-
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={custoUnitario}
-                onChange={(e) =>
-                  setCustoUnitario(e.target.value)
-                }
-                disabled={tipo !== "ENTRADA"}
-                placeholder={
-                  tipo === "ENTRADA"
-                    ? "Custo da entrada"
-                    : "Disponível somente para entrada"
-                }
-              />
-            </div>
+            <Input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={quantidade}
+              onChange={(e) => setQuantidade(e.target.value)}
+            />
           </div>
 
           <div>
@@ -300,7 +244,7 @@ export function NovaMovimentacaoModal() {
               onChange={(e) =>
                 setDocumentoReferencia(e.target.value)
               }
-              placeholder="Ex: NF-12345, COMPRA-001, AJUSTE-2026..."
+              placeholder="Ex: TRANSF-001"
             />
           </div>
 
@@ -312,7 +256,7 @@ export function NovaMovimentacaoModal() {
             <Textarea
               value={observacao}
               onChange={(e) => setObservacao(e.target.value)}
-              placeholder="Informe o motivo ou detalhes da movimentação."
+              placeholder="Motivo ou detalhes da transferência."
             />
           </div>
 
@@ -330,13 +274,14 @@ export function NovaMovimentacaoModal() {
               disabled={
                 salvando ||
                 !produtoId ||
-                !depositoId ||
+                !depositoOrigemId ||
+                !depositoDestinoId ||
                 !quantidade
               }
             >
               {salvando
-                ? "Registrando..."
-                : "Registrar movimentação"}
+                ? "Transferindo..."
+                : "Realizar transferência"}
             </Button>
           </div>
         </div>

@@ -24,7 +24,11 @@ export class ProdutosService {
     categoria: true,
     marca: true,
     unidadeMedida: true,
-    estoque: true,
+    estoques: {
+      include: {
+        deposito: true,
+      },
+    },
   };
 
   private tratarErroPrisma(error: unknown): never {

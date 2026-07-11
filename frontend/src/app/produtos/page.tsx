@@ -253,9 +253,15 @@ export default function ProdutosPage() {
                         <TableCell>R$ {Number(produto.precoVenda).toFixed(2)}</TableCell>
 
                         <TableCell>
-                          {produto.estoque
-                            ? Number(produto.estoque.quantidadeAtual).toFixed(2)
-                            : "-"}
+                          {produto.estoques?.length
+                            ? produto.estoques
+                                .reduce(
+                                  (total, estoque) =>
+                                    total + Number(estoque.quantidadeAtual),
+                                  0
+                                )
+                                .toFixed(2)
+                            : "0.00"}
                         </TableCell>
 
                         <TableCell>

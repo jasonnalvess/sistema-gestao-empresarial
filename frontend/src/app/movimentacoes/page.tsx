@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowDownToLine,
+  ArrowRightLeft,
+  ArrowUp,
+  ClipboardCheck,
+  RefreshCw,
+} from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -23,25 +30,123 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { listarMovimentacoes } from "@/services/movimentacoes.service";
+import { listarProdutos } from "@/services/produtos.service";
+import { listarDepositos } from "@/services/depositos.service";
+import {
+  listarMovimentacoes,
+  TipoMovimentacaoEstoque,
+} from "@/services/movimentacoes.service";
+
 import { NovaMovimentacaoModal } from "@/components/produtos/NovaMovimentacaoModal";
+import { NovaTransferenciaEstoqueModal } from "@/components/produtos/NovaTransferenciaEstoqueModal";
+
+function obterTipoMovimentacao(
+  tipoMovimentacao: TipoMovimentacaoEstoque
+) {
+  switch (tipoMovimentacao) {
+    case "ENTRADA":
+      return {
+        label: "Entrada",
+        classe:
+          "bg-green-100 text-green-700",
+        icone: <ArrowUp size={14} />,
+      };
+
+    case "SAIDA":
+      return {
+        label: "Saída",
+        classe:
+          "bg-red-100 text-red-700",
+        icone: <ArrowDown size={14} />,
+      };
+
+    case "AJUSTE":
+      return {
+        label: "Ajuste",
+        classe:
+          "bg-amber-100 text-amber-700",
+        icone: <RefreshCw size={14} />,
+      };
+
+    case "INVENTARIO":
+      return {
+        label: "Inventário",
+        classe:
+          "bg-blue-100 text-blue-700",
+        icone: <ClipboardCheck size={14} />,
+      };
+
+    case "TRANSFERENCIA_ENTRADA":
+      return {
+        label: "Transferência — entrada",
+        classe:
+          "bg-cyan-100 text-cyan-700",
+        icone: <ArrowDownToLine size={14} />,
+      };
+
+    case "TRANSFERENCIA_SAIDA":
+      return {
+        label: "Transferência — saída",
+        classe:
+          "bg-purple-100 text-purple-700",
+        icone: <ArrowRightLeft size={14} />,
+      };
+  }
+}
 
 export default function MovimentacoesPage() {
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [page, setPage] = useState(1);
+  const [produtoId, setProdutoId] = useState("");
+  const [depositoId, setDepositoId] = useState("");
+  const [tipo, setTipo] = useState("");
 
-const { data, isLoading, error } = useQuery({
-  queryKey: ["movimentacoes", searchAplicado, page],
-  queryFn: () =>
-    listarMovimentacoes({
-      search: searchAplicado,
+  const { data: produtosResponse } = useQuery({
+    queryKey: ["produtos-select-filtro-movimentacoes"],
+    queryFn: () =>
+      listarProdutos({
+        page: 1,
+        limit: 100,
+        sortBy: "nome",
+        order: "asc",
+      }),
+  });
+
+  const { data: depositosResponse } = useQuery({
+    queryKey: ["depositos-select-filtro-movimentacoes"],
+    queryFn: () =>
+      listarDepositos({
+        page: 1,
+        limit: 100,
+        sortBy: "nome",
+        order: "asc",
+      }),
+  });
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: [
+      "movimentacoes",
+      searchAplicado,
+      produtoId,
+      depositoId,
+      tipo,
       page,
-      limit: 10,
-      sortBy: "createdAt",
-      order: "desc",
-    }),
-});
+    ],
+    queryFn: () =>
+      listarMovimentacoes({
+        search: searchAplicado || undefined,
+        produtoId: produtoId || undefined,
+        depositoId: depositoId || undefined,
+        tipo: tipo
+          ? (tipo as TipoMovimentacaoEstoque)
+          : undefined,
+        page,
+        limit: 10,
+        sortBy: "createdAt",
+        order: "desc",
+      }),
+  });
 
   function pesquisar() {
     setPage(1);
@@ -54,11 +159,16 @@ const { data, isLoading, error } = useQuery({
   return (
     <AppLayout>
       <div className="space-y-6">
-       <PageHeader
-  title="Movimentações"
-  description="Histórico de entradas e saídas de estoque."
-  actions={<NovaMovimentacaoModal />}
-/>
+        <PageHeader
+          title="Movimentações de Estoque"
+          description="Controle entradas, saídas, ajustes, inventários e transferências."
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <NovaMovimentacaoModal />
+              <NovaTransferenciaEstoqueModal />
+            </div>
+          }
+        />
 
         <CrudCard>
           <CrudToolbar>
@@ -69,6 +179,63 @@ const { data, isLoading, error } = useQuery({
               placeholder="Pesquisar por produto ou observação..."
             />
           </CrudToolbar>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <select
+              value={produtoId}
+              onChange={(e) => {
+                setProdutoId(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Todos os produtos</option>
+
+              {produtosResponse?.data.map((produto) => (
+                <option key={produto.id} value={produto.id}>
+                  {produto.nome}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={depositoId}
+              onChange={(e) => {
+                setDepositoId(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Todos os depósitos</option>
+
+              {depositosResponse?.data.map((deposito) => (
+                <option key={deposito.id} value={deposito.id}>
+                  {deposito.codigo} - {deposito.nome}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={tipo}
+              onChange={(e) => {
+                setTipo(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Todos os tipos</option>
+              <option value="ENTRADA">Entrada</option>
+              <option value="SAIDA">Saída</option>
+              <option value="AJUSTE">Ajuste</option>
+              <option value="INVENTARIO">Inventário</option>
+              <option value="TRANSFERENCIA_ENTRADA">
+                Transferência — entrada
+              </option>
+              <option value="TRANSFERENCIA_SAIDA">
+                Transferência — saída
+              </option>
+            </select>
+          </div>
 
           {error && (
             <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
@@ -86,42 +253,82 @@ const { data, isLoading, error } = useQuery({
                     <TableRow>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Produto</TableHead>
+                      <TableHead>Depósito</TableHead>
                       <TableHead>Quantidade</TableHead>
-                      <TableHead>Observação</TableHead>
+                      <TableHead>Saldo anterior</TableHead>
+                      <TableHead>Saldo posterior</TableHead>
+                      <TableHead>Documento</TableHead>
+                      <TableHead>Usuário</TableHead>
                       <TableHead>Data</TableHead>
                     </TableRow>
                   </TableHeader>
 
                   <TableBody>
                     {movimentacoes.map((mov) => {
-                      const entrada = mov.tipo === "ENTRADA";
+                      const tipoVisual = obterTipoMovimentacao(mov.tipo);
 
                       return (
                         <TableRow key={mov.id}>
                           <TableCell>
                             <span
-                              className={
-                                entrada
-                                  ? "inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700"
-                                  : "inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700"
-                              }
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${tipoVisual.classe}`}
                             >
-                              {entrada ? (
-                                <ArrowUp size={14} />
-                              ) : (
-                                <ArrowDown size={14} />
-                              )}
-                              {mov.tipo}
+                              {tipoVisual.icone}
+                              {tipoVisual.label}
                             </span>
                           </TableCell>
 
-                          <TableCell className="font-medium">
-                            {mov.produto?.nome ?? "-"}
+                          <TableCell>
+                            <p className="font-medium text-slate-900">
+                              {mov.produto?.nome ?? "-"}
+                            </p>
+
+                            {mov.produto?.codigo && (
+                              <p className="text-xs text-slate-500">
+                                {mov.produto.codigo}
+                              </p>
+                            )}
                           </TableCell>
 
-                          <TableCell>{Number(mov.quantidade)}</TableCell>
+                          <TableCell>
+                            {mov.deposito
+                              ? `${mov.deposito.codigo} - ${mov.deposito.nome}`
+                              : "-"}
+                          </TableCell>
 
-                          <TableCell>{mov.observacao || "-"}</TableCell>
+                          <TableCell>
+                            {Number(mov.quantidade).toFixed(2)}
+                          </TableCell>
+
+                          <TableCell>
+                            {mov.saldoAnterior !== null &&
+                            mov.saldoAnterior !== undefined
+                              ? Number(mov.saldoAnterior).toFixed(2)
+                              : "-"}
+                          </TableCell>
+
+                          <TableCell>
+                            {mov.saldoPosterior !== null &&
+                            mov.saldoPosterior !== undefined
+                              ? Number(mov.saldoPosterior).toFixed(2)
+                              : "-"}
+                          </TableCell>
+
+                          <TableCell>
+                            <div>
+                              <p>{mov.documentoReferencia || "-"}</p>
+
+                              {mov.observacao && (
+                                <p className="max-w-xs truncate text-xs text-slate-500">
+                                  {mov.observacao}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            {mov.usuario?.nome || "Sistema"}
+                          </TableCell>
 
                           <TableCell>
                             {new Date(mov.createdAt).toLocaleString("pt-BR")}
@@ -132,7 +339,7 @@ const { data, isLoading, error } = useQuery({
 
                     {movimentacoes.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5}>
+                        <TableCell colSpan={9}>
                           <CrudEmpty message="Nenhuma movimentação encontrada." />
                         </TableCell>
                       </TableRow>

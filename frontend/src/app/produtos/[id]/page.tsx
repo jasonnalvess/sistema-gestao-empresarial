@@ -82,9 +82,13 @@ export default function ProdutoDetalhesPage() {
             <Box className="mb-2 text-purple-600" size={22} />
             <p className="text-sm text-slate-500">Estoque atual</p>
             <p className="font-semibold text-slate-900">
-              {produto.estoque
-                ? Number(produto.estoque.quantidadeAtual).toFixed(2)
-                : "0.00"}
+              {(
+                produto.estoques?.reduce(
+                  (total, estoque) =>
+                    total + Number(estoque.quantidadeAtual),
+                  0
+                ) ?? 0
+              ).toFixed(2)}
             </p>
           </CrudCard>
 

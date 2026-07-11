@@ -8,6 +8,10 @@ export class FiltroMovimentacoesEstoqueDto extends QueryBaseDto {
   produtoId?: string;
 
   @IsOptional()
+  @IsUUID()
+  depositoId?: string;
+
+  @IsOptional()
   @IsEnum(TipoMovimentacaoEstoqueDto)
   tipo?: TipoMovimentacaoEstoqueDto;
 }

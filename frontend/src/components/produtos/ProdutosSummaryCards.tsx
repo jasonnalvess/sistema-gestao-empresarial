@@ -14,22 +14,32 @@ type Props = {
   produtos: Produto[];
 };
 
+function saldoTotal(produto: Produto) {
+  return (
+    produto.estoques?.reduce(
+      (total, estoque) =>
+        total + Number(estoque.quantidadeAtual),
+      0
+    ) ?? 0
+  );
+}
+
 export function ProdutosSummaryCards({ produtos }: Props) {
   const total = produtos.length;
   const ativos = produtos.filter((p) => p.ativo).length;
   const inativos = produtos.filter((p) => !p.ativo).length;
 
   const comEstoque = produtos.filter(
-    (p) => p.estoque && Number(p.estoque.quantidadeAtual) > 0
+    (produto) => saldoTotal(produto) > 0
   ).length;
 
   const semEstoque = produtos.filter(
-    (p) => !p.estoque || Number(p.estoque.quantidadeAtual) <= 0
+    (produto) => saldoTotal(produto) <= 0
   ).length;
 
-  const estoqueBaixo = produtos.filter((p) => {
-    const atual = Number(p.estoque?.quantidadeAtual ?? 0);
-    const minimo = Number(p.estoque?.estoqueMinimo ?? p.estoqueMinimo ?? 0);
+  const estoqueBaixo = produtos.filter((produto) => {
+    const atual = saldoTotal(produto);
+    const minimo = Number(produto.estoqueMinimo ?? 0);
 
     return minimo > 0 && atual <= minimo;
   }).length;

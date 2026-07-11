@@ -39,12 +39,20 @@ export type Produto = {
     sigla: string;
   } | null;
 
-  estoque?: {
+  estoques?: {
     id: string;
     quantidadeAtual: string;
     estoqueMinimo: string;
     estoqueMaximo?: string | null;
-  } | null;
+    custoMedio: string;
+    ultimoCusto: string;
+    depositoId: string;
+    deposito: {
+      id: string;
+      nome: string;
+      codigo: string;
+    };
+  }[];
 };
 
 export type ProdutosResponse = {
