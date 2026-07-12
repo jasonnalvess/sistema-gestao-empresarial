@@ -34,6 +34,22 @@ enum StatusItemInventario {
   CONTADO
 }
 
+enum StatusPedidoCompra {
+  RASCUNHO
+  PENDENTE_APROVACAO
+  APROVADO
+  PARCIALMENTE_RECEBIDO
+  RECEBIDO
+  CANCELADO
+}
+
+enum StatusItemPedidoCompra {
+  PENDENTE
+  PARCIALMENTE_RECEBIDO
+  RECEBIDO
+  CANCELADO
+}
+
 model Empresa {
   id        String   @id @default(uuid())
   nome      String
@@ -57,6 +73,7 @@ model Empresa {
   unidadesMedida       UnidadeMedida[]
   depositos            Deposito[]
   inventariosEstoque   InventarioEstoque[]
+  pedidosCompra        PedidoCompra[]
 }
 
 model Usuario {
@@ -83,6 +100,10 @@ model Usuario {
   fornecedorHistoricos   FornecedorHistorico[]
   inventariosAbertos     InventarioEstoque[]     @relation("InventarioUsuarioAbertura")
   inventariosConcluidos  InventarioEstoque[]     @relation("InventarioUsuarioConclusao")
+  pedidosCompraCriados   PedidoCompra[]          @relation("PedidoCompraUsuarioCriacao")
+  pedidosCompraAprovados PedidoCompra[]          @relation("PedidoCompraUsuarioAprovacao")
+  pedidosCompraRecebidos PedidoCompra[]          @relation("PedidoCompraUsuarioRecebimento")
+  pedidoCompraHistoricos PedidoCompraHistorico[]
 }
 
 model ModuloSistema {
@@ -179,6 +200,7 @@ model Deposito {
   estoques      EstoqueProduto[]
   movimentacoes MovimentacaoEstoque[]
   inventarios   InventarioEstoque[]
+  pedidosCompra PedidoCompra[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -223,6 +245,7 @@ model Produto {
   movimentacoesEstoque MovimentacaoEstoque[]
   historicos           ProdutoHistorico[]
   itensInventario      InventarioEstoqueItem[]
+  itensPedidosCompra   PedidoCompraItem[]
 
   @@unique([empresaId, nome])
   @@unique([empresaId, codigo])
@@ -515,7 +538,8 @@ model Fornecedor {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  historicos FornecedorHistorico[]
+  historicos    FornecedorHistorico[]
+  pedidosCompra PedidoCompra[]
 
   @@unique([empresaId, documento])
   @@index([empresaId])
@@ -533,4 +557,95 @@ model FornecedorHistorico {
   usuario   Usuario? @relation(fields: [usuarioId], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+model PedidoCompra {
+  id     String @id @default(uuid())
+  numero Int
+
+  status StatusPedidoCompra @default(RASCUNHO)
+
+  dataPedido          DateTime  @default(now())
+  dataPrevistaEntrega DateTime?
+  dataAprovacao       DateTime?
+  dataRecebimento     DateTime?
+
+  observacao        String?
+  observacaoInterna String?
+
+  valorProdutos Decimal @default(0)
+  valorDesconto Decimal @default(0)
+  valorFrete    Decimal @default(0)
+  valorOutros   Decimal @default(0)
+  valorTotal    Decimal @default(0)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  fornecedorId String
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id])
+
+  depositoId String
+  deposito   Deposito @relation(fields: [depositoId], references: [id])
+
+  usuarioCriacaoId String?
+  usuarioCriacao   Usuario? @relation("PedidoCompraUsuarioCriacao", fields: [usuarioCriacaoId], references: [id])
+
+  usuarioAprovacaoId String?
+  usuarioAprovacao   Usuario? @relation("PedidoCompraUsuarioAprovacao", fields: [usuarioAprovacaoId], references: [id])
+
+  usuarioRecebimentoId String?
+  usuarioRecebimento   Usuario? @relation("PedidoCompraUsuarioRecebimento", fields: [usuarioRecebimentoId], references: [id])
+
+  itens      PedidoCompraItem[]
+  historicos PedidoCompraHistorico[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, numero])
+  @@index([empresaId])
+  @@index([fornecedorId])
+  @@index([depositoId])
+  @@index([status])
+}
+
+model PedidoCompraItem {
+  id String @id @default(uuid())
+
+  quantidadeSolicitada Decimal
+  quantidadeRecebida   Decimal @default(0)
+
+  valorUnitario Decimal
+  valorDesconto Decimal @default(0)
+  valorTotal    Decimal
+
+  status StatusItemPedidoCompra @default(PENDENTE)
+
+  pedidoCompraId String
+  pedidoCompra   PedidoCompra @relation(fields: [pedidoCompraId], references: [id], onDelete: Cascade)
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pedidoCompraId, produtoId])
+  @@index([produtoId])
+}
+
+model PedidoCompraHistorico {
+  id        String @id @default(uuid())
+  descricao String
+
+  pedidoCompraId String
+  pedidoCompra   PedidoCompra @relation(fields: [pedidoCompraId], references: [id], onDelete: Cascade)
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([pedidoCompraId])
 }

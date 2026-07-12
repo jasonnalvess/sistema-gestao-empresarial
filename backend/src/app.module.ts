@@ -26,6 +26,7 @@ import { MarcasProdutosModule } from './marcas-produtos/marcas-produtos.module';
 import { DepositosModule } from './depositos/depositos.module';
 import { InventariosEstoqueModule } from './inventarios-estoque/inventarios-estoque.module';
 import { FornecedoresModule } from './fornecedores/fornecedores.module';
+import { PedidosCompraModule } from './pedidos-compra/pedidos-compra.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { FornecedoresModule } from './fornecedores/fornecedores.module';
     DepositosModule,
     InventariosEstoqueModule,
     FornecedoresModule,
+    PedidosCompraModule,
   ],
   controllers: [AppController],
   providers: [
