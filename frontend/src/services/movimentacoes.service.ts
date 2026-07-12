@@ -77,7 +77,7 @@ export async function listarMovimentacoes(params?: {
 export type CriarMovimentacaoInput = {
   produtoId: string;
   depositoId: string;
-  tipo: "ENTRADA" | "SAIDA" | "AJUSTE" | "INVENTARIO";
+  tipo: TipoMovimentacaoEstoque;
   quantidade: number;
   custoUnitario?: number;
   documentoReferencia?: string;
