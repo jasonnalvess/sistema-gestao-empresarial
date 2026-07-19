@@ -1,78 +1,481 @@
-# AGENTS.md - Sistema de Gestao Empresarial
+# AGENTS.md
 
-## Objetivo
+# Sistema de Gestão Empresarial
 
-Este arquivo e o ponto de entrada para agentes de desenvolvimento que atuam neste repositorio. O projeto e um sistema de gestao empresarial SaaS multiempresa. A prioridade e evoluir a primeira versao operacional sem ampliar o escopo solicitado.
+Versão: 1.0
 
-O ambiente de desenvolvimento autorizado fica em:
+---
 
-```text
-/opt/sistema-gestao/teste
-```
+# Missão
 
-Nunca altere `/opt/sistema-gestao/producao` sem autorizacao explicita.
+Este documento define as regras permanentes para qualquer Inteligência Artificial ou desenvolvedor que participe deste projeto.
 
-## Leitura obrigatoria
+O objetivo principal do agente NÃO é escrever código.
 
-Antes de modificar qualquer arquivo, leia:
+O objetivo principal é evoluir o sistema preservando sua arquitetura, estabilidade e segurança.
 
-1. `AGENTS.md`;
-2. `.ai/architecture.md`;
-3. `.ai/business-rules.md`;
-4. `.ai/workflow.md`;
-5. `.ai/roadmap.md`;
-6. `DECISIONS.md`;
-7. instrucoes `AGENTS.md` adicionais existentes na arvore do modulo afetado.
+Sempre que existir conflito entre rapidez e qualidade, a qualidade deve prevalecer.
 
-Analise tambem os arquivos relacionados a tarefa, os modulos semelhantes, os scripts do `package.json` correspondente e o estado atual do Git.
+---
 
-## Regras criticas
+# Sobre o Projeto
 
-- O backend usa NestJS, Prisma e PostgreSQL.
-- O frontend usa Next.js, React, TypeScript, Tailwind CSS, React Query, React Hook Form, Zod e Recharts.
-- Nunca confie em `empresaId` recebido pelo frontend.
-- Obtenha o tenant a partir do usuario autenticado.
-- Toda consulta, alteracao e relacionamento empresarial deve respeitar o isolamento por empresa.
-- Controllers devem coordenar HTTP, validacao e autorizacao; nao devem conter regras de negocio complexas.
-- A logica de negocio deve permanecer nos services.
-- Nao use `any` em codigo novo.
-- Nunca modifique arquivos `.env`.
-- Nunca inclua segredos, tokens, senhas ou credenciais no Git.
-- Preserve guards, decorators, interceptors, contratos e padroes existentes.
-- Reutilize componentes antes de criar alternativas duplicadas.
-- Respeite estritamente o escopo solicitado.
+Este projeto é um ERP SaaS Multiempresa (Multi-Tenant).
 
-## Comandos proibidos
+A plataforma deverá permitir que milhares de empresas utilizem o mesmo sistema mantendo isolamento absoluto entre seus dados.
 
-Nao execute:
+O sistema deverá crescer continuamente através da criação de novos módulos sem necessidade de reescrever funcionalidades existentes.
 
-```bash
+A arquitetura foi planejada para ser modular, escalável e reutilizável.
+
+---
+
+# Stack Oficial
+
+## Backend
+
+- NestJS
+- TypeScript
+- Prisma ORM
+- PostgreSQL
+- JWT
+
+## Frontend
+
+- Next.js
+- React
+- TypeScript
+- TailwindCSS
+
+## Banco
+
+- PostgreSQL
+
+---
+
+# Princípios Permanentes
+
+## 1. Nunca quebrar funcionalidades existentes
+
+Se uma alteração puder afetar funcionalidades já implementadas, interrompa a implementação e solicite confirmação.
+
+---
+
+## 2. Nunca assumir comportamento
+
+Sempre verificar.
+
+Nunca deduzir.
+
+Nunca "achar que funciona assim".
+
+Caso exista dúvida, investigar antes.
+
+---
+
+## 3. Menor alteração possível
+
+Resolver problemas alterando o menor número possível de arquivos.
+
+Evitar refatorações grandes quando uma alteração pequena resolve a tarefa.
+
+---
+
+## 4. Preservação da Arquitetura
+
+Nunca alterar a arquitetura do sistema sem autorização.
+
+Isso inclui:
+
+- organização dos módulos;
+- estrutura das APIs;
+- autenticação;
+- autorização;
+- banco de dados;
+- estrutura Multiempresa.
+
+---
+
+## 5. Reutilização
+
+Antes de criar qualquer:
+
+- componente;
+- service;
+- hook;
+- helper;
+- utilitário;
+- provider;
+- guard;
+- middleware;
+
+pesquisar se já existe implementação equivalente.
+
+Duplicação de código deve ser evitada.
+
+---
+
+# Fluxo Obrigatório Antes de Implementar
+
+Toda implementação deve seguir obrigatoriamente esta sequência.
+
+## Etapa 1
+
+Ler completamente a solicitação.
+
+---
+
+## Etapa 2
+
+Identificar exatamente o escopo.
+
+O que faz parte?
+
+O que NÃO faz parte?
+
+---
+
+## Etapa 3
+
+Localizar os arquivos envolvidos.
+
+---
+
+## Etapa 4
+
+Pesquisar implementações semelhantes.
+
+---
+
+## Etapa 5
+
+Entender o fluxo atual.
+
+Nunca modificar código sem compreender como ele funciona.
+
+---
+
+## Etapa 6
+
+Somente agora iniciar alterações.
+
+---
+
+# Controle de Escopo
+
+Modificar apenas arquivos necessários.
+
+Nunca aproveitar uma tarefa para:
+
+- reorganizar código;
+- mover arquivos;
+- renomear módulos;
+- alterar padrões;
+- fazer refatorações não solicitadas.
+
+---
+
+# Arquivos Críticos
+
+Alterações nestes arquivos exigem atenção especial.
+
+## Backend
+
+- auth.module
+- auth.service
+- jwt.strategy
+- guards
+- prisma.service
+- prisma.module
+- tenant middleware
+- interceptors globais
+- filtros globais
+
+## Frontend
+
+- Layout
+- Sidebar
+- Header
+- Providers
+- Contexts
+- Menu
+- Rotas principais
+
+## Banco
+
+- schema.prisma
+- migrations
+- configurações PostgreSQL
+
+---
+
+# Multiempresa
+
+Esta é a decisão arquitetural mais importante do projeto.
+
+Nunca implementar qualquer funcionalidade que possa permitir vazamento de dados entre empresas.
+
+Toda consulta deve respeitar a empresa autenticada.
+
+Todo usuário pertence a uma empresa.
+
+Todo dado pertence a uma empresa.
+
+Nunca remover filtros de Tenant.
+
+Nunca ignorar contexto da empresa.
+
+---
+
+# Segurança
+
+Toda segurança deve ser validada no Backend.
+
+Nunca confiar em dados enviados pelo Frontend.
+
+Nunca confiar em menus ocultos.
+
+Nunca confiar em validações JavaScript.
+
+---
+
+# Permissões
+
+Toda ação deve respeitar permissões.
+
+Nunca remover verificações de autorização.
+
+Nunca conceder permissões automaticamente.
+
+Nunca utilizar perfil do Frontend como única fonte de autorização.
+
+---
+
+# Banco de Dados
+
+Toda alteração estrutural deve utilizar migrations.
+
+Nunca modificar tabelas diretamente em produção.
+
+Nunca remover colunas sem autorização.
+
+Nunca remover tabelas sem autorização.
+
+Nunca alterar relacionamentos sem autorização.
+
+---
+
+# APIs
+
+Antes de alterar uma API verificar:
+
+- Frontend utiliza?
+
+- Outro módulo utiliza?
+
+- Existe documentação?
+
+- Existe integração futura planejada?
+
+Mudanças incompatíveis exigem autorização.
+
+---
+
+# Backend
+
+Controllers:
+
+Responsáveis apenas por receber requisições.
+
+Nunca implementar regra de negócio em Controllers.
+
+Services:
+
+Toda regra de negócio deve permanecer nos Services.
+
+DTOs:
+
+Toda entrada deve utilizar DTO.
+
+Nunca receber dados livres.
+
+---
+
+# Frontend
+
+Criar componentes pequenos.
+
+Priorizar reutilização.
+
+Não criar novo componente se já existir equivalente.
+
+Manter padrão visual existente.
+
+Toda nova tela deve ser responsiva.
+
+---
+
+# Git
+
+Antes de qualquer alteração verificar:
+
+- branch atual;
+- git status;
+- arquivos modificados.
+
+Nunca assumir que a branch correta é develop.
+
+Verificar sempre o objetivo da branch.
+
+---
+
+# Comandos Proibidos
+
+Sem autorização explícita é proibido executar:
+
 git reset --hard
+
 git clean -fd
+
 git push --force
-prisma migrate reset
+
+git checkout .
+
+git restore .
+
 DROP DATABASE
-```
 
-Tambem nao execute migrations, limpeza de dados, comandos contra producao ou operacoes destrutivas sem autorizacao explicita.
+DROP SCHEMA
 
-## Processo antes de alterar
+DROP TABLE
 
-1. Confirme que o trabalho esta em `/opt/sistema-gestao/teste`.
-2. Execute `git status --short` e preserve alteracoes preexistentes.
-3. Examine a estrutura e os arquivos relacionados.
-4. Confirme regras multiempresa, permissoes e contratos afetados.
-5. Apresente um plano curto antes de modificar arquivos.
-6. Edite apenas o necessario para o escopo aprovado.
+TRUNCATE
 
-## Processo depois de alterar
+DELETE sem WHERE
 
-1. Execute lint nos arquivos alterados.
-2. Execute o build do projeto afetado quando houver alteracao de codigo.
-3. Execute testes relacionados quando houver infraestrutura disponivel.
-4. Execute `git diff --check`.
-5. Revise integralmente `git diff` antes de finalizar.
-6. Execute `git status --short` e informe arquivos criados e alterados.
-7. Registre validacoes, falhas preexistentes e pontos ainda a confirmar.
+UPDATE sem WHERE
 
-Os comandos disponiveis e suas ressalvas estao em `.ai/workflow.md`.
+---
+
+# Quando Parar
+
+Interromper imediatamente caso:
+
+- não compreenda a arquitetura;
+
+- exista risco de regressão;
+
+- exista risco de perda de dados;
+
+- exista risco de vazamento entre empresas;
+
+- exista necessidade de alterar autenticação;
+
+- exista necessidade de alterar autorização;
+
+- exista necessidade de alterar schema.prisma;
+
+- exista necessidade de alterar migrations;
+
+- exista necessidade de alterar componentes globais;
+
+- exista necessidade de alterar arquitetura.
+
+Nesses casos solicitar autorização antes de continuar.
+
+---
+
+# Checklist Antes de Concluir
+
+Confirmar:
+
+☐ Apenas arquivos necessários foram alterados.
+
+☐ Nenhuma funcionalidade existente foi removida.
+
+☐ Não houve aumento indevido do escopo.
+
+☐ O sistema continua compatível.
+
+☐ Build executado quando aplicável.
+
+☐ Lint executado quando aplicável.
+
+☐ Não existem arquivos temporários.
+
+☐ Não existem comentários de debug.
+
+☐ Não existem console.log esquecidos.
+
+☐ Não existem TODOs adicionados sem necessidade.
+
+---
+
+# Relatório Obrigatório
+
+Ao finalizar qualquer tarefa informar obrigatoriamente:
+
+## Escopo
+
+Resumo da implementação.
+
+## Arquivos Alterados
+
+Lista completa.
+
+## Arquivos Criados
+
+Quando houver.
+
+## Arquivos Removidos
+
+Quando houver.
+
+## Validações
+
+- Build
+
+- Lint
+
+- Testes
+
+- Revisão
+
+## Riscos
+
+Caso existam.
+
+## Pendências
+
+Caso existam.
+
+## Próximos Passos
+
+Quando aplicável.
+
+---
+
+# Objetivo Permanente
+
+O agente deve agir como um engenheiro de software responsável pela manutenção de um ERP em produção.
+
+O sucesso da implementação não é medido pela quantidade de código produzido.
+
+O sucesso é medido por:
+
+- estabilidade;
+- previsibilidade;
+- segurança;
+- simplicidade;
+- reutilização;
+- facilidade de manutenção.
+
+Sempre preservar a arquitetura.
+
+Sempre preservar funcionalidades.
+
+Sempre proteger os dados dos clientes.
+
+Sempre preferir mudanças pequenas, seguras e bem compreendidas.
+
+Este documento deverá evoluir junto com o projeto.
