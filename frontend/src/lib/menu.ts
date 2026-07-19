@@ -16,6 +16,10 @@ import {
   Tags,
   Truck,
   ShoppingCart,
+  WalletCards,
+  BadgeDollarSign,
+  Landmark,
+  ReceiptText,
 } from "lucide-react";
 
 export const menu = [
@@ -43,6 +47,11 @@ export const menu = [
     titulo: "Pedidos de Compra",
     href: "/pedidos-compra",
     icon: ShoppingCart,
+  },
+  {
+    titulo: "Vendas",
+    href: "/vendas",
+    icon: ReceiptText,
   },
   {
     titulo: "Categorias",
@@ -78,6 +87,26 @@ export const menu = [
     titulo: "Ordens de Serviço",
     href: "/ordens-servico",
     icon: Wrench,
+  },
+  {
+    titulo: "Financeiro",
+    href: "/financeiro",
+    icon: Landmark,
+  },
+  {
+    titulo: "Caixas",
+    href: "/caixas",
+    icon: WalletCards,
+  },
+  {
+    titulo: "Contas a Pagar",
+    href: "/contas-pagar",
+    icon: WalletCards,
+  },
+  {
+    titulo: "Contas a Receber",
+    href: "/contas-receber",
+    icon: BadgeDollarSign,
   },
   {
     titulo: "Empresas",

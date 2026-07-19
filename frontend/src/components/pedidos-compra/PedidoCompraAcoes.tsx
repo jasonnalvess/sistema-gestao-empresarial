@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/actions/ConfirmDialog";
 import { ReceberPedidoCompraModal } from "./ReceberPedidoCompraModal";
 import { EditarPedidoCompraModal } from "./EditarPedidoCompraModal";
+import { GerarContaPagarModal } from "./GerarContaPagarModal";
 
 import {
   aprovarPedido,
@@ -115,6 +116,10 @@ export function PedidoCompraAcoes({ pedido }: Props) {
         "PARCIALMENTE_RECEBIDO",
       ].includes(pedido.status) && (
         <ReceberPedidoCompraModal pedido={pedido} />
+      )}
+
+      {pedido.status === "RECEBIDO" && (
+        <GerarContaPagarModal pedido={pedido} />
       )}
 
       {[

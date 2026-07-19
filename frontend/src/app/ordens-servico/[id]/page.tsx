@@ -15,6 +15,7 @@ import { OrdemServicoHistoricoCard } from "@/components/ordens-servico/OrdemServ
 import { AlterarStatusOrdemServicoCard } from "@/components/ordens-servico/AlterarStatusOrdemServicoCard";
 import { OrdemServicoStatusBadge } from "@/components/ordens-servico/OrdemServicoStatusBadge";
 import { OrdemServicoPrioridadeBadge } from "@/components/ordens-servico/OrdemServicoPrioridadeBadge";
+import { GerarContaReceberModal } from "@/components/ordens-servico/GerarContaReceberModal";
 
 import { buscarOrdemServicoPorId } from "@/services/ordens-servico.service";
 
@@ -51,9 +52,26 @@ export default function OrdemServicoDetalhesPage() {
           title={`OS #${ordem.numero}`}
           description={ordem.titulo}
           actions={
-            <Button asChild variant="outline" size="sm">
-              <Link href="/ordens-servico">Voltar</Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" asChild>
+                <Link href="/ordens-servico">
+                  Voltar
+                </Link>
+              </Button>
+
+              {[
+                "CONCLUIDA",
+                "CONCLUÍDA",
+                "FINALIZADA",
+                "FINALIZADO",
+              ].includes(
+                ordem.status.toUpperCase()
+              ) && (
+                <GerarContaReceberModal
+                  ordem={ordem}
+                />
+              )}
+            </div>
           }
         />
 

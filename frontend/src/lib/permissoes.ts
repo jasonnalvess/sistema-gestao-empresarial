@@ -23,6 +23,12 @@ export const permissoes = {
     "/unidades-medida",
     "/fornecedores",  
     "/pedidos-compra",
+    "/contas-pagar",
+    "/contas-receber",
+    "/financeiro",
+    "/caixas",
+    "/caixas/movimentacoes",
+    "/vendas"
 ],
 
   USUARIO_EMPRESA: [
@@ -36,6 +42,12 @@ export const permissoes = {
     "/marcas-produtos",
     "/unidades-medida",
     "/fornecedores",
-    "/pedidos-compra",  
+    "/pedidos-compra",
+    "/contas-pagar",  
+    "/contas-receber",
+    "/financeiro",
+    "/caixas",
+    "/caixas/movimentacoes",
+    "/vendas"
 ],
 };

@@ -121,38 +121,6 @@ enum OrigemMovimentacaoCaixa {
   OUTRA
 }
 
-enum StatusVenda {
-  RASCUNHO
-  PENDENTE
-  APROVADA
-  FATURADA
-  CONCLUIDA
-  CANCELADA
-}
-
-enum StatusItemVenda {
-  PENDENTE
-  SEPARADO
-  ENTREGUE
-  CANCELADO
-}
-
-enum CondicaoPagamentoVenda {
-  AVISTA
-  APRAZO
-}
-
-enum FormaPagamentoVenda {
-  DINHEIRO
-  PIX
-  BOLETO
-  TRANSFERENCIA
-  CARTAO_CREDITO
-  CARTAO_DEBITO
-  CHEQUE
-  OUTRA
-}
-
 model Empresa {
   id        String   @id @default(uuid())
   nome      String
@@ -184,7 +152,6 @@ model Empresa {
   caixas                   Caixa[]
   movimentacoesCaixa       MovimentacaoCaixa[]
   aberturasCaixa           AberturaCaixa[]
-  vendas                   Venda[]
 }
 
 model Usuario {
@@ -227,11 +194,6 @@ model Usuario {
   aberturasCaixa           AberturaCaixa[]           @relation("AberturaCaixaUsuarioAbertura")
   fechamentosCaixa         AberturaCaixa[]           @relation("AberturaCaixaUsuarioFechamento")
   movimentacoesCaixa       MovimentacaoCaixa[]
-  vendasCriadas            Venda[]                   @relation("VendaUsuarioCriacao")
-  vendasAprovadas          Venda[]                   @relation("VendaUsuarioAprovacao")
-  vendasCanceladas         Venda[]                   @relation("VendaUsuarioCancelamento")
-  vendasConcluidas         Venda[]                   @relation("VendaUsuarioConclusao")
-  vendaHistoricos          VendaHistorico[]
 }
 
 model ModuloSistema {
@@ -329,7 +291,6 @@ model Deposito {
   movimentacoes MovimentacaoEstoque[]
   inventarios   InventarioEstoque[]
   pedidosCompra PedidoCompra[]
-  vendas        Venda[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -375,7 +336,6 @@ model Produto {
   historicos           ProdutoHistorico[]
   itensInventario      InventarioEstoqueItem[]
   itensPedidosCompra   PedidoCompraItem[]
-  itensVenda           VendaItem[]
 
   @@unique([empresaId, nome])
   @@unique([empresaId, codigo])
@@ -513,7 +473,6 @@ model Cliente {
   historicos    ClienteHistorico[]
   ordensServico OrdemServico[]
   contasReceber ContaReceber[]
-  vendas        Venda[]
 }
 
 model ClienteHistorico {
@@ -924,9 +883,6 @@ model ContaReceber {
   ordemServicoId String?
   ordemServico   OrdemServico? @relation(fields: [ordemServicoId], references: [id])
 
-  vendaId String?
-  venda   Venda?  @relation(fields: [vendaId], references: [id])
-
   usuarioCriacaoId String?
   usuarioCriacao   Usuario? @relation("ContaReceberUsuarioCriacao", fields: [usuarioCriacaoId], references: [id])
 
@@ -943,7 +899,6 @@ model ContaReceber {
   @@index([empresaId])
   @@index([clienteId])
   @@index([ordemServicoId])
-  @@index([vendaId])
   @@index([status])
   @@index([dataVencimento])
 }
@@ -1105,113 +1060,4 @@ model MovimentacaoCaixa {
   @@index([tipo])
   @@index([origem])
   @@index([dataMovimentacao])
-}
-
-model Venda {
-  id String @id @default(uuid())
-
-  numero Int
-
-  status StatusVenda @default(RASCUNHO)
-
-  dataVenda        DateTime  @default(now())
-  dataAprovacao    DateTime?
-  dataFaturamento  DateTime?
-  dataConclusao    DateTime?
-  dataCancelamento DateTime?
-
-  observacao        String?
-  observacaoInterna String?
-
-  condicaoPagamento CondicaoPagamentoVenda @default(AVISTA)
-  formaPagamento    FormaPagamentoVenda?
-
-  quantidadeParcelas Int       @default(1)
-  intervaloParcelas  Int       @default(30)
-  primeiroVencimento DateTime?
-
-  valorProdutos Decimal @default(0)
-  valorDesconto Decimal @default(0)
-  valorFrete    Decimal @default(0)
-  valorOutros   Decimal @default(0)
-  valorTotal    Decimal @default(0)
-
-  empresaId String
-  empresa   Empresa @relation(fields: [empresaId], references: [id])
-
-  clienteId String
-  cliente   Cliente @relation(fields: [clienteId], references: [id])
-
-  depositoId String
-  deposito   Deposito @relation(fields: [depositoId], references: [id])
-
-  usuarioCriacaoId String?
-  usuarioCriacao   Usuario? @relation("VendaUsuarioCriacao", fields: [usuarioCriacaoId], references: [id])
-
-  usuarioAprovacaoId String?
-  usuarioAprovacao   Usuario? @relation("VendaUsuarioAprovacao", fields: [usuarioAprovacaoId], references: [id])
-
-  usuarioCancelamentoId String?
-  usuarioCancelamento   Usuario? @relation("VendaUsuarioCancelamento", fields: [usuarioCancelamentoId], references: [id])
-
-  usuarioConclusaoId String?
-  usuarioConclusao   Usuario? @relation("VendaUsuarioConclusao", fields: [usuarioConclusaoId], references: [id])
-
-  itens         VendaItem[]
-  historicos    VendaHistorico[]
-  contasReceber ContaReceber[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([empresaId, numero])
-  @@index([empresaId])
-  @@index([clienteId])
-  @@index([depositoId])
-  @@index([status])
-  @@index([dataVenda])
-}
-
-model VendaItem {
-  id String @id @default(uuid())
-
-  status StatusItemVenda @default(PENDENTE)
-
-  quantidade Decimal
-
-  valorUnitario Decimal
-  valorDesconto Decimal @default(0)
-  valorTotal    Decimal
-
-  observacao String?
-
-  vendaId String
-  venda   Venda  @relation(fields: [vendaId], references: [id], onDelete: Cascade)
-
-  produtoId String
-  produto   Produto @relation(fields: [produtoId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([vendaId, produtoId])
-  @@index([vendaId])
-  @@index([produtoId])
-}
-
-model VendaHistorico {
-  id String @id @default(uuid())
-
-  descricao String
-
-  vendaId String
-  venda   Venda  @relation(fields: [vendaId], references: [id], onDelete: Cascade)
-
-  usuarioId String?
-  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
-
-  createdAt DateTime @default(now())
-
-  @@index([vendaId])
-  @@index([usuarioId])
 }
