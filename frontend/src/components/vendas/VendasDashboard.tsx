@@ -25,6 +25,12 @@ import {
   DashboardGrid,
   DashboardStatusCard,
 } from "@/components/dashboard";
+import {
+  BarChartCard,
+  type BarChartDataItem,
+  PieChartCard,
+  type PieChartDataItem,
+} from "@/components/dashboard/charts";
 
 interface VendasDashboardProps {
   clienteId?: string;
@@ -79,6 +85,21 @@ export function VendasDashboard({
       </div>
     );
   }
+
+  const produtosMaisVendidos: BarChartDataItem[] =
+    data.produtosMaisVendidos.map((produto) => ({
+      label: produto.nome,
+      value: produto.quantidadeVendida,
+    }));
+
+  const vendasPorStatus: PieChartDataItem[] = [
+    { label: "Rascunho", value: data.vendasPorStatus.rascunho, color: "#64748b" },
+    { label: "Pendente", value: data.vendasPorStatus.pendente, color: "#d97706" },
+    { label: "Aprovada", value: data.vendasPorStatus.aprovada, color: "#2563eb" },
+    { label: "Faturada", value: data.vendasPorStatus.faturada, color: "#7c3aed" },
+    { label: "Concluída", value: data.vendasPorStatus.concluida, color: "#16a34a" },
+    { label: "Cancelada", value: data.vendasPorStatus.cancelada, color: "#dc2626" },
+  ].filter((status) => status.value > 0);
 
   return (
     <div className="space-y-5">
@@ -193,6 +214,23 @@ export function VendasDashboard({
       </div>
 
       <ResumoFinanceiro data={data} />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <BarChartCard
+          title="Produtos mais vendidos"
+          description="Quantidade vendida por produto no período"
+          data={produtosMaisVendidos}
+          valueLabel="Quantidade vendida"
+          emptyMessage="Nenhum produto vendido no período."
+        />
+
+        <PieChartCard
+          title="Vendas por status"
+          description="Distribuição das vendas no período"
+          data={vendasPorStatus}
+          emptyMessage="Nenhuma venda encontrada no período."
+        />
+      </div>
     </div>
   );
 }

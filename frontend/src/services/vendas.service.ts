@@ -70,6 +70,30 @@ export interface VendaDetalhada extends Venda {
   contasReceber: any[];
 }
 
+export interface DashboardProdutoMaisVendido {
+  produtoId: string;
+  nome: string;
+  codigo: string | null;
+  quantidadeVendida: number;
+  valorVendido: number;
+}
+
+export interface DashboardVendaRecente {
+  id: string;
+  numero: number;
+  status: StatusVenda;
+  dataVenda: string;
+  valorTotal: string;
+  cliente: {
+    id: string;
+    nome: string;
+  } | null;
+  deposito: {
+    id: string;
+    nome: string;
+  } | null;
+}
+
 export interface DashboardVendasResponse {
   periodo: {
     dataInicio: string | null;
@@ -103,8 +127,8 @@ export interface DashboardVendasResponse {
     percentualRecebido: number;
   };
 
-  produtosMaisVendidos: any[];
-  vendasRecentes: any[];
+  produtosMaisVendidos: DashboardProdutoMaisVendido[];
+  vendasRecentes: DashboardVendaRecente[];
 }
 
 export interface ListarVendasResponse {
