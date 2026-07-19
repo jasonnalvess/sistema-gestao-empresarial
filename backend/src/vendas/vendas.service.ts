@@ -158,6 +158,33 @@ export class VendasService {
     throw error;
   }
 
+  private isContaVendaParcelaDuplicada(
+    error: unknown,
+  ): boolean {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== 'P2002'
+    ) {
+      return false;
+    }
+
+    const target = error.meta?.target;
+
+    if (Array.isArray(target)) {
+      return (
+        target.includes('vendaId') &&
+        target.includes('parcelaAtual')
+      );
+    }
+
+    return (
+      typeof target === 'string' &&
+      target.includes(
+        'ContaReceber_vendaId_parcelaAtual_key',
+      )
+    );
+  }
+
   private validarCondicaoPagamento(
     dados: {
       condicaoPagamento:
@@ -1200,156 +1227,196 @@ export class VendasService {
     dados: FaturarVendaDto,
     usuario: any,
   ) {
-    const venda = await this.buscarPorId(
-      id,
-      usuario,
-    );
-
-    if (
-      venda.status !==
-      StatusVenda.APROVADA
-    ) {
-      throw new BadRequestException(
-        'Somente vendas aprovadas podem ser faturadas',
-      );
-    }
-
-    if (venda.itens.length === 0) {
-      throw new BadRequestException(
-        'A venda não possui itens para faturamento',
-      );
-    }
-
-    /*
-     * Venda à vista gera uma parcela.
-     * Venda a prazo usa a quantidade configurada.
-     */
-    const totalParcelas =
-      venda.condicaoPagamento ===
-      CondicaoPagamentoVenda.AVISTA
-        ? 1
-        : venda.quantidadeParcelas;
-
-    if (totalParcelas < 1) {
-      throw new BadRequestException(
-        'A quantidade de parcelas da venda é inválida',
-      );
-    }
-
-    /*
-     * Para venda a prazo, o vencimento já deve ter sido
-     * informado na criação/edição.
-     *
-     * Para venda à vista, usamos:
-     * 1. vencimento enviado no faturamento;
-     * 2. vencimento salvo na venda;
-     * 3. data atual.
-     */
-    const primeiroVencimentoTexto =
-      dados.primeiroVencimento ??
-      venda.primeiroVencimento?.toISOString();
-
-    if (
-      venda.condicaoPagamento ===
-        CondicaoPagamentoVenda.APRAZO &&
-      !primeiroVencimentoTexto
-    ) {
-      throw new BadRequestException(
-        'Venda a prazo exige o primeiro vencimento',
-      );
-    }
-
-    const primeiroVencimento =
-      primeiroVencimentoTexto
-        ? new Date(primeiroVencimentoTexto)
-        : new Date();
-
-    if (
-      Number.isNaN(
-        primeiroVencimento.getTime(),
-      )
-    ) {
-      throw new BadRequestException(
-        'A data do primeiro vencimento é inválida',
-      );
-    }
-
-    const valorTotalCentavos = Math.round(
-      Number(venda.valorTotal) * 100,
-    );
-
-    if (valorTotalCentavos <= 0) {
-      throw new BadRequestException(
-        'O valor total da venda precisa ser maior que zero',
-      );
-    }
-
-    /*
-     * Divisão em centavos evita diferenças de arredondamento.
-     * Exemplo: R$ 100,00 / 3:
-     * 33,34 + 33,33 + 33,33.
-     */
-    const valorBaseCentavos = Math.floor(
-      valorTotalCentavos / totalParcelas,
-    );
-
-    const restoCentavos =
-      valorTotalCentavos %
-      totalParcelas;
-
-    const dataFaturamento = new Date();
-
-    return this.prisma.$transaction(
-      async (tx) => {
-        /*
-         * Revalida todos os estoques antes de efetuar
-         * qualquer baixa.
-         */
-        for (const item of venda.itens) {
-          const estoque =
-            await tx.estoqueProduto.findUnique({
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const vendaMinima =
+            await tx.venda.findUnique({
               where: {
-                empresaId_produtoId_depositoId: {
-                  empresaId:
-                    venda.empresaId,
+                id,
+              },
 
-                  produtoId:
-                    item.produtoId,
-
-                  depositoId:
-                    venda.depositoId,
-                },
+              select: {
+                id: true,
+                empresaId: true,
+                status: true,
               },
             });
 
-          const quantidadeDisponivel =
-            Number(
-              estoque?.quantidadeAtual ?? 0,
-            );
-
-          const quantidadeVenda =
-            Number(item.quantidade);
-
-          if (
-            !estoque ||
-            quantidadeDisponivel <
-              quantidadeVenda
-          ) {
-            throw new BadRequestException(
-              `Estoque insuficiente para o produto "${item.produto.nome}". Disponível: ${quantidadeDisponivel}; necessário: ${quantidadeVenda}`,
+          if (!vendaMinima) {
+            throw new NotFoundException(
+              'Venda não encontrada',
             );
           }
-        }
 
-        /*
-         * Efetua a baixa de estoque e cria as
-         * movimentações correspondentes.
-         */
-        for (const item of venda.itens) {
-          const estoque =
-            await tx.estoqueProduto.findUniqueOrThrow({
+          if (
+            usuario.tipo !== 'SUPER_ADMIN' &&
+            vendaMinima.empresaId !==
+              usuario.empresaId
+          ) {
+            throw new ForbiddenException(
+              'Acesso negado a venda de outra empresa',
+            );
+          }
+
+          if (
+            vendaMinima.status !==
+            StatusVenda.APROVADA
+          ) {
+            throw new BadRequestException(
+              'Somente vendas aprovadas podem ser faturadas',
+            );
+          }
+
+          const dataFaturamento = new Date();
+          const transicao =
+            await tx.venda.updateMany({
               where: {
-                empresaId_produtoId_depositoId: {
+                id,
+                empresaId:
+                  vendaMinima.empresaId,
+                status:
+                  StatusVenda.APROVADA,
+              },
+
+              data: {
+                status:
+                  StatusVenda.FATURADA,
+                dataFaturamento,
+              },
+            });
+
+          if (transicao.count !== 1) {
+            throw new BadRequestException(
+              'A venda já foi faturada ou não está mais aprovada',
+            );
+          }
+
+          const venda =
+            await tx.venda.findUniqueOrThrow({
+              where: {
+                id,
+                empresaId:
+                  vendaMinima.empresaId,
+              },
+
+              include:
+                this.includeVenda,
+            });
+
+          if (venda.itens.length === 0) {
+            throw new BadRequestException(
+              'A venda não possui itens para faturamento',
+            );
+          }
+
+          /*
+           * Venda à vista gera uma parcela.
+           * Venda a prazo usa a quantidade configurada.
+           */
+          const totalParcelas =
+            venda.condicaoPagamento ===
+            CondicaoPagamentoVenda.AVISTA
+              ? 1
+              : venda.quantidadeParcelas;
+
+          if (totalParcelas < 1) {
+            throw new BadRequestException(
+              'A quantidade de parcelas da venda é inválida',
+            );
+          }
+
+          /*
+           * Para venda a prazo, o vencimento já deve ter sido
+           * informado na criação/edição.
+           *
+           * Para venda à vista, usamos:
+           * 1. vencimento enviado no faturamento;
+           * 2. vencimento salvo na venda;
+           * 3. data atual.
+           */
+          const primeiroVencimentoTexto =
+            dados.primeiroVencimento ??
+            venda.primeiroVencimento?.toISOString();
+
+          if (
+            venda.condicaoPagamento ===
+              CondicaoPagamentoVenda.APRAZO &&
+            !primeiroVencimentoTexto
+          ) {
+            throw new BadRequestException(
+              'Venda a prazo exige o primeiro vencimento',
+            );
+          }
+
+          const primeiroVencimento =
+            primeiroVencimentoTexto
+              ? new Date(primeiroVencimentoTexto)
+              : new Date();
+
+          if (
+            Number.isNaN(
+              primeiroVencimento.getTime(),
+            )
+          ) {
+            throw new BadRequestException(
+              'A data do primeiro vencimento é inválida',
+            );
+          }
+
+          const valorTotalCentavos = Math.round(
+            Number(venda.valorTotal) * 100,
+          );
+
+          if (valorTotalCentavos <= 0) {
+            throw new BadRequestException(
+              'O valor total da venda precisa ser maior que zero',
+            );
+          }
+
+          /*
+           * Divisão em centavos evita diferenças de arredondamento.
+           * Exemplo: R$ 100,00 / 3:
+           * 33,34 + 33,33 + 33,33.
+           */
+          const valorBaseCentavos = Math.floor(
+            valorTotalCentavos / totalParcelas,
+          );
+
+          const restoCentavos =
+            valorTotalCentavos %
+            totalParcelas;
+
+          const contaExistente =
+            await tx.contaReceber.findFirst({
+              where: {
+                vendaId: id,
+                empresaId:
+                  venda.empresaId,
+              },
+
+              select: {
+                id: true,
+              },
+            });
+
+          if (contaExistente) {
+            throw new BadRequestException(
+              'A venda já possui contas a receber geradas',
+            );
+          }
+
+          /*
+           * A condição e o decremento são executados na mesma
+           * instrução para impedir saldo negativo sob concorrência.
+           */
+          for (const item of venda.itens) {
+            const quantidade =
+              Number(item.quantidade);
+
+            const baixa =
+              await tx.estoqueProduto.updateMany({
+                where: {
                   empresaId:
                     venda.empresaId,
 
@@ -1358,273 +1425,299 @@ export class VendasService {
 
                   depositoId:
                     venda.depositoId,
+
+                  quantidadeAtual: {
+                    gte: quantidade,
+                  },
                 },
-              },
-            });
 
-          const saldoAnterior =
-            Number(estoque.quantidadeAtual);
+                data: {
+                  quantidadeAtual: {
+                    decrement: quantidade,
+                  },
+                },
+              });
 
-          const quantidade =
-            Number(item.quantidade);
+            if (baixa.count !== 1) {
+              throw new BadRequestException(
+                `Estoque insuficiente ou inválido para o produto "${item.produto.nome}"`,
+              );
+            }
 
-          const saldoPosterior =
-            saldoAnterior - quantidade;
+            const estoque =
+              await tx.estoqueProduto.findUniqueOrThrow({
+                where: {
+                  empresaId_produtoId_depositoId: {
+                    empresaId:
+                      venda.empresaId,
 
-          await tx.estoqueProduto.update({
-            where: {
-              id: estoque.id,
-            },
+                    produtoId:
+                      item.produtoId,
 
-            data: {
-              quantidadeAtual:
-                saldoPosterior,
-            },
-          });
+                    depositoId:
+                      venda.depositoId,
+                  },
+                },
+              });
 
-          await tx.movimentacaoEstoque.create({
-            data: {
-              tipo:
-                TipoMovimentacaoEstoque.SAIDA,
+            const saldoPosterior = Number(
+              estoque.quantidadeAtual,
+            );
 
-              quantidade,
+            const saldoAnterior =
+              saldoPosterior + quantidade;
 
-              observacao:
-                `Saída automática referente à venda nº ${venda.numero}`,
-
-              documentoReferencia:
-                dados.documento?.trim() ||
-                `VENDA-${venda.numero}`,
-
-              saldoAnterior,
-              saldoPosterior,
-
-              custoUnitario:
-                estoque.custoMedio,
-
-              empresaId:
-                venda.empresaId,
-
-              produtoId:
-                item.produtoId,
-
-              depositoId:
-                venda.depositoId,
-
-              usuarioId:
-                this.obterUsuarioId(
-                  usuario,
-                ),
-            },
-          });
-
-          await tx.vendaItem.update({
-            where: {
-              id: item.id,
-            },
-
-            data: {
-              status:
-                StatusItemVenda.ENTREGUE,
-            },
-          });
-        }
-
-        /*
-         * Obtém uma única vez o último número.
-         * As parcelas recebem números sequenciais.
-         */
-        const ultimaConta =
-          await tx.contaReceber.findFirst({
-            where: {
-              empresaId:
-                venda.empresaId,
-            },
-
-            orderBy: {
-              numero: 'desc',
-            },
-
-            select: {
-              numero: true,
-            },
-          });
-
-        const primeiroNumero =
-          (ultimaConta?.numero ?? 0) + 1;
-
-        const contasCriadas: Prisma.ContaReceberGetPayload<{}>[] = [];
-
-        for (
-          let indice = 0;
-          indice < totalParcelas;
-          indice++
-        ) {
-          const parcelaAtual = indice + 1;
-
-          const centavosParcela =
-            valorBaseCentavos +
-            (indice < restoCentavos
-              ? 1
-              : 0);
-
-          const valorParcela =
-            centavosParcela / 100;
-
-          const dataVencimento =
-            new Date(primeiroVencimento);
-
-          dataVencimento.setUTCDate(
-            dataVencimento.getUTCDate() +
-              indice *
-                venda.intervaloParcelas,
-          );
-
-          const hoje = new Date();
-
-          hoje.setUTCHours(
-            0,
-            0,
-            0,
-            0,
-          );
-
-          const vencimentoComparacao =
-            new Date(dataVencimento);
-
-          vencimentoComparacao.setUTCHours(
-            0,
-            0,
-            0,
-            0,
-          );
-
-          const statusInicial =
-            vencimentoComparacao < hoje
-              ? StatusContaReceber.VENCIDA
-              : StatusContaReceber.PENDENTE;
-
-          const numero =
-            primeiroNumero + indice;
-
-          const descricao =
-            totalParcelas === 1
-              ? `Venda nº ${venda.numero}`
-              : `Venda nº ${venda.numero} - parcela ${parcelaAtual}/${totalParcelas}`;
-
-          const conta =
-            await tx.contaReceber.create({
+            await tx.movimentacaoEstoque.create({
               data: {
-                numero,
-                descricao,
+                tipo:
+                  TipoMovimentacaoEstoque.SAIDA,
 
-                documento:
+                quantidade,
+
+                observacao:
+                  `Saída automática referente à venda nº ${venda.numero}`,
+
+                documentoReferencia:
                   dados.documento?.trim() ||
                   `VENDA-${venda.numero}`,
 
-                observacao:
-                  dados.observacao?.trim() ||
-                  `Conta gerada automaticamente pelo faturamento da venda nº ${venda.numero}.`,
+                saldoAnterior,
+                saldoPosterior,
 
-                origem:
-                  OrigemContaReceber.VENDA,
-
-                status:
-                  statusInicial,
-
-                dataEmissao:
-                  dataFaturamento,
-
-                dataCompetencia:
-                  venda.dataVenda,
-
-                dataVencimento,
-
-                parcelaAtual,
-                totalParcelas,
-
-                valorOriginal:
-                  valorParcela,
-
-                valorDesconto: 0,
-                valorJuros: 0,
-                valorMulta: 0,
-                valorRecebido: 0,
-
-                valorAberto:
-                  valorParcela,
+                custoUnitario:
+                  estoque.custoMedio,
 
                 empresaId:
                   venda.empresaId,
 
-                clienteId:
-                  venda.clienteId,
+                produtoId:
+                  item.produtoId,
 
-                vendaId:
-                  venda.id,
+                depositoId:
+                  venda.depositoId,
 
-                usuarioCriacaoId:
+                usuarioId:
                   this.obterUsuarioId(
                     usuario,
                   ),
               },
             });
 
-          await tx.contaReceberHistorico.create({
-            data: {
-              contaReceberId:
-                conta.id,
+            await tx.vendaItem.update({
+              where: {
+                id: item.id,
+              },
 
-              descricao:
-                `Conta a receber nº ${numero} gerada automaticamente pela venda nº ${venda.numero}, parcela ${parcelaAtual}/${totalParcelas}.`,
+              data: {
+                status:
+                  StatusItemVenda.ENTREGUE,
+              },
+            });
+          }
 
-              usuarioId:
-                this.obterUsuarioId(
-                  usuario,
-                ),
-            },
-          });
+          /*
+           * Obtém uma única vez o último número.
+           * As parcelas recebem números sequenciais.
+           */
+          const ultimaConta =
+            await tx.contaReceber.findFirst({
+              where: {
+                empresaId:
+                  venda.empresaId,
+              },
 
-          contasCriadas.push(conta);
-        }
+              orderBy: {
+                numero: 'desc',
+              },
 
-        /*
-         * A venda somente passa para FATURADA depois
-         * de todas as baixas e contas serem criadas.
-         */
-        const vendaAtualizada =
-          await tx.venda.update({
-            where: {
-              id,
-            },
+              select: {
+                numero: true,
+              },
+            });
 
-            data: {
-              status:
-                StatusVenda.FATURADA,
+          const primeiroNumero =
+            (ultimaConta?.numero ?? 0) + 1;
 
-              dataFaturamento,
-            },
+          const contasCriadas: Prisma.ContaReceberGetPayload<{}>[] = [];
 
-            include:
-              this.includeVenda,
-          });
+          for (
+            let indice = 0;
+            indice < totalParcelas;
+            indice++
+          ) {
+            const parcelaAtual = indice + 1;
 
-        await this.registrarHistorico(
-          id,
+            const centavosParcela =
+              valorBaseCentavos +
+              (indice < restoCentavos
+                ? 1
+                : 0);
 
-          `Venda faturada, estoque baixado no depósito ${venda.deposito.nome} e ${totalParcelas} conta(s) a receber gerada(s).`,
+            const valorParcela =
+              centavosParcela / 100;
 
-          usuario,
-          tx,
+            const dataVencimento =
+              new Date(primeiroVencimento);
+
+            dataVencimento.setUTCDate(
+              dataVencimento.getUTCDate() +
+                indice *
+                  venda.intervaloParcelas,
+            );
+
+            const hoje = new Date();
+
+            hoje.setUTCHours(
+              0,
+              0,
+              0,
+              0,
+            );
+
+            const vencimentoComparacao =
+              new Date(dataVencimento);
+
+            vencimentoComparacao.setUTCHours(
+              0,
+              0,
+              0,
+              0,
+            );
+
+            const statusInicial =
+              vencimentoComparacao < hoje
+                ? StatusContaReceber.VENCIDA
+                : StatusContaReceber.PENDENTE;
+
+            const numero =
+              primeiroNumero + indice;
+
+            const descricao =
+              totalParcelas === 1
+                ? `Venda nº ${venda.numero}`
+                : `Venda nº ${venda.numero} - parcela ${parcelaAtual}/${totalParcelas}`;
+
+            const conta =
+              await tx.contaReceber.create({
+                data: {
+                  numero,
+                  descricao,
+
+                  documento:
+                    dados.documento?.trim() ||
+                    `VENDA-${venda.numero}`,
+
+                  observacao:
+                    dados.observacao?.trim() ||
+                    `Conta gerada automaticamente pelo faturamento da venda nº ${venda.numero}.`,
+
+                  origem:
+                    OrigemContaReceber.VENDA,
+
+                  status:
+                    statusInicial,
+
+                  dataEmissao:
+                    dataFaturamento,
+
+                  dataCompetencia:
+                    venda.dataVenda,
+
+                  dataVencimento,
+
+                  parcelaAtual,
+                  totalParcelas,
+
+                  valorOriginal:
+                    valorParcela,
+
+                  valorDesconto: 0,
+                  valorJuros: 0,
+                  valorMulta: 0,
+                  valorRecebido: 0,
+
+                  valorAberto:
+                    valorParcela,
+
+                  empresaId:
+                    venda.empresaId,
+
+                  clienteId:
+                    venda.clienteId,
+
+                  vendaId:
+                    venda.id,
+
+                  usuarioCriacaoId:
+                    this.obterUsuarioId(
+                      usuario,
+                    ),
+                },
+              });
+
+            await tx.contaReceberHistorico.create({
+              data: {
+                contaReceberId:
+                  conta.id,
+
+                descricao:
+                  `Conta a receber nº ${numero} gerada automaticamente pela venda nº ${venda.numero}, parcela ${parcelaAtual}/${totalParcelas}.`,
+
+                usuarioId:
+                  this.obterUsuarioId(
+                    usuario,
+                  ),
+              },
+            });
+
+            contasCriadas.push(conta);
+          }
+
+          /*
+           * A venda somente passa para FATURADA depois
+           * de todas as baixas e contas serem criadas.
+           */
+          const vendaAtualizada =
+            await tx.venda.findUniqueOrThrow({
+              where: {
+                id,
+                empresaId:
+                  venda.empresaId,
+              },
+
+              include:
+                this.includeVenda,
+            });
+
+          await this.registrarHistorico(
+            id,
+
+            `Venda faturada, estoque baixado no depósito ${venda.deposito.nome} e ${totalParcelas} conta(s) a receber gerada(s).`,
+
+            usuario,
+            tx,
+          );
+
+          return {
+            venda: vendaAtualizada,
+            contasReceber:
+              contasCriadas,
+          };
+        },
+      );
+    } catch (error) {
+      if (
+        this.isContaVendaParcelaDuplicada(
+          error,
+        )
+      ) {
+        throw new ConflictException(
+          'As contas a receber desta venda já foram geradas',
         );
+      }
 
-        return {
-          venda: vendaAtualizada,
-          contasReceber:
-            contasCriadas,
-        };
-      },
-    );
+      throw error;
+    }
   }
 
   async concluirSeQuitada(
@@ -2155,59 +2248,84 @@ export class VendasService {
     dados: CancelarVendaDto,
     usuario: any,
   ) {
-    const venda = await this.buscarPorId(
-      id,
-      usuario,
-    );
-
-    if (
-      venda.status === StatusVenda.CANCELADA
-    ) {
-      throw new BadRequestException(
-        'A venda já está cancelada',
-      );
-    }
-
-    if (
-      venda.status === StatusVenda.CONCLUIDA
-    ) {
-      throw new BadRequestException(
-        'Não é possível cancelar uma venda concluída',
-      );
-    }
-
-    const motivo =
-      dados.motivo?.trim() ||
-      'Cancelamento da venda';
-
-    /*
-     * Antes do faturamento não houve baixa de estoque
-     * nem geração financeira.
-     */
-    if (
-      venda.status === StatusVenda.RASCUNHO ||
-      venda.status === StatusVenda.PENDENTE ||
-      venda.status === StatusVenda.APROVADA
-    ) {
-      await this.prisma.$transaction(
-        async (tx) => {
-          await tx.vendaItem.updateMany({
+    return this.prisma.$transaction(
+      async (tx) => {
+        const vendaMinima =
+          await tx.venda.findUnique({
             where: {
-              vendaId: id,
+              id,
             },
 
-            data: {
-              status:
-                StatusItemVenda.CANCELADO,
+            select: {
+              id: true,
+              empresaId: true,
+              status: true,
             },
           });
 
-          const dataCancelamento =
-            new Date();
+        if (!vendaMinima) {
+          throw new NotFoundException(
+            'Venda não encontrada',
+          );
+        }
 
-          await tx.venda.update({
+        if (
+          usuario.tipo !== 'SUPER_ADMIN' &&
+          vendaMinima.empresaId !==
+            usuario.empresaId
+        ) {
+          throw new ForbiddenException(
+            'Acesso negado a venda de outra empresa',
+          );
+        }
+
+        if (
+          vendaMinima.status === StatusVenda.CANCELADA
+        ) {
+          throw new BadRequestException(
+            'A venda já está cancelada',
+          );
+        }
+
+        if (
+          vendaMinima.status === StatusVenda.CONCLUIDA
+        ) {
+          throw new BadRequestException(
+            'Não é possível cancelar uma venda concluída',
+          );
+        }
+
+        const statusAnterior =
+          vendaMinima.status;
+        const cancelavelSemEstorno =
+          statusAnterior === StatusVenda.RASCUNHO ||
+          statusAnterior === StatusVenda.PENDENTE ||
+          statusAnterior === StatusVenda.APROVADA;
+
+        if (
+          !cancelavelSemEstorno &&
+          statusAnterior !== StatusVenda.FATURADA
+        ) {
+          throw new BadRequestException(
+            'O status atual da venda não permite cancelamento',
+          );
+        }
+
+        const motivo =
+          dados.motivo?.trim() ||
+          'Cancelamento da venda';
+
+        const dataCancelamento =
+          new Date();
+
+        const transicao =
+          await tx.venda.updateMany({
             where: {
               id,
+              empresaId:
+                vendaMinima.empresaId,
+              status:
+                statusAnterior,
             },
 
             data: {
@@ -2223,82 +2341,140 @@ export class VendasService {
             },
           });
 
+        if (transicao.count !== 1) {
+          throw new BadRequestException(
+            'A venda já foi cancelada ou não pode mais ser cancelada',
+          );
+        }
+
+        const venda =
+          await tx.venda.findUniqueOrThrow({
+            where: {
+              id,
+              empresaId:
+                vendaMinima.empresaId,
+            },
+
+            include:
+              this.includeVenda,
+          });
+
+        if (cancelavelSemEstorno) {
+          await tx.vendaItem.updateMany({
+            where: {
+              vendaId: id,
+            },
+
+            data: {
+              status:
+                StatusItemVenda.CANCELADO,
+            },
+          });
+
           await this.registrarHistorico(
             id,
             `Venda cancelada antes do faturamento. Motivo: ${motivo}`,
             usuario,
             tx,
           );
-        },
-      );
 
-      return this.buscarPorId(id, usuario);
-    }
-
-    if (
-      venda.status !== StatusVenda.FATURADA
-    ) {
-      throw new BadRequestException(
-        'O status atual da venda não permite cancelamento',
-      );
-    }
-
-    /*
-     * Reconsulta as contas incluindo recebimentos.
-     * Não usamos apenas os dados do includeVenda porque
-     * ele não traz a coleção de recebimentos.
-     */
-    const contasReceber =
-      await this.prisma.contaReceber.findMany({
-        where: {
-          vendaId: id,
-        },
-
-        include: {
-          recebimentos: {
-            select: {
-              id: true,
-              valor: true,
+          return tx.venda.findUniqueOrThrow({
+            where: {
+              id,
+              empresaId:
+                venda.empresaId,
             },
-          },
-        },
 
-        orderBy: {
-          parcelaAtual: 'asc',
-        },
-      });
+            include:
+              this.includeVenda,
+          });
+        }
 
-    const contaComRecebimento =
-      contasReceber.find((conta) => {
-        const valorRecebido = Number(
-          conta.valorRecebido,
-        );
-
-        return (
-          valorRecebido > 0 ||
-          conta.recebimentos.length > 0 ||
-          conta.status ===
-            StatusContaReceber.PARCIALMENTE_RECEBIDA ||
-          conta.status ===
-            StatusContaReceber.RECEBIDA
-        );
-      });
-
-    if (contaComRecebimento) {
-      throw new BadRequestException(
-        `Não é possível cancelar a venda porque a conta a receber nº ${contaComRecebimento.numero} possui recebimento registrado`,
-      );
-    }
-
-    await this.prisma.$transaction(
-      async (tx) => {
         /*
-         * Estorna os produtos para o mesmo depósito
-         * utilizado no faturamento.
+         * As contas e os recebimentos são consultados no
+         * mesmo contexto transacional da mudança de status.
+         */
+        const contasReceber =
+          await tx.contaReceber.findMany({
+            where: {
+              vendaId: id,
+              empresaId:
+                venda.empresaId,
+            },
+
+            include: {
+              recebimentos: {
+                select: {
+                  id: true,
+                  valor: true,
+                },
+              },
+            },
+
+            orderBy: {
+              parcelaAtual: 'asc',
+            },
+          });
+
+        const contaComRecebimento =
+          contasReceber.find((conta) => {
+            const valorRecebido = Number(
+              conta.valorRecebido,
+            );
+
+            return (
+              valorRecebido > 0 ||
+              conta.recebimentos.length > 0 ||
+              conta.status ===
+                StatusContaReceber.PARCIALMENTE_RECEBIDA ||
+              conta.status ===
+                StatusContaReceber.RECEBIDA
+            );
+          });
+
+        if (contaComRecebimento) {
+          throw new BadRequestException(
+            `Não é possível cancelar a venda porque a conta a receber nº ${contaComRecebimento.numero} possui recebimento registrado`,
+          );
+        }
+
+        /*
+         * O incremento atômico ocorre somente depois que esta
+         * transação conquistou a mudança para CANCELADA.
          */
         for (const item of venda.itens) {
+          const quantidade = Number(
+            item.quantidade,
+          );
+
+          const devolucao =
+            await tx.estoqueProduto.updateMany({
+              where: {
+                empresaId:
+                  venda.empresaId,
+
+                produtoId:
+                  item.produtoId,
+
+                depositoId:
+                  venda.depositoId,
+              },
+
+              data: {
+                quantidadeAtual: {
+                  increment: quantidade,
+                },
+              },
+            });
+
+          if (devolucao.count !== 1) {
+            throw new BadRequestException(
+              `O estoque do produto "${item.produto.nome}" não foi encontrado para realizar o estorno`,
+            );
+          }
+
           const estoque =
-            await tx.estoqueProduto.findUnique({
+            await tx.estoqueProduto.findUniqueOrThrow({
               where: {
                 empresaId_produtoId_depositoId: {
                   empresaId:
@@ -2313,33 +2489,12 @@ export class VendasService {
               },
             });
 
-          if (!estoque) {
-            throw new BadRequestException(
-              `O estoque do produto "${item.produto.nome}" não foi encontrado para realizar o estorno`,
-            );
-          }
-
-          const saldoAnterior = Number(
+          const saldoPosterior = Number(
             estoque.quantidadeAtual,
           );
 
-          const quantidade = Number(
-            item.quantidade,
-          );
-
-          const saldoPosterior =
-            saldoAnterior + quantidade;
-
-          await tx.estoqueProduto.update({
-            where: {
-              id: estoque.id,
-            },
-
-            data: {
-              quantidadeAtual:
-                saldoPosterior,
-            },
-          });
+          const saldoAnterior =
+            saldoPosterior - quantidade;
 
           await tx.movimentacaoEstoque.create({
             data: {
@@ -2388,12 +2543,6 @@ export class VendasService {
           });
         }
 
-        const dataCancelamento =
-          new Date();
-
-        /*
-         * Cancela todas as contas ainda abertas.
-         */
         for (const conta of contasReceber) {
           if (
             conta.status ===
@@ -2438,24 +2587,6 @@ export class VendasService {
           });
         }
 
-        await tx.venda.update({
-          where: {
-            id,
-          },
-
-          data: {
-            status:
-              StatusVenda.CANCELADA,
-
-            dataCancelamento,
-
-            usuarioCancelamentoId:
-              this.obterUsuarioId(
-                usuario,
-              ),
-          },
-        });
-
         await this.registrarHistorico(
           id,
 
@@ -2464,10 +2595,19 @@ export class VendasService {
           usuario,
           tx,
         );
+
+        return tx.venda.findUniqueOrThrow({
+          where: {
+            id,
+            empresaId:
+              venda.empresaId,
+          },
+
+          include:
+            this.includeVenda,
+        });
       },
     );
-
-    return this.buscarPorId(id, usuario);
   }
 
   async adicionarHistorico(

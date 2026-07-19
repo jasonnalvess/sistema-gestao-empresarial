@@ -3,6 +3,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import {
   CondicaoPagamentoVenda,
   FormaPagamentoVenda,
+  Prisma,
   StatusContaReceber,
   StatusVenda,
   TipoMovimentacaoEstoque,
@@ -18,9 +19,11 @@ function criarPrismaMock() {
     produto: { findMany: jest.fn() },
     venda: {
       findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     vendaItem: {
       deleteMany: jest.fn(),
@@ -32,6 +35,7 @@ function criarPrismaMock() {
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     movimentacaoEstoque: { create: jest.fn() },
     contaReceber: {
@@ -138,6 +142,10 @@ describe('VendasService', () => {
     prisma.venda.findFirst.mockResolvedValue({ numero: 9 });
     prisma.venda.create.mockResolvedValue({ id: 'venda-1', numero: 10 });
     prisma.vendaHistorico.create.mockResolvedValue({ id: 'historico-1' });
+    prisma.venda.updateMany.mockResolvedValue({ count: 1 });
+    prisma.venda.findUniqueOrThrow.mockResolvedValue(
+      venda(StatusVenda.CANCELADA),
+    );
   });
 
   describe('criação', () => {
@@ -296,76 +304,331 @@ describe('VendasService', () => {
   describe('faturamento', () => {
     beforeEach(() => {
       prisma.venda.findUnique.mockResolvedValue(venda(StatusVenda.APROVADA));
-      const estoque = { id: 'estoque-1', quantidadeAtual: 10, custoMedio: 4 };
-      prisma.estoqueProduto.findUnique.mockResolvedValue(estoque);
-      prisma.estoqueProduto.findUniqueOrThrow.mockResolvedValue(estoque);
-      prisma.contaReceber.findFirst.mockResolvedValue({ numero: 20 });
+      prisma.estoqueProduto.updateMany.mockResolvedValue({ count: 1 });
+      prisma.estoqueProduto.findUniqueOrThrow.mockResolvedValue({
+        id: 'estoque-1',
+        quantidadeAtual: 8,
+        custoMedio: 4,
+      });
+      prisma.contaReceber.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ numero: 20 });
       prisma.contaReceber.create
         .mockResolvedValueOnce({ id: 'conta-1' })
         .mockResolvedValueOnce({ id: 'conta-2' })
         .mockResolvedValueOnce({ id: 'conta-3' });
-      prisma.venda.update.mockResolvedValue({ status: StatusVenda.FATURADA });
+      prisma.venda.findUniqueOrThrow.mockResolvedValue(
+        venda(StatusVenda.APROVADA),
+      );
     });
 
-    it('permite somente venda APROVADA', async () => {
+    it('permite somente venda APROVADA sem efeitos colaterais', async () => {
       prisma.venda.findUnique.mockResolvedValue(venda(StatusVenda.PENDENTE));
+
       await expect(service.faturar('venda-1', {}, usuario)).rejects.toThrow(
         'Somente vendas aprovadas podem ser faturadas',
       );
+
+      expect(prisma.venda.updateMany).not.toHaveBeenCalled();
+      expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
+      expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.create).not.toHaveBeenCalled();
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
     });
 
-    it('revalida estoque antes das baixas', async () => {
-      prisma.estoqueProduto.findUnique.mockResolvedValue(null);
-      await expect(service.faturar('venda-1', {}, usuario)).rejects.toThrow(
-        'Estoque insuficiente para o produto',
-      );
-      expect(prisma.estoqueProduto.update).not.toHaveBeenCalled();
-    });
+    it('baixa atomicamente quando o saldo é exatamente igual', async () => {
+      prisma.estoqueProduto.findUniqueOrThrow.mockResolvedValue({
+        id: 'estoque-1',
+        quantidadeAtual: 0,
+        custoMedio: 4,
+      });
 
-    it('gera saída, contas, distribui centavos e marca FATURADA', async () => {
       await service.faturar('venda-1', {}, usuario);
-      expect(prisma.estoqueProduto.update).toHaveBeenCalledWith({
-        where: { id: 'estoque-1' },
-        data: { quantidadeAtual: 8 },
+
+      expect(prisma.estoqueProduto.updateMany).toHaveBeenCalledWith({
+        where: {
+          empresaId: 'empresa-1',
+          produtoId: 'produto-1',
+          depositoId: 'deposito-1',
+          quantidadeAtual: { gte: 2 },
+        },
+        data: { quantidadeAtual: { decrement: 2 } },
       });
       expect(prisma.movimentacaoEstoque.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           tipo: TipoMovimentacaoEstoque.SAIDA,
-          saldoAnterior: 10,
-          saldoPosterior: 8,
+          saldoAnterior: 2,
+          saldoPosterior: 0,
         }),
       });
+    });
+
+    it('rejeita saldo menor pela condição atômica', async () => {
+      prisma.estoqueProduto.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.faturar('venda-1', {}, usuario)).rejects.toThrow(
+        'Estoque insuficiente ou inválido para o produto',
+      );
+
+      expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.create).not.toHaveBeenCalled();
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
+    });
+
+    it('trata updateMany count 0 como falha e não cria efeitos posteriores', async () => {
+      prisma.estoqueProduto.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.faturar('venda-1', {}, usuario)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+
+      expect(prisma.estoqueProduto.findUniqueOrThrow).not.toHaveBeenCalled();
+      expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
+      expect(prisma.vendaItem.update).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.create).not.toHaveBeenCalled();
+      expect(prisma.contaReceberHistorico.create).not.toHaveBeenCalled();
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
+    });
+
+    it('gera saída, um conjunto de contas, distribui centavos e marca FATURADA', async () => {
+      await service.faturar('venda-1', {}, usuario);
+
+      expect(prisma.venda.findUnique).toHaveBeenCalledWith({
+        where: { id: 'venda-1' },
+        select: { id: true, empresaId: true, status: true },
+      });
+      expect(prisma.venda.findUniqueOrThrow).toHaveBeenNthCalledWith(1, {
+        where: { id: 'venda-1', empresaId: 'empresa-1' },
+        include: expect.any(Object),
+      });
+      expect(prisma.estoqueProduto.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.movimentacaoEstoque.create).toHaveBeenCalledTimes(1);
       expect(prisma.contaReceber.create).toHaveBeenCalledTimes(3);
       const valores = prisma.contaReceber.create.mock.calls.map(
         ([arg]) => arg.data.valorOriginal,
       );
       expect(valores).toEqual([33.34, 33.33, 33.33]);
-      expect(prisma.venda.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ status: StatusVenda.FATURADA }),
+      expect(prisma.venda.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'venda-1',
+          empresaId: 'empresa-1',
+          status: StatusVenda.APROVADA,
+        },
+        data: expect.objectContaining({ status: StatusVenda.FATURADA }),
+      });
+    });
+
+    it('rejeita segunda tentativa sem nova baixa ou efeitos colaterais', async () => {
+      prisma.venda.findUnique.mockResolvedValue(venda(StatusVenda.FATURADA));
+
+      await expect(service.faturar('venda-1', {}, usuario)).rejects.toThrow(
+        'Somente vendas aprovadas podem ser faturadas',
+      );
+
+      expect(prisma.venda.updateMany).not.toHaveBeenCalled();
+      expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
+      expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.create).not.toHaveBeenCalled();
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
+    });
+
+    it('a requisição derrotada não carrega a venda completa nem produz efeitos', async () => {
+      prisma.venda.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.faturar('venda-1', {}, usuario)).rejects.toThrow(
+        'A venda já foi faturada ou não está mais aprovada',
+      );
+
+      expect(prisma.venda.findUniqueOrThrow).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.findFirst).not.toHaveBeenCalled();
+      expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
+      expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.create).not.toHaveBeenCalled();
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
+    });
+
+    it('duas chamadas concorrentes produzem somente uma baixa e um conjunto de contas', async () => {
+      prisma.contaReceber.findFirst.mockReset();
+      prisma.contaReceber.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ numero: 20 });
+      prisma.venda.updateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      const resultados = await Promise.allSettled([
+        service.faturar('venda-1', {}, usuario),
+        service.faturar('venda-1', {}, usuario),
+      ]);
+
+      expect(
+        resultados.filter((resultado) => resultado.status === 'fulfilled'),
+      ).toHaveLength(1);
+      expect(
+        resultados.filter((resultado) => resultado.status === 'rejected'),
+      ).toHaveLength(1);
+      expect(prisma.venda.findUniqueOrThrow).toHaveBeenCalledTimes(2);
+      expect(prisma.contaReceber.findFirst).toHaveBeenCalledTimes(2);
+      expect(prisma.estoqueProduto.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.movimentacaoEstoque.create).toHaveBeenCalledTimes(1);
+      expect(prisma.contaReceber.create).toHaveBeenCalledTimes(3);
+      expect(prisma.vendaHistorico.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejeita contas preexistentes após a transição e antes da baixa', async () => {
+      prisma.contaReceber.findFirst.mockReset();
+      prisma.contaReceber.findFirst.mockResolvedValue({
+        id: 'conta-existente',
+      });
+
+      await expect(service.faturar('venda-1', {}, usuario)).rejects.toThrow(
+        'A venda já possui contas a receber geradas',
+      );
+
+      expect(prisma.venda.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
+      expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.create).not.toHaveBeenCalled();
+    });
+
+    it('converte violação de unicidade das parcelas em erro de domínio', async () => {
+      prisma.contaReceber.create.mockReset();
+      prisma.contaReceber.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '6.19.3',
+          meta: { target: ['vendaId', 'parcelaAtual'] },
         }),
       );
+
+      await expect(service.faturar('venda-1', {}, usuario)).rejects.toThrow(
+        'As contas a receber desta venda já foram geradas',
+      );
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
+    });
+
+    it('mantém o faturamento à vista com uma única parcela', async () => {
+      const vendaAvista = {
+        ...venda(StatusVenda.APROVADA),
+        condicaoPagamento: CondicaoPagamentoVenda.AVISTA,
+        quantidadeParcelas: 1,
+      };
+      prisma.venda.findUniqueOrThrow.mockResolvedValue(vendaAvista);
+      prisma.contaReceber.create.mockReset();
+      prisma.contaReceber.create.mockResolvedValue({ id: 'conta-1' });
+
+      await service.faturar('venda-1', {}, usuario);
+
+      expect(prisma.contaReceber.create).toHaveBeenCalledTimes(1);
+      expect(prisma.contaReceber.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            parcelaAtual: 1,
+            totalParcelas: 1,
+          }),
+        }),
+      );
+    });
+
+    it('não converte P2002 de outra constraint em erro de parcelas', async () => {
+      const erro = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        {
+          code: 'P2002',
+          clientVersion: '6.19.3',
+          meta: { target: ['empresaId', 'numero'] },
+        },
+      );
+      prisma.contaReceber.create.mockReset();
+      prisma.contaReceber.create.mockRejectedValue(erro);
+
+      await expect(service.faturar('venda-1', {}, usuario)).rejects.toBe(erro);
+    });
+
+    it('SUPER_ADMIN opera estoque e financeiro pela empresa da venda', async () => {
+      const vendaOutraEmpresa = {
+        ...venda(StatusVenda.APROVADA),
+        empresaId: 'empresa-2',
+      };
+      prisma.venda.findUnique.mockResolvedValue(vendaOutraEmpresa);
+      prisma.venda.findUniqueOrThrow.mockResolvedValue(vendaOutraEmpresa);
+
+      await service.faturar('venda-1', {}, {
+        id: 'super-1',
+        tipo: 'SUPER_ADMIN',
+      });
+
+      expect(prisma.venda.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ empresaId: 'empresa-2' }),
+        }),
+      );
+      expect(prisma.estoqueProduto.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ empresaId: 'empresa-2' }),
+        }),
+      );
+      expect(prisma.contaReceber.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ empresaId: 'empresa-2' }),
+        }),
+      );
+    });
+
+    it('não altera estoque de outra empresa', async () => {
+      prisma.venda.findUnique.mockResolvedValue({
+        ...venda(StatusVenda.APROVADA),
+        empresaId: 'empresa-2',
+      });
+
+      await expect(service.faturar('venda-1', {}, usuario)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(prisma.venda.updateMany).not.toHaveBeenCalled();
+      expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
+      expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
     });
   });
 
   describe('cancelamento', () => {
+    beforeEach(() => {
+      prisma.contaReceber.findMany.mockResolvedValue([]);
+      prisma.venda.findUniqueOrThrow.mockResolvedValue(
+        venda(StatusVenda.FATURADA),
+      );
+      prisma.estoqueProduto.updateMany.mockResolvedValue({ count: 1 });
+      prisma.estoqueProduto.findUniqueOrThrow.mockResolvedValue({
+        id: 'estoque-1',
+        quantidadeAtual: 10,
+        custoMedio: 4,
+      });
+    });
+
     it.each([StatusVenda.RASCUNHO, StatusVenda.PENDENTE, StatusVenda.APROVADA])(
       'cancela %s sem estorno financeiro',
       async (status) => {
-        prisma.venda.findUnique
-          .mockResolvedValueOnce(venda(status))
-          .mockResolvedValueOnce(venda(StatusVenda.CANCELADA));
+        prisma.venda.findUnique.mockResolvedValue(venda(status));
+
         await service.cancelar('venda-1', {}, usuario);
+
+        expect(prisma.venda.updateMany).toHaveBeenCalledWith({
+          where: {
+            id: 'venda-1',
+            empresaId: 'empresa-1',
+            status,
+          },
+          data: expect.objectContaining({ status: StatusVenda.CANCELADA }),
+        });
         expect(prisma.vendaItem.updateMany).toHaveBeenCalled();
+        expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
         expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
         expect(prisma.contaReceber.update).not.toHaveBeenCalled();
       },
     );
 
-    it('estorna estoque e contas de venda FATURADA', async () => {
-      prisma.venda.findUnique
-        .mockResolvedValueOnce(venda(StatusVenda.FATURADA))
-        .mockResolvedValueOnce(venda(StatusVenda.CANCELADA));
+    it('estorna estoque com increment e cancela contas de venda FATURADA', async () => {
+      prisma.venda.findUnique.mockResolvedValue(venda(StatusVenda.FATURADA));
       prisma.contaReceber.findMany.mockResolvedValue([
         {
           id: 'conta-1',
@@ -375,23 +638,34 @@ describe('VendasService', () => {
           recebimentos: [],
         },
       ]);
-      prisma.estoqueProduto.findUnique.mockResolvedValue({
-        id: 'estoque-1',
-        quantidadeAtual: 8,
-        custoMedio: 4,
-      });
+
       await service.cancelar(
         'venda-1',
         { motivo: 'Erro operacional' },
         usuario,
       );
-      expect(prisma.estoqueProduto.update).toHaveBeenCalledWith({
-        where: { id: 'estoque-1' },
-        data: { quantidadeAtual: 10 },
+
+      expect(prisma.venda.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'venda-1',
+          empresaId: 'empresa-1',
+          status: StatusVenda.FATURADA,
+        },
+        data: expect.objectContaining({ status: StatusVenda.CANCELADA }),
+      });
+      expect(prisma.estoqueProduto.updateMany).toHaveBeenCalledWith({
+        where: {
+          empresaId: 'empresa-1',
+          produtoId: 'produto-1',
+          depositoId: 'deposito-1',
+        },
+        data: { quantidadeAtual: { increment: 2 } },
       });
       expect(prisma.movimentacaoEstoque.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           tipo: TipoMovimentacaoEstoque.ENTRADA,
+          saldoAnterior: 8,
+          saldoPosterior: 10,
         }),
       });
       expect(prisma.contaReceber.update).toHaveBeenCalledWith(
@@ -404,14 +678,127 @@ describe('VendasService', () => {
       );
     });
 
+    it('consulta contas e recebimentos da empresa dentro da transação', async () => {
+      prisma.venda.findUnique.mockResolvedValue(venda(StatusVenda.FATURADA));
+
+      await service.cancelar('venda-1', {}, usuario);
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.contaReceber.findMany).toHaveBeenCalledWith({
+        where: {
+          vendaId: 'venda-1',
+          empresaId: 'empresa-1',
+        },
+        include: {
+          recebimentos: {
+            select: { id: true, valor: true },
+          },
+        },
+        orderBy: { parcelaAtual: 'asc' },
+      });
+    });
+
+    it('segunda tentativa de cancelamento não devolve estoque novamente', async () => {
+      prisma.venda.findUnique.mockResolvedValue(venda(StatusVenda.CANCELADA));
+
+      await expect(service.cancelar('venda-1', {}, usuario)).rejects.toThrow(
+        'A venda já está cancelada',
+      );
+
+      expect(prisma.venda.updateMany).not.toHaveBeenCalled();
+      expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
+      expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.update).not.toHaveBeenCalled();
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
+    });
+
+    it('cancelamentos concorrentes devolvem estoque apenas uma vez', async () => {
+      prisma.venda.findUnique.mockResolvedValue(venda(StatusVenda.FATURADA));
+      prisma.venda.updateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      const resultados = await Promise.allSettled([
+        service.cancelar('venda-1', {}, usuario),
+        service.cancelar('venda-1', {}, usuario),
+      ]);
+
+      expect(
+        resultados.filter((resultado) => resultado.status === 'fulfilled'),
+      ).toHaveLength(1);
+      expect(
+        resultados.filter((resultado) => resultado.status === 'rejected'),
+      ).toHaveLength(1);
+      expect(prisma.venda.findUniqueOrThrow).toHaveBeenCalledTimes(2);
+      expect(prisma.contaReceber.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.estoqueProduto.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.movimentacaoEstoque.create).toHaveBeenCalledTimes(1);
+      expect(prisma.vendaHistorico.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('recebimento existente impede cancelamento e qualquer devolução', async () => {
+      prisma.venda.findUnique.mockResolvedValue(venda(StatusVenda.FATURADA));
+      prisma.contaReceber.findMany.mockResolvedValue([
+        {
+          id: 'conta-1',
+          numero: 21,
+          status: StatusContaReceber.RECEBIDA,
+          valorRecebido: 100,
+          recebimentos: [{ id: 'recebimento-1', valor: 100 }],
+        },
+      ]);
+
+      await expect(service.cancelar('venda-1', {}, usuario)).rejects.toThrow(
+        'possui recebimento registrado',
+      );
+
+      expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
+      expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.update).not.toHaveBeenCalled();
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
+    });
+
+    it('falha na devolução não deixa efeitos posteriores do cancelamento', async () => {
+      prisma.venda.findUnique.mockResolvedValue(venda(StatusVenda.FATURADA));
+      prisma.estoqueProduto.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.cancelar('venda-1', {}, usuario)).rejects.toThrow(
+        'não foi encontrado para realizar o estorno',
+      );
+
+      expect(prisma.estoqueProduto.findUniqueOrThrow).not.toHaveBeenCalled();
+      expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
+      expect(prisma.vendaItem.update).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.update).not.toHaveBeenCalled();
+      expect(prisma.contaReceberHistorico.create).not.toHaveBeenCalled();
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
+    });
+
     it.each([
       [StatusVenda.CONCLUIDA, 'Não é possível cancelar uma venda concluída'],
       [StatusVenda.CANCELADA, 'A venda já está cancelada'],
     ])('impede cancelamento de venda %s', async (status, mensagem) => {
       prisma.venda.findUnique.mockResolvedValue(venda(status));
+
       await expect(service.cancelar('venda-1', {}, usuario)).rejects.toThrow(
         mensagem,
       );
+      expect(prisma.venda.updateMany).not.toHaveBeenCalled();
+      expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('não cancela venda nem estoque de outra empresa', async () => {
+      prisma.venda.findUnique.mockResolvedValue({
+        ...venda(StatusVenda.FATURADA),
+        empresaId: 'empresa-2',
+      });
+
+      await expect(service.cancelar('venda-1', {}, usuario)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(prisma.venda.updateMany).not.toHaveBeenCalled();
+      expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
+      expect(prisma.contaReceber.findMany).not.toHaveBeenCalled();
     });
   });
 

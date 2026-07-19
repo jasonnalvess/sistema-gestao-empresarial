@@ -32,7 +32,7 @@ No schema Prisma ativo examinado, o enum de usuarios nao materializa toda essa l
 
 ## Vendas
 
-Fluxo de negocio informado:
+Fluxo implementado:
 
 ```text
 RASCUNHO
@@ -42,9 +42,19 @@ RASCUNHO
   -> CONCLUIDA
 ```
 
-Uma venda pode ser concluida automaticamente quando a conta a receber correspondente for totalmente recebida.
+Uma venda pode ser concluida automaticamente quando todas as contas a receber vinculadas estiverem integralmente quitadas.
 
-O modulo de Vendas, suas rotas e os modelos correspondentes nao foram encontrados na arvore ativa examinada. Portanto, o fluxo acima e uma regra definida para a evolucao do produto, mas sua implementacao atual esta **a confirmar**. Nao criar endpoints, transicoes ou efeitos financeiros sem uma tarefa especifica e sem validar o contrato existente na branch de trabalho.
+Garantias permanentes dos fluxos de faturamento e cancelamento:
+
+- faturamento e cancelamento executam seus efeitos dependentes em uma unica transacao Prisma;
+- as transicoes `APROVADA -> FATURADA` e de status cancelavel para `CANCELADA` sao condicionais e atomicas;
+- somente a transacao vencedora carrega e processa itens, estoque, financeiro e historico;
+- a baixa de estoque exige saldo suficiente na mesma operacao que aplica `decrement`;
+- a devolucao de estoque usa `increment` atomico depois da transicao para `CANCELADA`;
+- falhas em estoque, movimentacoes, contas ou historico causam rollback integral;
+- estoque, movimentacoes e contas sempre utilizam a empresa da propria venda;
+- parcelas geradas por venda sao unicas por `vendaId` e `parcelaAtual`;
+- contas manuais ou de outras origens continuam permitidas quando `vendaId` for nulo.
 
 ## Estoque
 

@@ -940,10 +940,10 @@ model ContaReceber {
   updatedAt DateTime @updatedAt
 
   @@unique([empresaId, numero])
+  @@unique([vendaId, parcelaAtual])
   @@index([empresaId])
   @@index([clienteId])
   @@index([ordemServicoId])
-  @@index([vendaId])
   @@index([status])
   @@index([dataVencimento])
 }
