@@ -80,3 +80,15 @@ Regras confirmadas para futuras alteracoes financeiras:
 - operacoes com multiplos recursos dependentes devem ser transacionais.
 
 Parcelamento, juros, descontos, estornos, conciliacao, caixa e regras de vencimento estao **a confirmar**. Nao inferir comportamento financeiro apenas pelo nome de um arquivo ou diretorio.
+
+## Caixa
+
+- cada caixa pertence a uma empresa e todas as aberturas, movimentacoes e historicos usam a empresa do proprio caixa;
+- um caixa pode possuir no maximo uma abertura ativa, garantida por transicao condicional, bloqueio da linha do caixa e indice unico parcial no PostgreSQL;
+- abertura, movimentacao, fechamento e historico correspondente sao persistidos na mesma transacao;
+- entradas usam incremento atomico e saidas usam decremento condicional a saldo suficiente;
+- o bloqueio da linha do caixa serializa abertura, movimentacao e fechamento concorrentes, preservando a ordem efetiva de saldo anterior e saldo posterior;
+- o fechamento conquista condicionalmente a abertura ativa e impede novas movimentacoes depois de concluido;
+- movimentos originados de pagamentos e recebimentos permanecem unicos pelos respectivos identificadores;
+- conflitos de unicidade sao tratados conforme a constraint afetada e erros inesperados sao propagados;
+- movimentos financeiros sao imutaveis; nao existe regra de negocio aprovada para estorno manual e, portanto, nenhum endpoint de exclusao ou estorno e inferido.
