@@ -1,10 +1,5 @@
-import {
-  IsDateString,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Min,
-} from 'class-validator';
+import { IsDateString, IsOptional, IsString, Min } from 'class-validator';
+import { IsValorMonetario } from '../../contas-pagar/valor-monetario';
 
 export class GerarContaOrdemServicoDto {
   @IsDateString()
@@ -14,7 +9,7 @@ export class GerarContaOrdemServicoDto {
   @IsDateString()
   dataCompetencia?: string;
 
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0.01)
   valorOriginal: number;
 

@@ -108,3 +108,15 @@ Parcelamento, juros, descontos, estornos, conciliacao, caixa e regras de vencime
 - uma movimentacao de Caixa e unica por pagamento e conflitos de idempotencia sao tratados pela constraint correspondente;
 - contas com pagamentos permanecem impedidas de cancelamento;
 - pagamentos sao imutaveis e nao existe regra aprovada de estorno; o estorno financeiro permanece pendente de definicao funcional.
+
+
+## Contas a receber
+
+- recebimentos parciais mantem a conta parcialmente recebida e o recebimento integral exige saldo calculado exatamente igual a zero;
+- valores monetarios aceitam no maximo duas casas decimais e precisao superior a centavos e rejeitada sem arredondamento silencioso;
+- recebimento, atualizacao da conta, entrada no Caixa, historicos e conclusao eventual da venda confirmam ou revertem na mesma transacao;
+- recebimento, edicao e cancelamento bloqueiam a mesma conta, e contas da mesma venda tambem serializam pela venda vinculada;
+- Contas a Receber utiliza a operacao financeira transacional do Caixa e nao altera diretamente o saldo do caixa;
+- uma movimentacao de Caixa e unica por recebimento; conflitos conhecidos de unicidade possuem mensagens especificas e erros desconhecidos sao propagados;
+- uma Ordem de Servico concluida pode possuir somente uma conta a receber ativa; uma nova geracao continua permitida depois do cancelamento da conta anterior;
+- contas com recebimentos nao podem ser canceladas e recebimentos permanecem imutaveis, sem estorno inferido.

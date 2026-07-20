@@ -1,13 +1,13 @@
 import {
   IsDateString,
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Min,
   MinLength,
 } from 'class-validator';
+import { IsValorMonetario } from '../../contas-pagar/valor-monetario';
 
 export class AtualizarContaReceberDto {
   @IsOptional()
@@ -46,22 +46,22 @@ export class AtualizarContaReceberDto {
   totalParcelas?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0.01)
   valorOriginal?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorDesconto?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorJuros?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorMulta?: number;
 
