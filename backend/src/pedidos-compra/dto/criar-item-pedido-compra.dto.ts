@@ -4,6 +4,7 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
+import { IsValorMonetario } from '../../contas-pagar/valor-monetario';
 
 export class CriarItemPedidoCompraDto {
   @IsUUID()
@@ -14,11 +15,13 @@ export class CriarItemPedidoCompraDto {
   quantidadeSolicitada: number;
 
   @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorUnitario: number;
 
   @IsOptional()
   @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorDesconto?: number;
 }

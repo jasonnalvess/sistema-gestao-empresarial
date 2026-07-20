@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 
 import { CriarItemPedidoCompraDto } from './criar-item-pedido-compra.dto';
+import { IsValorMonetario } from '../../contas-pagar/valor-monetario';
 
 export class CriarPedidoCompraDto {
   @IsUUID()
@@ -35,16 +36,19 @@ export class CriarPedidoCompraDto {
 
   @IsOptional()
   @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorDesconto?: number;
 
   @IsOptional()
   @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorFrete?: number;
 
   @IsOptional()
   @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorOutros?: number;
 

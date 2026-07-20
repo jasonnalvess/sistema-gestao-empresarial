@@ -10,6 +10,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { IsValorMonetario } from '../../contas-pagar/valor-monetario';
 
 export class ReceberItemPedidoCompraDto {
   @IsUUID()
@@ -21,6 +22,7 @@ export class ReceberItemPedidoCompraDto {
 
   @IsOptional()
   @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   custoUnitario?: number;
 }
