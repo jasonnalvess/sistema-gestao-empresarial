@@ -568,6 +568,149 @@ export class CaixasService {
     }
   }
 
+  async registrarMovimentacaoFinanceira(
+    tx: Prisma.TransactionClient,
+    dados: {
+      caixaId: string;
+      empresaId: string;
+      tipo: TipoMovimentacaoCaixa;
+      origem: OrigemMovimentacaoCaixa;
+      descricao: string;
+      valor: Prisma.Decimal;
+      dataMovimentacao: Date;
+      usuarioId?: string;
+      documento?: string;
+      observacao?: string;
+      pagamentoContaPagarId?: string;
+      recebimentoContaReceberId?: string;
+    },
+  ) {
+    await this.bloquearCaixa(tx, dados.caixaId);
+
+    const caixa = await tx.caixa.findUnique({
+      where: { id: dados.caixaId },
+    });
+
+    if (!caixa) {
+      throw new NotFoundException('Caixa não encontrado');
+    }
+
+    if (caixa.empresaId !== dados.empresaId) {
+      throw new ForbiddenException('Caixa pertence a outra empresa');
+    }
+
+    if (!caixa.ativo || caixa.status !== StatusCaixa.ABERTO) {
+      throw new BadRequestException(
+        'O caixa selecionado precisa estar ativo e aberto',
+      );
+    }
+
+    const abertura = await tx.aberturaCaixa.findFirst({
+      where: {
+        caixaId: caixa.id,
+        empresaId: dados.empresaId,
+        aberto: true,
+      },
+      orderBy: { dataAbertura: 'desc' },
+    });
+
+    if (!abertura) {
+      throw new BadRequestException(
+        'O caixa não possui uma abertura ativa',
+      );
+    }
+
+    const alteracao = await tx.caixa.updateMany({
+      where: {
+        id: caixa.id,
+        empresaId: dados.empresaId,
+        ativo: true,
+        status: StatusCaixa.ABERTO,
+        ...(dados.tipo === TipoMovimentacaoCaixa.SAIDA
+          ? { saldoAtual: { gte: dados.valor } }
+          : {}),
+      },
+      data: {
+        saldoAtual:
+          dados.tipo === TipoMovimentacaoCaixa.ENTRADA
+            ? { increment: dados.valor }
+            : { decrement: dados.valor },
+      },
+    });
+
+    if (alteracao.count !== 1) {
+      const atual = await tx.caixa.findUnique({
+        where: { id: caixa.id },
+        select: { saldoAtual: true },
+      });
+
+      if (dados.tipo === TipoMovimentacaoCaixa.SAIDA) {
+        throw new BadRequestException(
+          'Saldo insuficiente no caixa. Saldo disponível: R$ ' +
+            Number(atual?.saldoAtual ?? 0).toFixed(2),
+        );
+      }
+
+      throw new BadRequestException(
+        'O caixa não está mais disponível para movimentação',
+      );
+    }
+
+    const caixaAtualizado = await tx.caixa.findUniqueOrThrow({
+      where: { id: caixa.id },
+    });
+
+    const saldoPosterior = new Prisma.Decimal(
+      caixaAtualizado.saldoAtual,
+    );
+
+    const saldoAnterior =
+      dados.tipo === TipoMovimentacaoCaixa.ENTRADA
+        ? saldoPosterior.minus(dados.valor)
+        : saldoPosterior.plus(dados.valor);
+
+    const movimentacao = await tx.movimentacaoCaixa.create({
+      data: {
+        tipo: dados.tipo,
+        origem: dados.origem,
+        descricao: dados.descricao,
+        documento: dados.documento,
+        observacao: dados.observacao,
+        valor: dados.valor,
+        saldoAnterior,
+        saldoPosterior,
+        dataMovimentacao: dados.dataMovimentacao,
+        empresaId: dados.empresaId,
+        caixaId: caixa.id,
+        aberturaCaixaId: abertura.id,
+        usuarioId: dados.usuarioId,
+        pagamentoContaPagarId: dados.pagamentoContaPagarId,
+        recebimentoContaReceberId:
+          dados.recebimentoContaReceberId,
+      },
+    });
+
+    await this.registrarHistorico(
+      tx,
+      caixa.id,
+      dados.empresaId,
+      (dados.tipo === TipoMovimentacaoCaixa.ENTRADA
+        ? 'Entrada'
+        : 'Saída') +
+        ' de R$ ' +
+        dados.valor.toFixed(2) +
+        ' referente a ' +
+        dados.descricao +
+        '.',
+      { id: dados.usuarioId },
+    );
+
+    return {
+      movimentacao,
+      caixa: caixaAtualizado,
+    };
+  }
+
   async criarMovimentacao(
     caixaId: string,
     dados: CriarMovimentacaoCaixaDto,

@@ -2,7 +2,6 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -11,6 +10,7 @@ import {
 } from 'class-validator';
 
 import { OrigemContaPagar } from '@prisma/client';
+import { IsValorMonetario } from '../valor-monetario';
 
 export class CriarContaPagarDto {
   @IsString()
@@ -50,22 +50,22 @@ export class CriarContaPagarDto {
   @Min(1)
   totalParcelas?: number;
 
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0.01)
   valorOriginal: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorDesconto?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorJuros?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   valorMulta?: number;
 
