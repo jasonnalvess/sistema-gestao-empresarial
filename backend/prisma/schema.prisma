@@ -836,9 +836,9 @@ model ContaPagar {
   updatedAt DateTime @updatedAt
 
   @@unique([empresaId, numero])
+  @@unique([pedidoCompraId])
   @@index([empresaId])
   @@index([fornecedorId])
-  @@index([pedidoCompraId])
   @@index([status])
   @@index([dataVencimento])
 }

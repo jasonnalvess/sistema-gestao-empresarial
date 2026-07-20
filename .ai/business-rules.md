@@ -92,3 +92,19 @@ Parcelamento, juros, descontos, estornos, conciliacao, caixa e regras de vencime
 - movimentos originados de pagamentos e recebimentos permanecem unicos pelos respectivos identificadores;
 - conflitos de unicidade sao tratados conforme a constraint afetada e erros inesperados sao propagados;
 - movimentos financeiros sao imutaveis; nao existe regra de negocio aprovada para estorno manual e, portanto, nenhum endpoint de exclusao ou estorno e inferido.
+
+## Contas a pagar
+
+- cada pedido de compra totalmente recebido pode gerar exatamente uma conta a pagar, sem parcelamento automatico nessa origem;
+- a unicidade por pedido de compra e garantida no banco, mantendo contas manuais com pedido nulo permitidas;
+- pagamentos parciais mantem a conta parcialmente paga e pagamentos integrais zeram o saldo e marcam a conta como paga;
+- juros e multa aumentam o saldo ajustado; desconto reduz o saldo; o pagamento nunca pode superar esse saldo;
+- todos os valores monetarios aceitam no maximo duas casas decimais, tanto nas entradas da API quanto em valores internos originados de Pedido de Compra;
+- nao existe arredondamento silencioso: valores com precisao superior a centavos sao rejeitados;
+- calculos financeiros criticos utilizam Decimal e uma conta e quitada somente quando o saldo calculado e exatamente zero, sem tolerancia de meio centavo;
+- pagamento e cancelamento bloqueiam a mesma linha da conta, de modo que somente uma operacao concorrente pode vencer;
+- pagamento, atualizacao da conta, saida do Caixa e historicos confirmam ou revertem na mesma transacao;
+- Contas a Pagar nao altera diretamente o saldo do Caixa; utiliza a operacao financeira do Caixa com o mesmo transaction client;
+- uma movimentacao de Caixa e unica por pagamento e conflitos de idempotencia sao tratados pela constraint correspondente;
+- contas com pagamentos permanecem impedidas de cancelamento;
+- pagamentos sao imutaveis e nao existe regra aprovada de estorno; o estorno financeiro permanece pendente de definicao funcional.

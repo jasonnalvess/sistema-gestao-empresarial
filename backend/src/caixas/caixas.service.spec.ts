@@ -219,4 +219,75 @@ describe('CaixasService', () => {
       data: expect.objectContaining({ empresaId: 'empresa-2' }),
     }));
   });
+  it('registra saída financeira no tx recebido com idempotência do pagamento', async () => {
+    prisma.caixa.findUnique.mockResolvedValue(caixa(StatusCaixa.ABERTO, 100));
+    prisma.caixa.findUniqueOrThrow.mockResolvedValue(caixa(StatusCaixa.ABERTO, 60));
+    prisma.aberturaCaixa.findFirst.mockResolvedValue(abertura);
+
+    await service.registrarMovimentacaoFinanceira(prisma as never, {
+      caixaId: 'caixa-1',
+      empresaId: 'empresa-1',
+      tipo: TipoMovimentacaoCaixa.SAIDA,
+      origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
+      descricao: 'Pagamento da conta 1',
+      valor: new Prisma.Decimal(40),
+      dataMovimentacao: new Date('2026-07-20'),
+      pagamentoContaPagarId: 'pagamento-1',
+      usuarioId: 'usuario-1',
+    });
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.caixa.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        empresaId: 'empresa-1',
+        saldoAtual: { gte: new Prisma.Decimal(40) },
+      }),
+      data: { saldoAtual: { decrement: new Prisma.Decimal(40) } },
+    }));
+    expect(prisma.movimentacaoCaixa.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        pagamentoContaPagarId: 'pagamento-1',
+        saldoAnterior: new Prisma.Decimal(100),
+        saldoPosterior: new Prisma.Decimal(60),
+      }),
+    }));
+    expect(prisma.caixaHistorico.create).toHaveBeenCalled();
+  });
+
+  it('rejeita saída financeira sem saldo antes de movimento e histórico', async () => {
+    prisma.caixa.findUnique.mockResolvedValue(caixa(StatusCaixa.ABERTO, 10));
+    prisma.aberturaCaixa.findFirst.mockResolvedValue(abertura);
+    prisma.caixa.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(service.registrarMovimentacaoFinanceira(prisma as never, {
+      caixaId: 'caixa-1',
+      empresaId: 'empresa-1',
+      tipo: TipoMovimentacaoCaixa.SAIDA,
+      origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
+      descricao: 'Pagamento',
+      valor: new Prisma.Decimal(20),
+      dataMovimentacao: new Date(),
+      pagamentoContaPagarId: 'pagamento-1',
+    })).rejects.toThrow('Saldo insuficiente');
+
+    expect(prisma.movimentacaoCaixa.create).not.toHaveBeenCalled();
+    expect(prisma.caixaHistorico.create).not.toHaveBeenCalled();
+  });
+
+  it('rejeita empresa incompatível na movimentação financeira', async () => {
+    prisma.caixa.findUnique.mockResolvedValue(caixa(StatusCaixa.ABERTO, 100));
+
+    await expect(service.registrarMovimentacaoFinanceira(prisma as never, {
+      caixaId: 'caixa-1',
+      empresaId: 'empresa-2',
+      tipo: TipoMovimentacaoCaixa.SAIDA,
+      origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
+      descricao: 'Pagamento',
+      valor: new Prisma.Decimal(20),
+      dataMovimentacao: new Date(),
+    })).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.caixa.updateMany).not.toHaveBeenCalled();
+  });
+
 });

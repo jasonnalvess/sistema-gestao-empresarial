@@ -9,5 +9,6 @@ import { CaixasService } from './caixas.service';
   imports: [PrismaModule],
   controllers: [CaixasController],
   providers: [CaixasService],
+  exports: [CaixasService],
 })
 export class CaixasModule {}
