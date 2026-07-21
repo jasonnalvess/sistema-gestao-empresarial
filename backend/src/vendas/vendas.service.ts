@@ -28,6 +28,10 @@ import { CriarVendaHistoricoDto } from './dto/criar-venda-historico.dto';
 import { CriarVendaItemDto } from './dto/criar-venda-item.dto';
 import { FaturarVendaDto } from './dto/faturar-venda.dto';
 import { CancelarVendaDto } from './dto/cancelar-venda.dto';
+import {
+  bloquearEstoques,
+  chaveLockEstoque,
+} from '../estoque/estoque-transacional';
 
 @Injectable()
 export class VendasService {
@@ -1158,20 +1162,21 @@ export class VendasService {
           },
         });
 
-      const quantidadeDisponivel = Number(
+      const quantidadeDisponivel = new Prisma.Decimal(
         estoque?.quantidadeAtual ?? 0,
       );
 
-      const quantidadeSolicitada = Number(
+      const quantidadeSolicitada = new Prisma.Decimal(
         item.quantidade,
       );
 
       if (
-        quantidadeDisponivel <
-        quantidadeSolicitada
+        quantidadeDisponivel.lt(
+          quantidadeSolicitada,
+        )
       ) {
         itensSemEstoque.push(
-          `${item.produto.nome}: solicitado ${quantidadeSolicitada}, disponível ${quantidadeDisponivel}`,
+          `${item.produto.nome}: solicitado ${quantidadeSolicitada.toString()}, disponível ${quantidadeDisponivel.toString()}`,
         );
       }
     }
@@ -1406,13 +1411,25 @@ export class VendasService {
             );
           }
 
+          await bloquearEstoques(
+            tx,
+            venda.itens.map((item) =>
+              chaveLockEstoque(
+                venda.empresaId,
+                item.produtoId,
+                venda.depositoId,
+              ),
+            ),
+          );
+
           /*
            * A condição e o decremento são executados na mesma
            * instrução para impedir saldo negativo sob concorrência.
            */
           for (const item of venda.itens) {
-            const quantidade =
-              Number(item.quantidade);
+            const quantidade = new Prisma.Decimal(
+              item.quantidade,
+            );
 
             const baixa =
               await tx.estoqueProduto.updateMany({
@@ -1460,12 +1477,12 @@ export class VendasService {
                 },
               });
 
-            const saldoPosterior = Number(
+            const saldoPosterior = new Prisma.Decimal(
               estoque.quantidadeAtual,
             );
 
             const saldoAnterior =
-              saldoPosterior + quantidade;
+              saldoPosterior.plus(quantidade);
 
             await tx.movimentacaoEstoque.create({
               data: {
@@ -2438,12 +2455,23 @@ export class VendasService {
           );
         }
 
+        await bloquearEstoques(
+          tx,
+          venda.itens.map((item) =>
+            chaveLockEstoque(
+              venda.empresaId,
+              item.produtoId,
+              venda.depositoId,
+            ),
+          ),
+        );
+
         /*
          * O incremento atômico ocorre somente depois que esta
          * transação conquistou a mudança para CANCELADA.
          */
         for (const item of venda.itens) {
-          const quantidade = Number(
+          const quantidade = new Prisma.Decimal(
             item.quantidade,
           );
 
@@ -2489,12 +2517,12 @@ export class VendasService {
               },
             });
 
-          const saldoPosterior = Number(
+          const saldoPosterior = new Prisma.Decimal(
             estoque.quantidadeAtual,
           );
 
           const saldoAnterior =
-            saldoPosterior - quantidade;
+            saldoPosterior.minus(quantidade);
 
           await tx.movimentacaoEstoque.create({
             data: {

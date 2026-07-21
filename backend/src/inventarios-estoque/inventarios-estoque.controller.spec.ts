@@ -1,18 +1,10 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { InventariosEstoqueController } from './inventarios-estoque.controller';
+import { InventariosEstoqueService } from './inventarios-estoque.service';
 
 describe('InventariosEstoqueController', () => {
-  let controller: InventariosEstoqueController;
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [InventariosEstoqueController],
-    }).compile();
-
-    controller = module.get<InventariosEstoqueController>(InventariosEstoqueController);
-  });
-
   it('should be defined', () => {
-    expect(controller).toBeDefined();
+    expect(
+      new InventariosEstoqueController({} as InventariosEstoqueService),
+    ).toBeDefined();
   });
 });
