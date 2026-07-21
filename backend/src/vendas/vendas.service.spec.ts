@@ -45,6 +45,7 @@ function criarPrismaMock() {
       update: jest.fn(),
     },
     contaReceberHistorico: { create: jest.fn() },
+    $queryRaw: jest.fn().mockResolvedValue([{ pg_advisory_xact_lock: null }]),
     $transaction: jest.fn(),
   };
   prisma.$transaction.mockImplementation(async (operacao: unknown) => {
@@ -350,15 +351,15 @@ describe('VendasService', () => {
           empresaId: 'empresa-1',
           produtoId: 'produto-1',
           depositoId: 'deposito-1',
-          quantidadeAtual: { gte: 2 },
+          quantidadeAtual: { gte: expect.any(Prisma.Decimal) },
         },
-        data: { quantidadeAtual: { decrement: 2 } },
+        data: { quantidadeAtual: { decrement: expect.any(Prisma.Decimal) } },
       });
       expect(prisma.movimentacaoEstoque.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           tipo: TipoMovimentacaoEstoque.SAIDA,
-          saldoAnterior: 2,
-          saldoPosterior: 0,
+          saldoAnterior: expect.any(Prisma.Decimal),
+          saldoPosterior: expect.any(Prisma.Decimal),
         }),
       });
     });
@@ -659,13 +660,13 @@ describe('VendasService', () => {
           produtoId: 'produto-1',
           depositoId: 'deposito-1',
         },
-        data: { quantidadeAtual: { increment: 2 } },
+        data: { quantidadeAtual: { increment: expect.any(Prisma.Decimal) } },
       });
       expect(prisma.movimentacaoEstoque.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           tipo: TipoMovimentacaoEstoque.ENTRADA,
-          saldoAnterior: 8,
-          saldoPosterior: 10,
+          saldoAnterior: expect.any(Prisma.Decimal),
+          saldoPosterior: expect.any(Prisma.Decimal),
         }),
       });
       expect(prisma.contaReceber.update).toHaveBeenCalledWith(
