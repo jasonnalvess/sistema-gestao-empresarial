@@ -560,6 +560,8 @@ model OrdemServico {
   updatedAt     DateTime                @updatedAt
   historicos    OrdemServicoHistorico[]
   contasReceber ContaReceber[]
+
+  @@unique([empresaId, numero])
 }
 
 model OrdemServicoHistorico {
