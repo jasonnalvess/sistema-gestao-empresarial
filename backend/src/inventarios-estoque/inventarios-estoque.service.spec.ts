@@ -27,7 +27,7 @@ describe('InventariosEstoqueService hardening', () => {
     produto: { id: produtoId, nome: produtoId, unidadeMedida: null },
   });
   const inventario = (
-    status = StatusInventarioEstoque.EM_CONTAGEM,
+    status: StatusInventarioEstoque = StatusInventarioEstoque.EM_CONTAGEM,
     itens = [item()],
   ) => ({
     id: 'inv1',

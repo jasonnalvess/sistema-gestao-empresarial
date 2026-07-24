@@ -40,7 +40,7 @@ function criarPrismaMock() {
 
 type PrismaMock = ReturnType<typeof criarPrismaMock>;
 const usuario = { id: 'usuario-1', empresaId: 'empresa-1', tipo: 'ADMIN_EMPRESA' };
-const caixa = (status = StatusCaixa.FECHADO, saldoAtual = 0) => ({
+const caixa = (status: StatusCaixa = StatusCaixa.FECHADO, saldoAtual = 0) => ({
   id: 'caixa-1', empresaId: 'empresa-1', nome: 'Principal', codigo: 'CX1',
   ativo: true, status, saldoAtual, aberturas: [],
 });

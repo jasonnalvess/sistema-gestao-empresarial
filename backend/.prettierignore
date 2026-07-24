@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+
+# Generated code
+**/generated
+**/*.generated.*
+
+# Preserve the existing Prisma migration history
+prisma/migrations
