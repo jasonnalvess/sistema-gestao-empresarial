@@ -36,3 +36,5 @@ Thumbs.db
 # Uploads/arquivos locais futuros
 uploads/
 storage/
+*.save
+*.save.*

@@ -8,6 +8,7 @@ import { AtualizarProdutoDto } from './dto/atualizar-produto.dto';
 import { Auditar } from '../common/decorators/auditar.decorator';
 import { AuditoriaAcao, AuditoriaEntidade } from '../common/enums/auditoria.enum';
 import { FiltroProdutosDto } from './dto/filtro-produtos.dto';
+import { CriarProdutoHistoricoDto } from './dto/criar-produto-historico.dto';
 
 @Controller('produtos')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -28,6 +29,22 @@ export class ProdutosController {
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   listar(@Req() req: any, @Query() filtros: FiltroProdutosDto) {
     return this.produtosService.listar(req.user, filtros);
+  }
+
+  @Post(':id/historico')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  adicionarHistorico(
+    @Param('id') id: string,
+    @Body() body: CriarProdutoHistoricoDto,
+    @Req() req: any,
+  ) {
+    return this.produtosService.adicionarHistorico(id, body, req.user);
+  }
+
+  @Get(':id/historico')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  listarHistorico(@Param('id') id: string, @Req() req: any) {
+    return this.produtosService.listarHistorico(id, req.user);
   }
 
   @Get(':id')

@@ -1,8 +1,18 @@
-import { IsNumber, IsOptional, IsUUID, Min } from 'class-validator';
+import {
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CriarEstoqueProdutoDto {
   @IsUUID()
   produtoId: string;
+
+  @IsUUID()
+  depositoId: string;
 
   @IsOptional()
   @IsNumber()
@@ -18,4 +28,9 @@ export class CriarEstoqueProdutoDto {
   @IsNumber()
   @Min(0)
   estoqueMaximo?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  motivoAjuste?: string;
 }

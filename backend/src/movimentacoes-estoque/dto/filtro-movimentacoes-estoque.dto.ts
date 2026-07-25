@@ -1,4 +1,10 @@
-import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsUUID,
+} from 'class-validator';
+
+import { TipoMovimentacaoEstoque } from '@prisma/client';
 import { QueryBaseDto } from '../../common/dto/query-base.dto';
 import { TipoMovimentacaoEstoqueDto } from './criar-movimentacao-estoque.dto';
 
@@ -8,6 +14,10 @@ export class FiltroMovimentacoesEstoqueDto extends QueryBaseDto {
   produtoId?: string;
 
   @IsOptional()
-  @IsEnum(TipoMovimentacaoEstoqueDto)
-  tipo?: TipoMovimentacaoEstoqueDto;
+  @IsUUID()
+  depositoId?: string;
+
+  @IsOptional()
+  @IsEnum(TipoMovimentacaoEstoque)
+  tipo?: TipoMovimentacaoEstoque;
 }

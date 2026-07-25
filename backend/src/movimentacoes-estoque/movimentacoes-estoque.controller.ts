@@ -14,6 +14,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 import { MovimentacoesEstoqueService } from './movimentacoes-estoque.service';
 import { CriarMovimentacaoEstoqueDto } from './dto/criar-movimentacao-estoque.dto';
+import { CriarTransferenciaEstoqueDto } from './dto/criar-transferencia-estoque.dto';
 import { Auditar } from '../common/decorators/auditar.decorator';
 import { AuditoriaAcao, AuditoriaEntidade } from '../common/enums/auditoria.enum';
 import { FiltroMovimentacoesEstoqueDto } from './dto/filtro-movimentacoes-estoque.dto';
@@ -36,6 +37,15 @@ export class MovimentacoesEstoqueController {
     @Req() req: any,
   ) {
     return this.service.criar(body, req.user);
+  }
+
+  @Post('transferencias')
+  @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  transferir(
+    @Body() body: CriarTransferenciaEstoqueDto,
+    @Req() req: any,
+  ) {
+    return this.service.transferir(body, req.user);
   }
 
   @Get()

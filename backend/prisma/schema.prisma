@@ -13,6 +13,146 @@ enum UserType {
   USUARIO_EMPRESA
 }
 
+enum TipoMovimentacaoEstoque {
+  ENTRADA
+  SAIDA
+  AJUSTE
+  INVENTARIO
+  TRANSFERENCIA_ENTRADA
+  TRANSFERENCIA_SAIDA
+}
+
+enum StatusInventarioEstoque {
+  ABERTO
+  EM_CONTAGEM
+  FINALIZADO
+  CANCELADO
+}
+
+enum StatusItemInventario {
+  PENDENTE
+  CONTADO
+}
+
+enum StatusPedidoCompra {
+  RASCUNHO
+  PENDENTE_APROVACAO
+  APROVADO
+  PARCIALMENTE_RECEBIDO
+  RECEBIDO
+  CANCELADO
+}
+
+enum StatusItemPedidoCompra {
+  PENDENTE
+  PARCIALMENTE_RECEBIDO
+  RECEBIDO
+  CANCELADO
+}
+
+enum StatusContaPagar {
+  PENDENTE
+  PARCIALMENTE_PAGA
+  PAGA
+  VENCIDA
+  CANCELADA
+}
+
+enum OrigemContaPagar {
+  MANUAL
+  PEDIDO_COMPRA
+  OUTRA
+}
+
+enum FormaPagamento {
+  DINHEIRO
+  PIX
+  BOLETO
+  TRANSFERENCIA
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  CHEQUE
+  OUTRA
+}
+
+enum StatusContaReceber {
+  PENDENTE
+  PARCIALMENTE_RECEBIDA
+  RECEBIDA
+  VENCIDA
+  CANCELADA
+}
+
+enum OrigemContaReceber {
+  MANUAL
+  ORDEM_SERVICO
+  VENDA
+  OUTRA
+}
+
+enum FormaRecebimento {
+  DINHEIRO
+  PIX
+  BOLETO
+  TRANSFERENCIA
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  CHEQUE
+  OUTRA
+}
+
+enum StatusCaixa {
+  ABERTO
+  FECHADO
+  INATIVO
+}
+
+enum TipoMovimentacaoCaixa {
+  ENTRADA
+  SAIDA
+}
+
+enum OrigemMovimentacaoCaixa {
+  MANUAL
+  CONTA_PAGAR
+  CONTA_RECEBER
+  VENDA
+  AJUSTE
+  OUTRA
+}
+
+enum StatusVenda {
+  RASCUNHO
+  PENDENTE
+  APROVADA
+  FATURADA
+  CONCLUIDA
+  CANCELADA
+}
+
+enum StatusItemVenda {
+  PENDENTE
+  SEPARADO
+  ENTREGUE
+  CANCELADO
+}
+
+enum CondicaoPagamentoVenda {
+  AVISTA
+  APRAZO
+}
+
+enum FormaPagamentoVenda {
+  DINHEIRO
+  PIX
+  BOLETO
+  TRANSFERENCIA
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  CHEQUE
+  OUTRA
+}
+
 model Empresa {
   id        String   @id @default(uuid())
   nome      String
@@ -21,46 +161,87 @@ model Empresa {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  usuarios Usuario[]
-  modulos EmpresaModulo[]
-  categoriasProduto CategoriaProduto[]
-  produtos Produto[]
-  estoquesProduto EstoqueProduto[]
-  movimentacoesEstoque MovimentacaoEstoque[]
-  auditoriaLogs AuditoriaLog[]
-  agendaEventos AgendaEvento[]
-  clientes Cliente[]
-  ordensServico OrdemServico[]
+  usuarios                 Usuario[]
+  modulos                  EmpresaModulo[]
+  categoriasProduto        CategoriaProduto[]
+  produtos                 Produto[]
+  estoquesProduto          EstoqueProduto[]
+  movimentacoesEstoque     MovimentacaoEstoque[]
+  auditoriaLogs            AuditoriaLog[]
+  agendaEventos            AgendaEvento[]
+  clientes                 Cliente[]
+  fornecedores             Fornecedor[]
+  ordensServico            OrdemServico[]
+  marcasProdutos           MarcaProduto[]
+  unidadesMedida           UnidadeMedida[]
+  depositos                Deposito[]
+  inventariosEstoque       InventarioEstoque[]
+  pedidosCompra            PedidoCompra[]
+  contasPagar              ContaPagar[]
+  pagamentosContaPagar     PagamentoContaPagar[]
+  contasReceber            ContaReceber[]
+  recebimentosContaReceber RecebimentoContaReceber[]
+  caixas                   Caixa[]
+  movimentacoesCaixa       MovimentacaoCaixa[]
+  aberturasCaixa           AberturaCaixa[]
+  vendas                   Venda[]
+  caixaHistoricos          CaixaHistorico[]
 }
 
 model Usuario {
-  id        String   @id @default(uuid())
-  nome      String
-  email     String   @unique
-  senha     String
-  tipo      UserType
-  ativo     Boolean  @default(true)
+  id    String   @id @default(uuid())
+  nome  String
+  email String   @unique
+  senha String
+  tipo  UserType
+  ativo Boolean  @default(true)
 
   empresaId String?
   empresa   Empresa? @relation(fields: [empresaId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  movimentacoesEstoque MovimentacaoEstoque[]
-  auditoriaLogs AuditoriaLog[]
-  agendaEventos AgendaEvento[]
-  agendaHistoricos AgendaEventoHistorico[]
-  clienteHistoricos ClienteHistorico[]
-  ordensResponsavel OrdemServico[]
-  ordemServicoHistoricos OrdemServicoHistorico[]
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  movimentacoesEstoque     MovimentacaoEstoque[]
+  auditoriaLogs            AuditoriaLog[]
+  agendaEventos            AgendaEvento[]
+  agendaHistoricos         AgendaEventoHistorico[]
+  clienteHistoricos        ClienteHistorico[]
+  ordensResponsavel        OrdemServico[]
+  ordemServicoHistoricos   OrdemServicoHistorico[]
+  produtoHistoricos        ProdutoHistorico[]
+  fornecedorHistoricos     FornecedorHistorico[]
+  inventariosAbertos       InventarioEstoque[]       @relation("InventarioUsuarioAbertura")
+  inventariosConcluidos    InventarioEstoque[]       @relation("InventarioUsuarioConclusao")
+  pedidosCompraCriados     PedidoCompra[]            @relation("PedidoCompraUsuarioCriacao")
+  pedidosCompraAprovados   PedidoCompra[]            @relation("PedidoCompraUsuarioAprovacao")
+  pedidosCompraRecebidos   PedidoCompra[]            @relation("PedidoCompraUsuarioRecebimento")
+  pedidoCompraHistoricos   PedidoCompraHistorico[]
+  contasPagarCriadas       ContaPagar[]              @relation("ContaPagarUsuarioCriacao")
+  contasPagarCanceladas    ContaPagar[]              @relation("ContaPagarUsuarioCancelamento")
+  pagamentosContaPagar     PagamentoContaPagar[]
+  contaPagarHistoricos     ContaPagarHistorico[]
+  contasReceberCriadas     ContaReceber[]            @relation("ContaReceberUsuarioCriacao")
+  contasReceberCanceladas  ContaReceber[]            @relation("ContaReceberUsuarioCancelamento")
+  recebimentosContaReceber RecebimentoContaReceber[]
+  contaReceberHistoricos   ContaReceberHistorico[]
+  caixasCriados            Caixa[]                   @relation("CaixaUsuarioCriacao")
+  aberturasCaixa           AberturaCaixa[]           @relation("AberturaCaixaUsuarioAbertura")
+  fechamentosCaixa         AberturaCaixa[]           @relation("AberturaCaixaUsuarioFechamento")
+  movimentacoesCaixa       MovimentacaoCaixa[]
+  vendasCriadas            Venda[]                   @relation("VendaUsuarioCriacao")
+  vendasAprovadas          Venda[]                   @relation("VendaUsuarioAprovacao")
+  vendasCanceladas         Venda[]                   @relation("VendaUsuarioCancelamento")
+  vendasConcluidas         Venda[]                   @relation("VendaUsuarioConclusao")
+  vendaHistoricos          VendaHistorico[]
+  caixaHistoricos          CaixaHistorico[]
 }
 
 model ModuloSistema {
-  id        String   @id @default(uuid())
-  nome      String   @unique
-  chave     String   @unique
+  id        String  @id @default(uuid())
+  nome      String  @unique
+  chave     String  @unique
   descricao String?
-  ativo     Boolean  @default(true)
+  ativo     Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -69,7 +250,7 @@ model ModuloSistema {
 }
 
 model EmpresaModulo {
-  id        String   @id @default(uuid())
+  id String @id @default(uuid())
 
   empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id])
@@ -77,7 +258,7 @@ model EmpresaModulo {
   moduloId String
   modulo   ModuloSistema @relation(fields: [moduloId], references: [id])
 
-  ativo     Boolean  @default(true)
+  ativo Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -86,28 +267,95 @@ model EmpresaModulo {
 }
 
 model CategoriaProduto {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   nome      String
   descricao String?
-  ativo     Boolean  @default(true)
+  ativo     Boolean @default(true)
 
   empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  produtos  Produto[]
+
+  @@unique([empresaId, nome])
+}
+
+model MarcaProduto {
+  id        String  @id @default(uuid())
+  nome      String
+  descricao String?
+  ativo     Boolean @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  produtos Produto[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([empresaId, nome])
+}
+
+model UnidadeMedida {
+  id    String  @id @default(uuid())
+  nome  String
+  sigla String
+  ativo Boolean @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
   produtos Produto[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, sigla])
+}
+
+model Deposito {
+  id        String  @id @default(uuid())
+  nome      String
+  codigo    String
+  descricao String?
+  endereco  String?
+  ativo     Boolean @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  estoques      EstoqueProduto[]
+  movimentacoes MovimentacaoEstoque[]
+  inventarios   InventarioEstoque[]
+  pedidosCompra PedidoCompra[]
+  vendas        Venda[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, nome])
 }
 
 model Produto {
-  id          String   @id @default(uuid())
-  nome        String
-  descricao   String?
-  codigo      String?
-  precoVenda  Decimal  @default(0)
-  ativo       Boolean  @default(true)
+  id            String   @id @default(uuid())
+  nome          String
+  descricao     String?
+  codigo        String?
+  codigoBarras  String?
+  ncm           String?
+  precoCusto    Decimal  @default(0)
+  precoVenda    Decimal  @default(0)
+  peso          Decimal?
+  altura        Decimal?
+  largura       Decimal?
+  comprimento   Decimal?
+  estoqueMinimo Decimal  @default(0)
+  estoqueMaximo Decimal?
+  ativo         Boolean  @default(true)
 
   empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id])
@@ -115,12 +363,25 @@ model Produto {
   categoriaId String?
   categoria   CategoriaProduto? @relation(fields: [categoriaId], references: [id])
 
+  marcaId String?
+  marca   MarcaProduto? @relation(fields: [marcaId], references: [id])
+
+  unidadeMedidaId String?
+  unidadeMedida   UnidadeMedida? @relation(fields: [unidadeMedidaId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([empresaId, nome])
-  estoque EstoqueProduto?
+  estoques             EstoqueProduto[]
   movimentacoesEstoque MovimentacaoEstoque[]
+  historicos           ProdutoHistorico[]
+  itensInventario      InventarioEstoqueItem[]
+  itensPedidosCompra   PedidoCompraItem[]
+  itensVenda           VendaItem[]
+
+  @@unique([empresaId, nome])
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, codigoBarras])
 }
 
 model EstoqueProduto {
@@ -128,31 +389,8 @@ model EstoqueProduto {
   quantidadeAtual Decimal  @default(0)
   estoqueMinimo   Decimal  @default(0)
   estoqueMaximo   Decimal?
-
-  empresaId String
-  empresa   Empresa @relation(fields: [empresaId], references: [id])
-
-  produtoId String  @unique
-  produto   Produto @relation(fields: [produtoId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([empresaId, produtoId])
-}
-
-enum TipoMovimentacaoEstoque {
-  ENTRADA
-  SAIDA
-  AJUSTE
-  INVENTARIO
-}
-
-model MovimentacaoEstoque {
-  id          String                  @id @default(uuid())
-  tipo        TipoMovimentacaoEstoque
-  quantidade  Decimal
-  observacao  String?
+  custoMedio      Decimal  @default(0)
+  ultimoCusto     Decimal  @default(0)
 
   empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id])
@@ -160,20 +398,49 @@ model MovimentacaoEstoque {
   produtoId String
   produto   Produto @relation(fields: [produtoId], references: [id])
 
+  depositoId String
+  deposito   Deposito @relation(fields: [depositoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, produtoId, depositoId])
+}
+
+model MovimentacaoEstoque {
+  id         String                  @id @default(uuid())
+  tipo       TipoMovimentacaoEstoque
+  quantidade Decimal
+  observacao String?
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  depositoId String?
+  deposito   Deposito? @relation(fields: [depositoId], references: [id])
+
   usuarioId String?
   usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  saldoAnterior       Decimal?
+  saldoPosterior      Decimal?
+  custoUnitario       Decimal?
+  documentoReferencia String?
 
   createdAt DateTime @default(now())
 }
 
 model AuditoriaLog {
-  id          String   @id @default(uuid())
-  acao        String
-  entidade    String
-  entidadeId  String?
+  id           String  @id @default(uuid())
+  acao         String
+  entidade     String
+  entidadeId   String?
   dadosAntigos Json?
   dadosNovos   Json?
-  ip          String?
+  ip           String?
 
   empresaId String?
   empresa   Empresa? @relation(fields: [empresaId], references: [id])
@@ -185,16 +452,16 @@ model AuditoriaLog {
 }
 
 model AgendaEvento {
-  id          String   @id @default(uuid())
-  titulo      String
-  descricao  String?
-  dataInicio  DateTime
-  dataFim     DateTime
-  status      String   @default("AGENDADO")
-  local       String?
-  clienteNome String?
+  id             String   @id @default(uuid())
+  titulo         String
+  descricao      String?
+  dataInicio     DateTime
+  dataFim        DateTime
+  status         String   @default("AGENDADO")
+  local          String?
+  clienteNome    String?
   clienteContato String?
-  ativo       Boolean  @default(true)
+  ativo          Boolean  @default(true)
 
   empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id])
@@ -202,17 +469,17 @@ model AgendaEvento {
   usuarioId String?
   usuario   Usuario? @relation(fields: [usuarioId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
   historicos AgendaEventoHistorico[]
 
-  clienteId String?
-  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+  clienteId     String?
+  cliente       Cliente?       @relation(fields: [clienteId], references: [id])
   ordensServico OrdemServico[]
 }
 
 model AgendaEventoHistorico {
-  id        String   @id @default(uuid())
+  id        String @id @default(uuid())
   descricao String
 
   agendaEventoId String
@@ -225,32 +492,34 @@ model AgendaEventoHistorico {
 }
 
 model Cliente {
-  id          String   @id @default(uuid())
-  nome        String
-  tipo        String   @default("PF")
-  documento   String?
-  email       String?
-  telefone    String?
-  celular     String?
-  endereco    String?
-  cidade      String?
-  estado      String?
-  cep         String?
-  observacao  String?
-  ativo       Boolean  @default(true)
+  id         String  @id @default(uuid())
+  nome       String
+  tipo       String  @default("PF")
+  documento  String?
+  email      String?
+  telefone   String?
+  celular    String?
+  endereco   String?
+  cidade     String?
+  estado     String?
+  cep        String?
+  observacao String?
+  ativo      Boolean @default(true)
 
   empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
   agendaEventos AgendaEvento[]
-  historicos ClienteHistorico[]
+  historicos    ClienteHistorico[]
   ordensServico OrdemServico[]
+  contasReceber ContaReceber[]
+  vendas        Venda[]
 }
 
 model ClienteHistorico {
-  id        String   @id @default(uuid())
+  id        String @id @default(uuid())
   descricao String
 
   clienteId String
@@ -263,17 +532,17 @@ model ClienteHistorico {
 }
 
 model OrdemServico {
-  id          String   @id @default(uuid())
-  numero      Int
-  titulo      String
-  descricao  String?
-  status      String   @default("ABERTA")
-  prioridade  String   @default("NORMAL")
-  dataAbertura DateTime @default(now())
-  dataPrevista DateTime?
+  id            String    @id @default(uuid())
+  numero        Int
+  titulo        String
+  descricao     String?
+  status        String    @default("ABERTA")
+  prioridade    String    @default("NORMAL")
+  dataAbertura  DateTime  @default(now())
+  dataPrevista  DateTime?
   dataConclusao DateTime?
-  observacao  String?
-  ativo       Boolean  @default(true)
+  observacao    String?
+  ativo         Boolean   @default(true)
 
   empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id])
@@ -287,16 +556,19 @@ model OrdemServico {
   agendaEventoId String?
   agendaEvento   AgendaEvento? @relation(fields: [agendaEventoId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  historicos OrdemServicoHistorico[]
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  historicos    OrdemServicoHistorico[]
+  contasReceber ContaReceber[]
+
+  @@unique([empresaId, numero])
 }
 
 model OrdemServicoHistorico {
-  id        String   @id @default(uuid())
-  descricao String
+  id             String  @id @default(uuid())
+  descricao      String
   statusAnterior String?
-  statusNovo String?
+  statusNovo     String?
 
   ordemServicoId String
   ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
@@ -305,4 +577,667 @@ model OrdemServicoHistorico {
   usuario   Usuario? @relation(fields: [usuarioId], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+model ProdutoHistorico {
+  id        String @id @default(uuid())
+  descricao String
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model InventarioEstoque {
+  id            String                  @id @default(uuid())
+  numero        Int
+  descricao     String?
+  observacao    String?
+  status        StatusInventarioEstoque @default(ABERTO)
+  dataAbertura  DateTime                @default(now())
+  dataConclusao DateTime?
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  depositoId String
+  deposito   Deposito @relation(fields: [depositoId], references: [id])
+
+  usuarioAberturaId String?
+  usuarioAbertura   Usuario? @relation("InventarioUsuarioAbertura", fields: [usuarioAberturaId], references: [id])
+
+  usuarioConclusaoId String?
+  usuarioConclusao   Usuario? @relation("InventarioUsuarioConclusao", fields: [usuarioConclusaoId], references: [id])
+
+  itens InventarioEstoqueItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, numero])
+}
+
+model InventarioEstoqueItem {
+  id                String               @id @default(uuid())
+  quantidadeSistema Decimal
+  quantidadeContada Decimal?
+  diferenca         Decimal?
+  observacao        String?
+  status            StatusItemInventario @default(PENDENTE)
+
+  inventarioId String
+  inventario   InventarioEstoque @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([inventarioId, produtoId])
+}
+
+model Fornecedor {
+  id String @id @default(uuid())
+
+  razaoSocial  String
+  nomeFantasia String?
+
+  documento String
+
+  inscricaoEstadual  String?
+  inscricaoMunicipal String?
+
+  email    String?
+  telefone String?
+  celular  String?
+  contato  String?
+
+  cep         String?
+  endereco    String?
+  numero      String?
+  complemento String?
+  bairro      String?
+  cidade      String?
+  estado      String?
+
+  observacao String?
+
+  ativo Boolean @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  historicos    FornecedorHistorico[]
+  pedidosCompra PedidoCompra[]
+  contasPagar   ContaPagar[]
+
+  @@unique([empresaId, documento])
+  @@index([empresaId])
+}
+
+model FornecedorHistorico {
+  id String @id @default(uuid())
+
+  descricao String
+
+  fornecedorId String
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model PedidoCompra {
+  id     String @id @default(uuid())
+  numero Int
+
+  status StatusPedidoCompra @default(RASCUNHO)
+
+  dataPedido          DateTime  @default(now())
+  dataPrevistaEntrega DateTime?
+  dataAprovacao       DateTime?
+  dataRecebimento     DateTime?
+
+  observacao        String?
+  observacaoInterna String?
+
+  valorProdutos Decimal @default(0)
+  valorDesconto Decimal @default(0)
+  valorFrete    Decimal @default(0)
+  valorOutros   Decimal @default(0)
+  valorTotal    Decimal @default(0)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  fornecedorId String
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id])
+
+  depositoId String
+  deposito   Deposito @relation(fields: [depositoId], references: [id])
+
+  usuarioCriacaoId String?
+  usuarioCriacao   Usuario? @relation("PedidoCompraUsuarioCriacao", fields: [usuarioCriacaoId], references: [id])
+
+  usuarioAprovacaoId String?
+  usuarioAprovacao   Usuario? @relation("PedidoCompraUsuarioAprovacao", fields: [usuarioAprovacaoId], references: [id])
+
+  usuarioRecebimentoId String?
+  usuarioRecebimento   Usuario? @relation("PedidoCompraUsuarioRecebimento", fields: [usuarioRecebimentoId], references: [id])
+
+  itens       PedidoCompraItem[]
+  historicos  PedidoCompraHistorico[]
+  contasPagar ContaPagar[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, numero])
+  @@index([empresaId])
+  @@index([fornecedorId])
+  @@index([depositoId])
+  @@index([status])
+}
+
+model PedidoCompraItem {
+  id String @id @default(uuid())
+
+  quantidadeSolicitada Decimal
+  quantidadeRecebida   Decimal @default(0)
+
+  valorUnitario Decimal
+  valorDesconto Decimal @default(0)
+  valorTotal    Decimal
+
+  status StatusItemPedidoCompra @default(PENDENTE)
+
+  pedidoCompraId String
+  pedidoCompra   PedidoCompra @relation(fields: [pedidoCompraId], references: [id], onDelete: Cascade)
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pedidoCompraId, produtoId])
+  @@index([produtoId])
+}
+
+model PedidoCompraHistorico {
+  id        String @id @default(uuid())
+  descricao String
+
+  pedidoCompraId String
+  pedidoCompra   PedidoCompra @relation(fields: [pedidoCompraId], references: [id], onDelete: Cascade)
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([pedidoCompraId])
+}
+
+model ContaPagar {
+  id String @id @default(uuid())
+
+  numero Int
+
+  descricao  String
+  documento  String?
+  observacao String?
+  origem     OrigemContaPagar @default(MANUAL)
+  status     StatusContaPagar @default(PENDENTE)
+
+  dataEmissao      DateTime  @default(now())
+  dataCompetencia  DateTime?
+  dataVencimento   DateTime
+  dataPagamento    DateTime?
+  dataCancelamento DateTime?
+
+  parcelaAtual  Int @default(1)
+  totalParcelas Int @default(1)
+
+  valorOriginal Decimal
+  valorDesconto Decimal @default(0)
+  valorJuros    Decimal @default(0)
+  valorMulta    Decimal @default(0)
+  valorPago     Decimal @default(0)
+  valorAberto   Decimal
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  fornecedorId String?
+  fornecedor   Fornecedor? @relation(fields: [fornecedorId], references: [id])
+
+  pedidoCompraId String?
+  pedidoCompra   PedidoCompra? @relation(fields: [pedidoCompraId], references: [id])
+
+  usuarioCriacaoId String?
+  usuarioCriacao   Usuario? @relation("ContaPagarUsuarioCriacao", fields: [usuarioCriacaoId], references: [id])
+
+  usuarioCancelamentoId String?
+  usuarioCancelamento   Usuario? @relation("ContaPagarUsuarioCancelamento", fields: [usuarioCancelamentoId], references: [id])
+
+  pagamentos PagamentoContaPagar[]
+  historicos ContaPagarHistorico[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, numero])
+  @@unique([pedidoCompraId])
+  @@index([empresaId])
+  @@index([fornecedorId])
+  @@index([status])
+  @@index([dataVencimento])
+}
+
+model PagamentoContaPagar {
+  id String @id @default(uuid())
+
+  valor          Decimal
+  desconto       Decimal        @default(0)
+  juros          Decimal        @default(0)
+  multa          Decimal        @default(0)
+  formaPagamento FormaPagamento
+  dataPagamento  DateTime       @default(now())
+  documento      String?
+  observacao     String?
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  contaPagarId String
+  contaPagar   ContaPagar @relation(fields: [contaPagarId], references: [id], onDelete: Cascade)
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  movimentacaoCaixa MovimentacaoCaixa?
+
+  @@index([empresaId])
+  @@index([contaPagarId])
+  @@index([dataPagamento])
+}
+
+model ContaPagarHistorico {
+  id String @id @default(uuid())
+
+  descricao String
+
+  contaPagarId String
+  contaPagar   ContaPagar @relation(fields: [contaPagarId], references: [id], onDelete: Cascade)
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([contaPagarId])
+}
+
+model ContaReceber {
+  id String @id @default(uuid())
+
+  numero Int
+
+  descricao  String
+  documento  String?
+  observacao String?
+
+  origem OrigemContaReceber @default(MANUAL)
+  status StatusContaReceber @default(PENDENTE)
+
+  dataEmissao      DateTime  @default(now())
+  dataCompetencia  DateTime?
+  dataVencimento   DateTime
+  dataRecebimento  DateTime?
+  dataCancelamento DateTime?
+
+  parcelaAtual  Int @default(1)
+  totalParcelas Int @default(1)
+
+  valorOriginal Decimal
+  valorDesconto Decimal @default(0)
+  valorJuros    Decimal @default(0)
+  valorMulta    Decimal @default(0)
+  valorRecebido Decimal @default(0)
+  valorAberto   Decimal
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+
+  ordemServicoId String?
+  ordemServico   OrdemServico? @relation(fields: [ordemServicoId], references: [id])
+
+  vendaId String?
+  venda   Venda?  @relation(fields: [vendaId], references: [id])
+
+  usuarioCriacaoId String?
+  usuarioCriacao   Usuario? @relation("ContaReceberUsuarioCriacao", fields: [usuarioCriacaoId], references: [id])
+
+  usuarioCancelamentoId String?
+  usuarioCancelamento   Usuario? @relation("ContaReceberUsuarioCancelamento", fields: [usuarioCancelamentoId], references: [id])
+
+  recebimentos RecebimentoContaReceber[]
+  historicos   ContaReceberHistorico[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, numero])
+  @@unique([vendaId, parcelaAtual])
+  @@index([empresaId])
+  @@index([clienteId])
+  @@index([ordemServicoId])
+  @@index([status])
+  @@index([dataVencimento])
+}
+
+model RecebimentoContaReceber {
+  id String @id @default(uuid())
+
+  valor            Decimal
+  desconto         Decimal          @default(0)
+  juros            Decimal          @default(0)
+  multa            Decimal          @default(0)
+  formaRecebimento FormaRecebimento
+  dataRecebimento  DateTime         @default(now())
+  documento        String?
+  observacao       String?
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  contaReceberId String
+  contaReceber   ContaReceber @relation(fields: [contaReceberId], references: [id], onDelete: Cascade)
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  movimentacaoCaixa MovimentacaoCaixa?
+
+  @@index([empresaId])
+  @@index([contaReceberId])
+  @@index([dataRecebimento])
+}
+
+model ContaReceberHistorico {
+  id String @id @default(uuid())
+
+  descricao String
+
+  contaReceberId String
+  contaReceber   ContaReceber @relation(fields: [contaReceberId], references: [id], onDelete: Cascade)
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([contaReceberId])
+}
+
+model Caixa {
+  id String @id @default(uuid())
+
+  nome      String
+  codigo    String
+  descricao String?
+  ativo     Boolean     @default(true)
+  status    StatusCaixa @default(FECHADO)
+
+  saldoAtual Decimal @default(0)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  usuarioCriacaoId String?
+  usuarioCriacao   Usuario? @relation("CaixaUsuarioCriacao", fields: [usuarioCriacaoId], references: [id])
+
+  aberturas     AberturaCaixa[]
+  movimentacoes MovimentacaoCaixa[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  caixaHistoricos CaixaHistorico[]
+
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, nome])
+  @@index([empresaId])
+  @@index([status])
+}
+
+model AberturaCaixa {
+  id String @id @default(uuid())
+
+  dataAbertura   DateTime  @default(now())
+  dataFechamento DateTime?
+
+  saldoInicial   Decimal  @default(0)
+  saldoSistema   Decimal?
+  saldoInformado Decimal?
+  diferenca      Decimal?
+
+  observacaoAbertura   String?
+  observacaoFechamento String?
+
+  aberto Boolean @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  caixaId String
+  caixa   Caixa  @relation(fields: [caixaId], references: [id])
+
+  usuarioAberturaId String?
+  usuarioAbertura   Usuario? @relation("AberturaCaixaUsuarioAbertura", fields: [usuarioAberturaId], references: [id])
+
+  usuarioFechamentoId String?
+  usuarioFechamento   Usuario? @relation("AberturaCaixaUsuarioFechamento", fields: [usuarioFechamentoId], references: [id])
+
+  movimentacoes MovimentacaoCaixa[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([empresaId])
+  @@index([caixaId])
+  @@index([aberto])
+  @@index([dataAbertura])
+}
+
+model MovimentacaoCaixa {
+  id String @id @default(uuid())
+
+  tipo   TipoMovimentacaoCaixa
+  origem OrigemMovimentacaoCaixa
+
+  descricao  String
+  documento  String?
+  observacao String?
+
+  valor Decimal
+
+  saldoAnterior  Decimal
+  saldoPosterior Decimal
+
+  dataMovimentacao DateTime @default(now())
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  caixaId String
+  caixa   Caixa  @relation(fields: [caixaId], references: [id])
+
+  aberturaCaixaId String
+  aberturaCaixa   AberturaCaixa @relation(fields: [aberturaCaixaId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  pagamentoContaPagarId String?              @unique
+  pagamentoContaPagar   PagamentoContaPagar? @relation(fields: [pagamentoContaPagarId], references: [id])
+
+  recebimentoContaReceberId String?                  @unique
+  recebimentoContaReceber   RecebimentoContaReceber? @relation(fields: [recebimentoContaReceberId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([empresaId])
+  @@index([caixaId])
+  @@index([aberturaCaixaId])
+  @@index([tipo])
+  @@index([origem])
+  @@index([dataMovimentacao])
+}
+
+model CaixaHistorico {
+  id String @id @default(uuid())
+
+  descricao String
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  caixaId String
+  caixa   Caixa  @relation(fields: [caixaId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([empresaId])
+  @@index([caixaId])
+  @@index([createdAt])
+}
+
+model Venda {
+  id String @id @default(uuid())
+
+  numero Int
+
+  status StatusVenda @default(RASCUNHO)
+
+  dataVenda        DateTime  @default(now())
+  dataAprovacao    DateTime?
+  dataFaturamento  DateTime?
+  dataConclusao    DateTime?
+  dataCancelamento DateTime?
+
+  observacao        String?
+  observacaoInterna String?
+
+  condicaoPagamento CondicaoPagamentoVenda @default(AVISTA)
+  formaPagamento    FormaPagamentoVenda?
+
+  quantidadeParcelas Int       @default(1)
+  intervaloParcelas  Int       @default(30)
+  primeiroVencimento DateTime?
+
+  valorProdutos Decimal @default(0)
+  valorDesconto Decimal @default(0)
+  valorFrete    Decimal @default(0)
+  valorOutros   Decimal @default(0)
+  valorTotal    Decimal @default(0)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+
+  depositoId String
+  deposito   Deposito @relation(fields: [depositoId], references: [id])
+
+  usuarioCriacaoId String?
+  usuarioCriacao   Usuario? @relation("VendaUsuarioCriacao", fields: [usuarioCriacaoId], references: [id])
+
+  usuarioAprovacaoId String?
+  usuarioAprovacao   Usuario? @relation("VendaUsuarioAprovacao", fields: [usuarioAprovacaoId], references: [id])
+
+  usuarioCancelamentoId String?
+  usuarioCancelamento   Usuario? @relation("VendaUsuarioCancelamento", fields: [usuarioCancelamentoId], references: [id])
+
+  usuarioConclusaoId String?
+  usuarioConclusao   Usuario? @relation("VendaUsuarioConclusao", fields: [usuarioConclusaoId], references: [id])
+
+  itens         VendaItem[]
+  historicos    VendaHistorico[]
+  contasReceber ContaReceber[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, numero])
+  @@index([empresaId])
+  @@index([clienteId])
+  @@index([depositoId])
+  @@index([status])
+  @@index([dataVenda])
+}
+
+model VendaItem {
+  id String @id @default(uuid())
+
+  status StatusItemVenda @default(PENDENTE)
+
+  quantidade Decimal
+
+  valorUnitario Decimal
+  valorDesconto Decimal @default(0)
+  valorTotal    Decimal
+
+  observacao String?
+
+  vendaId String
+  venda   Venda  @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([vendaId, produtoId])
+  @@index([vendaId])
+  @@index([produtoId])
+}
+
+model VendaHistorico {
+  id String @id @default(uuid())
+
+  descricao String
+
+  vendaId String
+  venda   Venda  @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([vendaId])
+  @@index([usuarioId])
 }

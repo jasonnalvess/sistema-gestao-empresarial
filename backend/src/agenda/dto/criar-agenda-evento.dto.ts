@@ -1,4 +1,4 @@
-import { IsDateString, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsOptional, IsString } from 'class-validator';
 
 export class CriarAgendaEventoDto {
   @IsString()
@@ -27,9 +27,10 @@ export class CriarAgendaEventoDto {
   clienteContato?: string;
 
   @IsOptional()
-  @IsIn(['AGENDADO', 'EM_ANDAMENTO', 'CONCLUIDO', 'CANCELADO'])
-  status?: string;
-
   @IsString()
-  clienteId: string;
+  clienteId?: string;
+
+  @IsOptional()
+  @IsString()
+  usuarioId?: string;
 }

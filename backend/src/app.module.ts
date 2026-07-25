@@ -21,6 +21,17 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { OrdensServicoModule } from './ordens-servico/ordens-servico.module';
+import { UnidadesMedidaModule } from './unidades-medida/unidades-medida.module';
+import { MarcasProdutosModule } from './marcas-produtos/marcas-produtos.module';
+import { DepositosModule } from './depositos/depositos.module';
+import { InventariosEstoqueModule } from './inventarios-estoque/inventarios-estoque.module';
+import { FornecedoresModule } from './fornecedores/fornecedores.module';
+import { PedidosCompraModule } from './pedidos-compra/pedidos-compra.module';
+import { ContasPagarModule } from './contas-pagar/contas-pagar.module';
+import { ContasReceberModule } from './contas-receber/contas-receber.module';
+import { FinanceiroModule } from './financeiro/financeiro.module';
+import { CaixasModule } from './caixas/caixas.module';
+import { VendasModule } from './vendas/vendas.module';
 
 @Module({
   imports: [
@@ -43,6 +54,17 @@ import { OrdensServicoModule } from './ordens-servico/ordens-servico.module';
     AgendaModule,
     ClientesModule,
     OrdensServicoModule,
+    UnidadesMedidaModule,
+    MarcasProdutosModule,
+    DepositosModule,
+    InventariosEstoqueModule,
+    FornecedoresModule,
+    PedidosCompraModule,
+    ContasPagarModule,
+    ContasReceberModule,
+    FinanceiroModule,
+    CaixasModule,
+    VendasModule,
   ],
   controllers: [AppController],
   providers: [

@@ -12,6 +12,14 @@ import {
   CalendarDays,
   UsersRound,
   Wrench,
+  Ruler,
+  Tags,
+  Truck,
+  ShoppingCart,
+  WalletCards,
+  BadgeDollarSign,
+  Landmark,
+  ReceiptText,
 } from "lucide-react";
 
 export const menu = [
@@ -31,13 +39,38 @@ export const menu = [
     icon: Package,
   },
   {
+    titulo: "Fornecedores",
+    href: "/fornecedores",
+    icon: Truck,
+  },
+  {
+    titulo: "Pedidos de Compra",
+    href: "/pedidos-compra",
+    icon: ShoppingCart,
+  },
+  {
+    titulo: "Vendas",
+    href: "/vendas",
+    icon: ReceiptText,
+  },
+  {
     titulo: "Categorias",
     href: "/categorias",
     icon: Boxes,
   },
   {
+    titulo: "Marcas",
+    href: "/marcas-produtos",
+    icon: Tags,
+  },
+  {
     titulo: "Estoque",
     href: "/estoque",
+    icon: Warehouse,
+  },
+  {
+    titulo: "Depósitos",
+    href: "/depositos",
     icon: Warehouse,
   },
   {
@@ -54,6 +87,26 @@ export const menu = [
     titulo: "Ordens de Serviço",
     href: "/ordens-servico",
     icon: Wrench,
+  },
+  {
+    titulo: "Financeiro",
+    href: "/financeiro",
+    icon: Landmark,
+  },
+  {
+    titulo: "Caixas",
+    href: "/caixas",
+    icon: WalletCards,
+  },
+  {
+    titulo: "Contas a Pagar",
+    href: "/contas-pagar",
+    icon: WalletCards,
+  },
+  {
+    titulo: "Contas a Receber",
+    href: "/contas-receber",
+    icon: BadgeDollarSign,
   },
   {
     titulo: "Empresas",
@@ -79,5 +132,10 @@ export const menu = [
     titulo: "Configurações",
     href: "/configuracoes",
     icon: Settings,
+  },
+  {
+    titulo: "Unidades",
+    href: "/unidades-medida",
+    icon: Ruler,
   },
 ];
