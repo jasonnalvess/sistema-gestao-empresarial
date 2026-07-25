@@ -25,7 +25,7 @@ const item = (
   produtoId = 'prod1',
   solicitada: Prisma.Decimal.Value = 10,
   recebida: Prisma.Decimal.Value = 0,
-  status = StatusItemPedidoCompra.PENDENTE,
+  status: StatusItemPedidoCompra = StatusItemPedidoCompra.PENDENTE,
 ) => ({
   id,
   pedidoCompraId: 'p1',
@@ -38,7 +38,10 @@ const item = (
   valorTotal: new Prisma.Decimal(100),
   status,
 });
-const pedido = (status = StatusPedidoCompra.APROVADO, itens = [item()]) => ({
+const pedido = (
+  status: StatusPedidoCompra = StatusPedidoCompra.APROVADO,
+  itens = [item()],
+) => ({
   id: 'p1',
   numero: 7,
   empresaId: 'e1',

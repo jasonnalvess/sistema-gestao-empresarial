@@ -33,7 +33,8 @@ function criarPrismaMock() {
   prisma.$transaction.mockImplementation(async (operacao: unknown) =>
     (operacao as (tx: typeof prisma) => Promise<unknown>)(prisma),
   );
-  return prisma;
+  const prismaSemCaixa: typeof prisma & { caixa?: never } = prisma;
+  return prismaSemCaixa;
 }
 
 type PrismaMock = ReturnType<typeof criarPrismaMock>;
@@ -44,7 +45,10 @@ const pedido = {
   numero: 10, status: 'RECEBIDO', valorTotal: new Prisma.Decimal(100),
   fornecedor,
 };
-const conta = (status = StatusContaPagar.PENDENTE, aberto = 100) => ({
+const conta = (
+  status: StatusContaPagar = StatusContaPagar.PENDENTE,
+  aberto = 100,
+) => ({
   id: 'conta-1', numero: 1, empresaId: 'empresa-1', fornecedorId: 'fornecedor-1',
   pedidoCompraId: null, descricao: 'Conta', documento: null, status,
   valorOriginal: new Prisma.Decimal(100), valorDesconto: new Prisma.Decimal(0),

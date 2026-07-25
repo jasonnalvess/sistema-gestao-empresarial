@@ -37,7 +37,8 @@ function criarPrismaMock() {
   prisma.$transaction.mockImplementation(async (operacao: unknown) =>
     (operacao as (tx: typeof prisma) => Promise<unknown>)(prisma),
   );
-  return prisma;
+  const prismaSemCaixa: typeof prisma & { caixa?: never } = prisma;
+  return prismaSemCaixa;
 }
 
 type PrismaMock = ReturnType<typeof criarPrismaMock>;
@@ -57,7 +58,7 @@ const ordem = {
   cliente,
 };
 const conta = (
-  status = StatusContaReceber.PENDENTE,
+  status: StatusContaReceber = StatusContaReceber.PENDENTE,
   aberto = 100,
   vendaId: string | null = null,
 ) => ({
