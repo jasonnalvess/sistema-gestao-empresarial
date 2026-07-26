@@ -1,8 +1,5 @@
 import { Transform } from 'class-transformer';
-import {
-  IsBoolean,
-  IsOptional,
-} from 'class-validator';
+import { IsBoolean, IsOptional } from 'class-validator';
 
 import { QueryBaseDto } from '../../common/dto/query-base.dto';
 
