@@ -23,8 +23,7 @@ type DadosConflito = IntervaloAgenda & {
 };
 
 export type UsuarioAgendaAutenticado = {
-  id?: string;
-  sub?: string;
+  id: string;
   empresaId?: string;
   tipo?: string;
 };
@@ -56,7 +55,7 @@ export class AgendaService {
   }
 
   private obterUsuarioId(usuario: UsuarioAgendaAutenticado) {
-    return usuario?.id ?? usuario?.sub;
+    return usuario.id;
   }
 
   private obterUsuarioIdObrigatorio(usuario: UsuarioAgendaAutenticado) {
