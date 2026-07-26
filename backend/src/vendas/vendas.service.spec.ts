@@ -61,6 +61,7 @@ type PrismaMock = ReturnType<typeof criarPrismaMock>;
 
 const usuario = {
   id: 'usuario-1',
+  email: 'usuario@empresa.com',
   empresaId: 'empresa-1',
   tipo: 'ADMIN_EMPRESA',
 };
@@ -152,7 +153,12 @@ describe('VendasService', () => {
   describe('criação', () => {
     it('exige empresa vinculada', async () => {
       await expect(
-        service.criar(dtoCriacao(), { id: 'u1', tipo: 'ADMIN_EMPRESA' }),
+        service.criar(dtoCriacao(), {
+          id: 'u1',
+          email: 'u1@empresa.com',
+          empresaId: null,
+          tipo: 'ADMIN_EMPRESA',
+        }),
       ).rejects.toThrow('O usuário não possui empresa vinculada');
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
@@ -379,9 +385,9 @@ describe('VendasService', () => {
     it('trata updateMany count 0 como falha e não cria efeitos posteriores', async () => {
       prisma.estoqueProduto.updateMany.mockResolvedValue({ count: 0 });
 
-      await expect(service.faturar('venda-1', {}, usuario)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(
+        service.faturar('venda-1', {}, usuario),
+      ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(prisma.estoqueProduto.findUniqueOrThrow).not.toHaveBeenCalled();
       expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
@@ -555,10 +561,16 @@ describe('VendasService', () => {
       prisma.venda.findUnique.mockResolvedValue(vendaOutraEmpresa);
       prisma.venda.findUniqueOrThrow.mockResolvedValue(vendaOutraEmpresa);
 
-      await service.faturar('venda-1', {}, {
-        id: 'super-1',
-        tipo: 'SUPER_ADMIN',
-      });
+      await service.faturar(
+        'venda-1',
+        {},
+        {
+          id: 'super-1',
+          email: 'super@admin.com',
+          empresaId: null,
+          tipo: 'SUPER_ADMIN',
+        },
+      );
 
       expect(prisma.venda.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -583,9 +595,9 @@ describe('VendasService', () => {
         empresaId: 'empresa-2',
       });
 
-      await expect(service.faturar('venda-1', {}, usuario)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(
+        service.faturar('venda-1', {}, usuario),
+      ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.venda.updateMany).not.toHaveBeenCalled();
       expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
       expect(prisma.movimentacaoEstoque.create).not.toHaveBeenCalled();
@@ -794,9 +806,9 @@ describe('VendasService', () => {
         empresaId: 'empresa-2',
       });
 
-      await expect(service.cancelar('venda-1', {}, usuario)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(
+        service.cancelar('venda-1', {}, usuario),
+      ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.venda.updateMany).not.toHaveBeenCalled();
       expect(prisma.estoqueProduto.updateMany).not.toHaveBeenCalled();
       expect(prisma.contaReceber.findMany).not.toHaveBeenCalled();
