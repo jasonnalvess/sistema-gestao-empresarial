@@ -5,35 +5,47 @@ import {
   Param,
   Patch,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AgendaService, UsuarioAgendaAutenticado } from './agenda.service';
+
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+
+import { AgendaService } from './agenda.service';
+import type { UsuarioAgendaAutenticado } from './agenda.service';
+import { AtualizarAgendaEventoDto } from './dto/atualizar-agenda-evento.dto';
 import { CriarAgendaEventoDto } from './dto/criar-agenda-evento.dto';
 import { CriarAgendaHistoricoDto } from './dto/criar-agenda-historico.dto';
-import { AtualizarAgendaEventoDto } from './dto/atualizar-agenda-evento.dto';
 
 @Controller('agenda')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AgendaController {
   constructor(private readonly agendaService: AgendaService) {}
 
+  private adaptarUsuario(usuario: AuthenticatedUser): UsuarioAgendaAutenticado {
+    return {
+      id: usuario.id,
+      empresaId: usuario.empresaId ?? undefined,
+      tipo: usuario.tipo,
+    };
+  }
+
   @Post()
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   criar(
     @Body() body: CriarAgendaEventoDto,
-    @Req() req: { user: UsuarioAgendaAutenticado },
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.agendaService.criar(body, req.user);
+    return this.agendaService.criar(body, this.adaptarUsuario(usuario));
   }
 
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
-  listar(@Req() req: { user: UsuarioAgendaAutenticado }) {
-    return this.agendaService.listar(req.user);
+  listar(@CurrentUser() usuario: AuthenticatedUser) {
+    return this.agendaService.listar(this.adaptarUsuario(usuario));
   }
 
   @Patch(':id')
@@ -41,9 +53,9 @@ export class AgendaController {
   atualizar(
     @Param('id') id: string,
     @Body() body: AtualizarAgendaEventoDto,
-    @Req() req: { user: UsuarioAgendaAutenticado },
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.agendaService.atualizar(id, body, req.user);
+    return this.agendaService.atualizar(id, body, this.adaptarUsuario(usuario));
   }
 
   @Post(':id/historico')
@@ -51,26 +63,30 @@ export class AgendaController {
   adicionarHistorico(
     @Param('id') id: string,
     @Body() body: CriarAgendaHistoricoDto,
-    @Req() req: { user: UsuarioAgendaAutenticado },
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.agendaService.adicionarHistorico(id, body, req.user);
+    return this.agendaService.adicionarHistorico(
+      id,
+      body,
+      this.adaptarUsuario(usuario),
+    );
   }
 
   @Get(':id/historico')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   listarHistorico(
     @Param('id') id: string,
-    @Req() req: { user: UsuarioAgendaAutenticado },
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.agendaService.listarHistorico(id, req.user);
+    return this.agendaService.listarHistorico(id, this.adaptarUsuario(usuario));
   }
 
   @Get(':id')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   buscarPorId(
     @Param('id') id: string,
-    @Req() req: { user: UsuarioAgendaAutenticado },
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.agendaService.buscarPorId(id, req.user);
+    return this.agendaService.buscarPorId(id, this.adaptarUsuario(usuario));
   }
 }
