@@ -3,6 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FiltroAuditoriaDto } from './dto/filtro-auditoria.dto';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class AuditoriaService {
@@ -32,16 +35,16 @@ export class AuditoriaService {
     });
   }
 
-  async listar(usuarioLogado: any, filtros: FiltroAuditoriaDto) {
+  async listar(usuarioLogado: AuthenticatedUser, filtros: FiltroAuditoriaDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
 
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: any =
-  usuarioLogado.tipo === 'SUPER_ADMIN'
-    ? {}
-    : { empresaId: usuarioLogado.empresaId };
+    const where: Prisma.AuditoriaLogWhereInput =
+      usuarioLogado.tipo === 'SUPER_ADMIN'
+        ? {}
+        : { empresaId: obterEmpresaId(usuarioLogado) };
 
     if (filtros.acao) {
       where.acao = filtros.acao;
@@ -93,8 +96,8 @@ export class AuditoriaService {
           },
         },
         orderBy: {
-  [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
-},
+          [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
+        },
         skip,
         take,
       }),
