@@ -7,9 +7,15 @@ import {
 import { Prisma, TipoMovimentacaoEstoque } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EstoqueService } from './estoque.service';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 describe('EstoqueService - rastreabilidade de saldo', () => {
-  const usuario = { id: 'u1', empresaId: 'e1' };
+  const usuario: AuthenticatedUser = {
+    id: 'u1',
+    email: 'admin@empresa.com',
+    tipo: 'ADMIN_EMPRESA',
+    empresaId: 'e1',
+  };
   const produto = { id: 'p1', empresaId: 'e1', ativo: true };
   const deposito = { id: 'd1', empresaId: 'e1', ativo: true };
   const estoque = (quantidade = '2.50') => ({
