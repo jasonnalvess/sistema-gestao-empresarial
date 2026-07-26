@@ -8,6 +8,7 @@ import { OrdensServicoService } from './ordens-servico.service';
 
 const usuario = {
   id: 'usuario-1',
+  email: 'usuario@teste.com',
   empresaId: 'empresa-1',
   tipo: 'ADMIN_EMPRESA',
 };
