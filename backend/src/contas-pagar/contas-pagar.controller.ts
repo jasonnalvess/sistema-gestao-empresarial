@@ -6,56 +6,45 @@ import {
   Patch,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 
-import { ContasPagarService } from './contas-pagar.service';
-
-import { CriarContaPagarDto } from './dto/criar-conta-pagar.dto';
-import { AtualizarContaPagarDto } from './dto/atualizar-conta-pagar.dto';
-import { FiltroContasPagarDto } from './dto/filtro-contas-pagar.dto';
-import { RegistrarPagamentoContaPagarDto } from './dto/registrar-pagamento-conta-pagar.dto';
-import { CriarContaPagarHistoricoDto } from './dto/criar-conta-pagar-historico.dto';
-import { GerarContaPedidoCompraDto } from './dto/gerar-conta-pedido-compra.dto';
-
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+
+import { ContasPagarService } from './contas-pagar.service';
+
+import { AtualizarContaPagarDto } from './dto/atualizar-conta-pagar.dto';
+import { CriarContaPagarDto } from './dto/criar-conta-pagar.dto';
+import { CriarContaPagarHistoricoDto } from './dto/criar-conta-pagar-historico.dto';
+import { FiltroContasPagarDto } from './dto/filtro-contas-pagar.dto';
+import { GerarContaPedidoCompraDto } from './dto/gerar-conta-pedido-compra.dto';
+import { RegistrarPagamentoContaPagarDto } from './dto/registrar-pagamento-conta-pagar.dto';
 
 @Controller('contas-pagar')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ContasPagarController {
-  constructor(
-    private readonly contasPagarService: ContasPagarService,
-  ) {}
+  constructor(private readonly contasPagarService: ContasPagarService) {}
 
   @Post()
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   criar(
     @Body() body: CriarContaPagarDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.contasPagarService.criar(
-      body,
-      req.user,
-    );
+    return this.contasPagarService.criar(body, usuario);
   }
 
   @Get()
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN_EMPRESA',
-    'USUARIO_EMPRESA',
-  )
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   listar(
     @Query() filtros: FiltroContasPagarDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.contasPagarService.listar(
-      req.user,
-      filtros,
-    );
+    return this.contasPagarService.listar(usuario, filtros);
   }
 
   @Post(':id/historico')
@@ -63,29 +52,18 @@ export class ContasPagarController {
   adicionarHistorico(
     @Param('id') id: string,
     @Body() body: CriarContaPagarHistoricoDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.contasPagarService.adicionarHistorico(
-      id,
-      body,
-      req.user,
-    );
+    return this.contasPagarService.adicionarHistorico(id, body, usuario);
   }
 
   @Get(':id/historico')
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN_EMPRESA',
-    'USUARIO_EMPRESA',
-  )
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   listarHistorico(
     @Param('id') id: string,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.contasPagarService.listarHistorico(
-      id,
-      req.user,
-    );
+    return this.contasPagarService.listarHistorico(id, usuario);
   }
 
   @Post(':id/pagamentos')
@@ -93,25 +71,15 @@ export class ContasPagarController {
   registrarPagamento(
     @Param('id') id: string,
     @Body() body: RegistrarPagamentoContaPagarDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.contasPagarService.registrarPagamento(
-      id,
-      body,
-      req.user,
-    );
+    return this.contasPagarService.registrarPagamento(id, body, usuario);
   }
 
   @Patch(':id/cancelar')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
-  cancelar(
-    @Param('id') id: string,
-    @Req() req: any,
-  ) {
-    return this.contasPagarService.cancelar(
-      id,
-      req.user,
-    );
+  cancelar(@Param('id') id: string, @CurrentUser() usuario: AuthenticatedUser) {
+    return this.contasPagarService.cancelar(id, usuario);
   }
 
   @Post('pedido-compra/:pedidoCompraId')
@@ -119,29 +87,22 @@ export class ContasPagarController {
   gerarAPartirPedidoCompra(
     @Param('pedidoCompraId') pedidoCompraId: string,
     @Body() body: GerarContaPedidoCompraDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
     return this.contasPagarService.gerarAPartirPedidoCompra(
       pedidoCompraId,
       body,
-      req.user,
+      usuario,
     );
   }
 
   @Get(':id')
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN_EMPRESA',
-    'USUARIO_EMPRESA',
-  )
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   buscarPorId(
     @Param('id') id: string,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.contasPagarService.buscarPorId(
-      id,
-      req.user,
-    );
+    return this.contasPagarService.buscarPorId(id, usuario);
   }
 
   @Patch(':id')
@@ -149,12 +110,8 @@ export class ContasPagarController {
   atualizar(
     @Param('id') id: string,
     @Body() body: AtualizarContaPagarDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.contasPagarService.atualizar(
-      id,
-      body,
-      req.user,
-    );
+    return this.contasPagarService.atualizar(id, body, usuario);
   }
 }
