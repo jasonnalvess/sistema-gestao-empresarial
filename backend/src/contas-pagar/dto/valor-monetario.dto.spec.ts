@@ -5,29 +5,38 @@ import { CriarContaPagarDto } from './criar-conta-pagar.dto';
 import { RegistrarPagamentoContaPagarDto } from './registrar-pagamento-conta-pagar.dto';
 
 describe('validação monetária dos DTOs de Contas a Pagar', () => {
-  it.each([10, 10.1, 10.10, 0.01])('aceita valor monetário válido %s', async (valor) => {
-    const dto = Object.assign(new RegistrarPagamentoContaPagarDto(), {
-      valor,
-      formaPagamento: FormaPagamento.PIX,
-    });
-    await expect(validate(dto)).resolves.toHaveLength(0);
-  });
+  it.each([10, 10.1, 10.1, 0.01])(
+    'aceita valor monetário válido %s',
+    async (valor) => {
+      const dto = Object.assign(new RegistrarPagamentoContaPagarDto(), {
+        valor,
+        formaPagamento: FormaPagamento.PIX,
+      });
+      await expect(validate(dto)).resolves.toHaveLength(0);
+    },
+  );
 
-  it.each([10.001, 99.995, 0.009, 1.999])('rejeita valor com mais de duas casas %s', async (valor) => {
-    const dto = Object.assign(new RegistrarPagamentoContaPagarDto(), {
-      valor,
-      formaPagamento: FormaPagamento.PIX,
-    });
-    expect(await validate(dto)).not.toHaveLength(0);
-  });
+  it.each([10.001, 99.995, 0.009, 1.999])(
+    'rejeita valor com mais de duas casas %s',
+    async (valor) => {
+      const dto = Object.assign(new RegistrarPagamentoContaPagarDto(), {
+        valor,
+        formaPagamento: FormaPagamento.PIX,
+      });
+      expect(await validate(dto)).not.toHaveLength(0);
+    },
+  );
 
-  it.each([0, -1])('rejeita valor de pagamento não positivo %s', async (valor) => {
-    const dto = Object.assign(new RegistrarPagamentoContaPagarDto(), {
-      valor,
-      formaPagamento: FormaPagamento.PIX,
-    });
-    expect(await validate(dto)).not.toHaveLength(0);
-  });
+  it.each([0, -1])(
+    'rejeita valor de pagamento não positivo %s',
+    async (valor) => {
+      const dto = Object.assign(new RegistrarPagamentoContaPagarDto(), {
+        valor,
+        formaPagamento: FormaPagamento.PIX,
+      });
+      expect(await validate(dto)).not.toHaveLength(0);
+    },
+  );
 
   it('mantém string decimal fora do contrato numérico atual', async () => {
     const dto = Object.assign(new RegistrarPagamentoContaPagarDto(), {
@@ -51,10 +60,14 @@ describe('validação monetária dos DTOs de Contas a Pagar', () => {
 
   it('valida precisão na criação e na edição', async () => {
     const criacaoValida = Object.assign(new CriarContaPagarDto(), {
-      descricao: 'Conta', dataVencimento: '2026-08-10', valorOriginal: 10.1,
+      descricao: 'Conta',
+      dataVencimento: '2026-08-10',
+      valorOriginal: 10.1,
     });
     const criacaoInvalida = Object.assign(new CriarContaPagarDto(), {
-      descricao: 'Conta', dataVencimento: '2026-08-10', valorOriginal: 10.001,
+      descricao: 'Conta',
+      dataVencimento: '2026-08-10',
+      valorOriginal: 10.001,
     });
     const edicaoValida = Object.assign(new AtualizarContaPagarDto(), {
       valorOriginal: 99.99,
