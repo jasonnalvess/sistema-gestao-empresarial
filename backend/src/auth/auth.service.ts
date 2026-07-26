@@ -28,11 +28,11 @@ export class AuthService {
     }
 
     const payload = {
-      sub: usuario.id,
+      id: usuario.id,
       email: usuario.email,
       tipo: usuario.tipo,
       empresaId: usuario.empresaId,
-    };
+    } satisfies import('./types/jwt-payload.type').JwtPayload;
 
     const accessToken = await this.jwtService.signAsync(payload);
 
