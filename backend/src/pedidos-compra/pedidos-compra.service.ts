@@ -23,6 +23,7 @@ import { CriarPedidoCompraHistoricoDto } from './dto/criar-pedido-compra-histori
 import { CriarItemPedidoCompraDto } from './dto/criar-item-pedido-compra.dto';
 import { ReceberPedidoCompraDto } from './dto/receber-pedido-compra.dto';
 import { paraDecimalMonetario } from '../contas-pagar/valor-monetario';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 @Injectable()
 export class PedidosCompraService {
@@ -99,7 +100,7 @@ export class PedidosCompraService {
     },
   };
 
-  private obterEmpresaId(usuarioLogado: any): string {
+  private obterEmpresaId(usuarioLogado: AuthenticatedUser): string {
     if (!usuarioLogado.empresaId) {
       throw new BadRequestException('O usuário não possui empresa vinculada');
     }
@@ -107,8 +108,8 @@ export class PedidosCompraService {
     return usuarioLogado.empresaId;
   }
 
-  private obterUsuarioId(usuarioLogado: any): string | undefined {
-    return usuarioLogado.id ?? usuarioLogado.sub;
+  private obterUsuarioId(usuarioLogado: AuthenticatedUser): string {
+    return usuarioLogado.id;
   }
 
   private tratarErroPrisma(error: unknown): never {
@@ -147,7 +148,7 @@ export class PedidosCompraService {
   private async buscarPedidoBloqueado(
     tx: Prisma.TransactionClient,
     id: string,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     await this.bloquearPedido(tx, id);
     const pedido = await tx.pedidoCompra.findUnique({
@@ -354,7 +355,7 @@ export class PedidosCompraService {
     tx: Prisma.TransactionClient,
     pedidoCompraId: string,
     descricao: string,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     return tx.pedidoCompraHistorico.create({
       data: {
@@ -365,7 +366,7 @@ export class PedidosCompraService {
     });
   }
 
-  async criar(dados: CriarPedidoCompraDto, usuarioLogado: any) {
+  async criar(dados: CriarPedidoCompraDto, usuarioLogado: AuthenticatedUser) {
     const empresaId = this.obterEmpresaId(usuarioLogado);
 
     try {
@@ -422,7 +423,10 @@ export class PedidosCompraService {
       this.tratarErroPrisma(error);
     }
   }
-  async listar(usuarioLogado: any, filtros: FiltroPedidosCompraDto) {
+  async listar(
+    usuarioLogado: AuthenticatedUser,
+    filtros: FiltroPedidosCompraDto,
+  ) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
@@ -431,7 +435,7 @@ export class PedidosCompraService {
       usuarioLogado.tipo === 'SUPER_ADMIN'
         ? {}
         : {
-            empresaId: usuarioLogado.empresaId,
+            empresaId: this.obterEmpresaId(usuarioLogado),
           };
 
     if (filtros.status) {
@@ -540,7 +544,7 @@ export class PedidosCompraService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuarioLogado: any) {
+  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
     const pedido = await this.prisma.pedidoCompra.findUnique({
       where: {
         id,
@@ -565,7 +569,7 @@ export class PedidosCompraService {
   async atualizar(
     id: string,
     dados: AtualizarPedidoCompraDto,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     return this.prisma.$transaction(async (tx) => {
       const pedidoAtual = await this.buscarPedidoBloqueado(
@@ -656,7 +660,7 @@ export class PedidosCompraService {
     });
   }
 
-  async enviarParaAprovacao(id: string, usuarioLogado: any) {
+  async enviarParaAprovacao(id: string, usuarioLogado: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
       const pedido = await this.buscarPedidoBloqueado(tx, id, usuarioLogado);
       if (pedido.status !== StatusPedidoCompra.RASCUNHO) {
@@ -695,7 +699,7 @@ export class PedidosCompraService {
     });
   }
 
-  async aprovar(id: string, usuarioLogado: any) {
+  async aprovar(id: string, usuarioLogado: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
       const pedido = await this.buscarPedidoBloqueado(tx, id, usuarioLogado);
       if (pedido.status !== StatusPedidoCompra.PENDENTE_APROVACAO) {
@@ -733,7 +737,7 @@ export class PedidosCompraService {
     });
   }
 
-  async cancelar(id: string, usuarioLogado: any) {
+  async cancelar(id: string, usuarioLogado: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
       const pedido = await this.buscarPedidoBloqueado(tx, id, usuarioLogado);
       if (
@@ -776,7 +780,11 @@ export class PedidosCompraService {
       });
     });
   }
-  async receber(id: string, dados: ReceberPedidoCompraDto, usuarioLogado: any) {
+  async receber(
+    id: string,
+    dados: ReceberPedidoCompraDto,
+    usuarioLogado: AuthenticatedUser,
+  ) {
     const idsInformados = dados.itens.map((item) => item.itemId);
     if (new Set(idsInformados).size !== idsInformados.length) {
       throw new BadRequestException(
@@ -1006,7 +1014,7 @@ export class PedidosCompraService {
   async adicionarHistorico(
     pedidoCompraId: string,
     dados: CriarPedidoCompraHistoricoDto,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     return this.prisma.$transaction(async (tx) => {
       await this.buscarPedidoBloqueado(tx, pedidoCompraId, usuarioLogado);
@@ -1021,7 +1029,10 @@ export class PedidosCompraService {
     });
   }
 
-  async listarHistorico(pedidoCompraId: string, usuarioLogado: any) {
+  async listarHistorico(
+    pedidoCompraId: string,
+    usuarioLogado: AuthenticatedUser,
+  ) {
     await this.buscarPorId(pedidoCompraId, usuarioLogado);
 
     return this.prisma.pedidoCompraHistorico.findMany({
