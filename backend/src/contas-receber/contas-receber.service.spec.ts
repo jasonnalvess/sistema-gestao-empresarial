@@ -44,6 +44,7 @@ function criarPrismaMock() {
 type PrismaMock = ReturnType<typeof criarPrismaMock>;
 const usuario = {
   id: 'usuario-1',
+  email: 'usuario@teste.com',
   empresaId: 'empresa-1',
   tipo: 'ADMIN_EMPRESA',
 };
@@ -545,7 +546,12 @@ describe('ContasReceberService', () => {
         caixaId: 'caixa-1',
         formaRecebimento: FormaRecebimento.PIX,
       },
-      { id: 'super', tipo: 'SUPER_ADMIN' },
+      {
+        id: 'super',
+        email: 'super@teste.com',
+        empresaId: null,
+        tipo: 'SUPER_ADMIN',
+      },
     );
     expect(caixas.registrarMovimentacaoFinanceira).toHaveBeenCalledWith(
       prisma,
