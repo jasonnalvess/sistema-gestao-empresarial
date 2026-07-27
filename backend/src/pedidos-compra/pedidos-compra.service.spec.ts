@@ -11,7 +11,12 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { PedidosCompraService } from './pedidos-compra.service';
 
-const usuario = { id: 'u1', empresaId: 'e1', tipo: 'ADMIN_EMPRESA' };
+const usuario = {
+  id: 'u1',
+  email: 'usuario@teste.com',
+  empresaId: 'e1',
+  tipo: 'ADMIN_EMPRESA',
+};
 const produto = (id = 'prod1') => ({
   id,
   nome: `Produto ${id}`,

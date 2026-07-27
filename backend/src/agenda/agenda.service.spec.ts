@@ -189,7 +189,9 @@ describe('AgendaService', () => {
         clienteId: dto.clienteId,
       };
       await expect(
-        service.criar(dadosSemResponsavel, { empresaId: 'e1' }),
+        service.criar(dadosSemResponsavel, {
+          empresaId: 'e1',
+        } as unknown as import('./agenda.service').UsuarioAgendaAutenticado),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
@@ -478,7 +480,7 @@ describe('AgendaService', () => {
       await service.adicionarHistorico(
         'a1',
         { descricao: 'Nota' },
-        { sub: 'jwt-user', empresaId: 'e1' },
+        { id: 'jwt-user', empresaId: 'e1' },
       );
       expect(tx.agendaEventoHistorico.create).toHaveBeenCalledWith(
         expect.objectContaining({

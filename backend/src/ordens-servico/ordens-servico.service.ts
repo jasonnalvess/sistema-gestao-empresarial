@@ -13,6 +13,7 @@ import { AlterarStatusOrdemServicoDto } from './dto/alterar-status-ordem-servico
 import { FiltroOrdensServicoDto } from './dto/filtro-ordens-servico.dto';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 const STATUS_PERMITIDOS: Record<string, readonly string[]> = {
   ABERTA: ['EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADA'],
@@ -46,15 +47,15 @@ export class OrdensServicoService {
     },
   } satisfies Prisma.OrdemServicoHistoricoInclude;
 
-  private obterEmpresaId(usuario: any) {
+  private obterEmpresaId(usuario: AuthenticatedUser) {
     if (!usuario?.empresaId) {
       throw new ForbiddenException('Usuário sem empresa vinculada');
     }
-    return usuario.empresaId as string;
+    return usuario.empresaId;
   }
 
-  private obterUsuarioId(usuario: any) {
-    return (usuario?.id ?? usuario?.sub) as string | undefined;
+  private obterUsuarioId(usuario: AuthenticatedUser): string {
+    return usuario.id;
   }
 
   private async bloquearOrdem(
@@ -198,7 +199,7 @@ export class OrdensServicoService {
     return target === 'OrdemServico_empresaId_numero_key';
   }
 
-  async criar(dados: CriarOrdemServicoDto, usuarioLogado: any) {
+  async criar(dados: CriarOrdemServicoDto, usuarioLogado: AuthenticatedUser) {
     const empresaId = this.obterEmpresaId(usuarioLogado);
     const usuarioId = this.obterUsuarioId(usuarioLogado);
     try {
@@ -249,14 +250,17 @@ export class OrdensServicoService {
     }
   }
 
-  async listar(usuarioLogado: any, paginacao: FiltroOrdensServicoDto) {
+  async listar(
+    usuarioLogado: AuthenticatedUser,
+    paginacao: FiltroOrdensServicoDto,
+  ) {
     const page = paginacao.page ?? 1;
     const limit = paginacao.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
     const where: Prisma.OrdemServicoWhereInput =
       usuarioLogado.tipo === 'SUPER_ADMIN'
         ? {}
-        : { empresaId: usuarioLogado.empresaId };
+        : { empresaId: this.obterEmpresaId(usuarioLogado) };
 
     if (paginacao.search) {
       where.OR = [
@@ -287,7 +291,7 @@ export class OrdensServicoService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuarioLogado: any) {
+  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
     const ordem = await this.prisma.ordemServico.findUnique({
       where: { id },
       include: this.includeOrdem,
@@ -305,7 +309,7 @@ export class OrdensServicoService {
   async adicionarHistorico(
     ordemServicoId: string,
     dados: CriarOrdemServicoHistoricoDto,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     const empresaId = this.obterEmpresaId(usuarioLogado);
     return this.prisma.$transaction(async (tx) => {
@@ -321,7 +325,10 @@ export class OrdensServicoService {
     });
   }
 
-  async listarHistorico(ordemServicoId: string, usuarioLogado: any) {
+  async listarHistorico(
+    ordemServicoId: string,
+    usuarioLogado: AuthenticatedUser,
+  ) {
     await this.buscarPorId(ordemServicoId, usuarioLogado);
     return this.prisma.ordemServicoHistorico.findMany({
       where: { ordemServicoId },
@@ -342,7 +349,7 @@ export class OrdensServicoService {
   async alterarStatus(
     id: string,
     dados: AlterarStatusOrdemServicoDto,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     const empresaId = this.obterEmpresaId(usuarioLogado);
     return this.prisma.$transaction(async (tx) => {

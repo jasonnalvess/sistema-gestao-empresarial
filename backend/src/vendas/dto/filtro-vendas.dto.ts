@@ -1,9 +1,4 @@
-import {
-  IsDateString,
-  IsEnum,
-  IsOptional,
-  IsUUID,
-} from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsUUID } from 'class-validator';
 
 import {
   CondicaoPagamentoVenda,

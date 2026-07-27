@@ -6,15 +6,17 @@ import {
   Patch,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-import { UsuariosService } from './usuarios.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { CriarUsuarioDto } from './dto/criar-usuario.dto';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { PaginacaoDto } from '../common/dto/paginacao.dto';
+import { AtualizarUsuarioDto } from './dto/atualizar-usuario.dto';
+import { CriarUsuarioDto } from './dto/criar-usuario.dto';
+import { UsuariosService } from './usuarios.service';
 
 @Controller('usuarios')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -23,41 +25,53 @@ export class UsuariosController {
 
   @Post()
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
-  criar(@Body() body: CriarUsuarioDto, @Req() req: any) {
-  return this.usuariosService.criar(body, req.user);
+  criar(
+    @Body() body: CriarUsuarioDto,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.usuariosService.criar(body, usuario);
   }
 
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
-  listar(@Req() req: any, @Query() paginacao: PaginacaoDto) {
-    return this.usuariosService.listar(req.user, paginacao);
+  listar(
+    @CurrentUser() usuario: AuthenticatedUser,
+    @Query() paginacao: PaginacaoDto,
+  ) {
+    return this.usuariosService.listar(usuario, paginacao);
   }
 
   @Get(':id')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
-  buscarPorId(@Param('id') id: string, @Req() req: any) {
-    return this.usuariosService.buscarPorId(id, req.user);
+  buscarPorId(
+    @Param('id') id: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.usuariosService.buscarPorId(id, usuario);
   }
 
-@Patch(':id')
-@Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
-atualizar(
-  @Param('id') id: string,
-  @Body() body: any,
-  @Req() req: any,
-) {
-  return this.usuariosService.atualizar(id, body, req.user);
-}
+  @Patch(':id')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  atualizar(
+    @Param('id') id: string,
+    @Body() body: AtualizarUsuarioDto,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.usuariosService.atualizar(id, body, usuario);
+  }
 
   @Patch(':id/ativar')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
-  ativar(@Param('id') id: string, @Req() req: any) {
-    return this.usuariosService.ativar(id, req.user);
+  ativar(@Param('id') id: string, @CurrentUser() usuario: AuthenticatedUser) {
+    return this.usuariosService.ativar(id, usuario);
   }
 
   @Patch(':id/desativar')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
-  desativar(@Param('id') id: string, @Req() req: any) {
-    return this.usuariosService.desativar(id, req.user);
+  desativar(
+    @Param('id') id: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.usuariosService.desativar(id, usuario);
   }
 }

@@ -14,10 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import {
-  CondicaoPagamentoVenda,
-  FormaPagamentoVenda,
-} from '@prisma/client';
+import { CondicaoPagamentoVenda, FormaPagamentoVenda } from '@prisma/client';
 
 import { CriarVendaItemDto } from './criar-venda-item.dto';
 

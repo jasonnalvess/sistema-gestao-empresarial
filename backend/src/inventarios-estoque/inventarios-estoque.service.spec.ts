@@ -7,9 +7,15 @@ import {
 } from '@prisma/client';
 import { InventariosEstoqueService } from './inventarios-estoque.service';
 import { PrismaService } from '../prisma/prisma.service';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 describe('InventariosEstoqueService hardening', () => {
-  const usuario = { id: 'u1', empresaId: 'e1', tipo: 'ADMIN_EMPRESA' };
+  const usuario: AuthenticatedUser = {
+    id: 'u1',
+    email: 'admin@empresa.com',
+    tipo: 'ADMIN_EMPRESA',
+    empresaId: 'e1',
+  };
   const deposito = {
     id: 'd1',
     empresaId: 'e1',
@@ -90,7 +96,7 @@ describe('InventariosEstoqueService hardening', () => {
   });
 
   it('cria em uma única transação e valida depósito pelo mesmo tx', async () => {
-    await service.criar({ depositoId: 'd1' } as any, usuario);
+    await service.criar({ depositoId: 'd1' }, usuario);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.deposito.findUnique).toHaveBeenCalledWith({
       where: { id: 'd1' },
@@ -139,7 +145,7 @@ describe('InventariosEstoqueService hardening', () => {
     await service.contarItem(
       'inv1',
       'i-p1',
-      { quantidadeContada: 1.35 } as any,
+      { quantidadeContada: 1.35 },
       usuario,
     );
     const data = tx.inventarioEstoqueItem.update.mock.calls[0][0].data;

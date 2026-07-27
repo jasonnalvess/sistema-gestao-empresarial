@@ -1,8 +1,4 @@
-import {
-  IsEnum,
-  IsOptional,
-  IsUUID,
-} from 'class-validator';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
 
 import { StatusPedidoCompra } from '@prisma/client';
 import { QueryBaseDto } from '../../common/dto/query-base.dto';

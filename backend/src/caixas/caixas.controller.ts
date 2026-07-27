@@ -6,9 +6,14 @@ import {
   Patch,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
+
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 import { CaixasService } from './caixas.service';
 
@@ -21,91 +26,54 @@ import { FiltroCaixasDto } from './dto/filtro-caixas.dto';
 import { FiltroMovimentacoesCaixaDto } from './dto/filtro-movimentacoes-caixa.dto';
 import { FiltroResumoCaixasDto } from './dto/filtro-resumo-caixas.dto';
 
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-
 @Controller('caixas')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CaixasController {
-  constructor(
-    private readonly caixasService: CaixasService,
-  ) {}
+  constructor(private readonly caixasService: CaixasService) {}
 
   @Post()
   @Roles('ADMIN_EMPRESA')
   criar(
     @Body() body: CriarCaixaDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.criar(
-      body,
-      req.user,
-    );
+    return this.caixasService.criar(body, usuario);
   }
 
   @Get()
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN_EMPRESA',
-    'USUARIO_EMPRESA',
-  )
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   listar(
     @Query() filtros: FiltroCaixasDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.listar(
-      req.user,
-      filtros,
-    );
+    return this.caixasService.listar(usuario, filtros);
   }
 
   @Get('resumo/geral')
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN_EMPRESA',
-    'USUARIO_EMPRESA',
-  )
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   resumo(
     @Query() filtros: FiltroResumoCaixasDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.resumo(
-      req.user,
-      filtros,
-    );
+    return this.caixasService.resumo(usuario, filtros);
   }
 
   @Get('movimentacoes/listar')
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN_EMPRESA',
-    'USUARIO_EMPRESA',
-  )
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   listarMovimentacoes(
     @Query() filtros: FiltroMovimentacoesCaixaDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.listarMovimentacoes(
-      req.user,
-      filtros,
-    );
+    return this.caixasService.listarMovimentacoes(usuario, filtros);
   }
 
   @Get(':id')
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN_EMPRESA',
-    'USUARIO_EMPRESA',
-  )
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   buscarPorId(
     @Param('id') id: string,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.buscarPorId(
-      id,
-      req.user,
-    );
+    return this.caixasService.buscarPorId(id, usuario);
   }
 
   @Patch(':id')
@@ -113,13 +81,9 @@ export class CaixasController {
   atualizar(
     @Param('id') id: string,
     @Body() body: AtualizarCaixaDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.atualizar(
-      id,
-      body,
-      req.user,
-    );
+    return this.caixasService.atualizar(id, body, usuario);
   }
 
   @Post(':id/abrir')
@@ -127,13 +91,9 @@ export class CaixasController {
   abrir(
     @Param('id') id: string,
     @Body() body: AbrirCaixaDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.abrir(
-      id,
-      body,
-      req.user,
-    );
+    return this.caixasService.abrir(id, body, usuario);
   }
 
   @Post(':id/fechar')
@@ -141,45 +101,27 @@ export class CaixasController {
   fechar(
     @Param('id') id: string,
     @Body() body: FecharCaixaDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.fechar(
-      id,
-      body,
-      req.user,
-    );
+    return this.caixasService.fechar(id, body, usuario);
   }
 
   @Get(':id/abertura')
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN_EMPRESA',
-    'USUARIO_EMPRESA',
-  )
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   aberturaAtual(
     @Param('id') id: string,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.buscarAberturaAtiva(
-      id,
-      req.user,
-    );
+    return this.caixasService.buscarAberturaAtiva(id, usuario);
   }
 
   @Get(':id/aberturas')
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN_EMPRESA',
-    'USUARIO_EMPRESA',
-  )
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   listarAberturas(
     @Param('id') id: string,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.listarAberturas(
-      id,
-      req.user,
-    );
+    return this.caixasService.listarAberturas(id, usuario);
   }
 
   @Post(':id/movimentacoes')
@@ -187,12 +129,8 @@ export class CaixasController {
   movimentar(
     @Param('id') id: string,
     @Body() body: CriarMovimentacaoCaixaDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.caixasService.criarMovimentacao(
-      id,
-      body,
-      req.user,
-    );
+    return this.caixasService.criarMovimentacao(id, body, usuario);
   }
 }

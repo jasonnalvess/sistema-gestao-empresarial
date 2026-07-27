@@ -6,10 +6,7 @@ import {
   IsUUID,
 } from 'class-validator';
 
-import {
-  OrigemMovimentacaoCaixa,
-  TipoMovimentacaoCaixa,
-} from '@prisma/client';
+import { OrigemMovimentacaoCaixa, TipoMovimentacaoCaixa } from '@prisma/client';
 
 export class FiltroResumoCaixasDto {
   @IsOptional()

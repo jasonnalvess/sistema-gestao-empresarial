@@ -1,15 +1,38 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { respostaPaginada } from '../common/utils/resposta-paginada';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { PaginacaoDto } from '../common/dto/paginacao.dto';
 import { calcularPaginacao } from '../common/utils/paginacao';
+import { respostaPaginada } from '../common/utils/resposta-paginada';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
+import { PrismaService } from '../prisma/prisma.service';
+
+type TipoUsuario = 'SUPER_ADMIN' | 'ADMIN_EMPRESA' | 'USUARIO_EMPRESA';
+
+type CriarUsuarioDados = {
+  nome: string;
+  email: string;
+  senha: string;
+  tipo: TipoUsuario;
+  empresaId?: string;
+};
+
+type AtualizarUsuarioDados = {
+  nome?: string;
+  email?: string;
+  tipo?: TipoUsuario;
+};
 
 @Injectable()
 export class UsuariosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private selectSeguro = {
+  private readonly selectSeguro = {
     id: true,
     nome: true,
     email: true,
@@ -18,24 +41,21 @@ export class UsuariosService {
     empresaId: true,
     createdAt: true,
     updatedAt: true,
-  };
+  } satisfies Prisma.UsuarioSelect;
 
-  async criar(
-    dados: {
-      nome: string;
-      email: string;
-      senha: string;
-      tipo: 'SUPER_ADMIN' | 'ADMIN_EMPRESA' | 'USUARIO_EMPRESA';
-      empresaId?: string;
-    },
-    usuarioLogado?: any,
-  ) {
-    if (usuarioLogado?.tipo === 'ADMIN_EMPRESA') {
-      if (dados.tipo === 'SUPER_ADMIN') {
-        throw new ForbiddenException('Administrador de empresa não pode criar Super Admin');
-      }
+  async criar(dados: CriarUsuarioDados, usuarioLogado: AuthenticatedUser) {
+    const empresaId =
+      usuarioLogado.tipo === 'ADMIN_EMPRESA'
+        ? obterEmpresaId(usuarioLogado)
+        : dados.empresaId;
 
-      dados.empresaId = usuarioLogado.empresaId;
+    if (
+      usuarioLogado.tipo === 'ADMIN_EMPRESA' &&
+      dados.tipo === 'SUPER_ADMIN'
+    ) {
+      throw new ForbiddenException(
+        'Administrador de empresa não pode criar Super Admin',
+      );
     }
 
     const senhaCriptografada = await bcrypt.hash(dados.senha, 10);
@@ -46,51 +66,41 @@ export class UsuariosService {
         email: dados.email,
         senha: senhaCriptografada,
         tipo: dados.tipo,
-        empresaId: dados.empresaId,
+        empresaId,
       },
       select: this.selectSeguro,
     });
   }
 
-  async listar(usuarioLogado: any, paginacao: PaginacaoDto) {
-  const page = paginacao.page ?? 1;
-  const limit = paginacao.limit ?? 10;
+  async listar(usuarioLogado: AuthenticatedUser, paginacao: PaginacaoDto) {
+    const page = paginacao.page ?? 1;
+    const limit = paginacao.limit ?? 10;
+    const { skip, take } = calcularPaginacao(page, limit);
 
-  const { skip, take } = calcularPaginacao(page, limit);
+    const where: Prisma.UsuarioWhereInput =
+      usuarioLogado.tipo === 'SUPER_ADMIN'
+        ? {}
+        : { empresaId: obterEmpresaId(usuarioLogado) };
 
-  const where: any =
-    usuarioLogado.tipo === 'SUPER_ADMIN'
-      ? {}
-      : { empresaId: usuarioLogado.empresaId };
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.usuario.findMany({
+        where,
+        select: this.selectSeguro,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take,
+      }),
+      this.prisma.usuario.count({
+        where,
+      }),
+    ]);
 
-  const [data, total] = await this.prisma.$transaction([
-    this.prisma.usuario.findMany({
-      where,
-      select: {
-        id: true,
-        nome: true,
-        email: true,
-        tipo: true,
-        ativo: true,
-        empresaId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      skip,
-      take,
-    }),
-    this.prisma.usuario.count({
-      where,
-    }),
-  ]);
+    return respostaPaginada(data, total, page, limit);
+  }
 
-  return respostaPaginada(data, total, page, limit);
-}
-
-  async buscarPorId(id: string, usuarioLogado?: any) {
+  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id },
       select: this.selectSeguro,
@@ -101,8 +111,8 @@ export class UsuariosService {
     }
 
     if (
-      usuarioLogado?.tipo !== 'SUPER_ADMIN' &&
-      usuario.empresaId !== usuarioLogado.empresaId
+      usuarioLogado.tipo !== 'SUPER_ADMIN' &&
+      usuario.empresaId !== obterEmpresaId(usuarioLogado)
     ) {
       throw new ForbiddenException('Acesso negado a usuário de outra empresa');
     }
@@ -110,35 +120,34 @@ export class UsuariosService {
     return usuario;
   }
 
-async atualizar(
-  id: string,
-  dados: {
-    nome?: string;
-    email?: string;
-    tipo?: 'SUPER_ADMIN' | 'ADMIN_EMPRESA' | 'USUARIO_EMPRESA';
-  },
-  usuarioLogado?: any,
-) {
-  await this.buscarPorId(id, usuarioLogado);
+  async atualizar(
+    id: string,
+    dados: AtualizarUsuarioDados,
+    usuarioLogado: AuthenticatedUser,
+  ) {
+    await this.buscarPorId(id, usuarioLogado);
 
-  if (usuarioLogado?.tipo === 'ADMIN_EMPRESA') {
-    if (dados.tipo === 'SUPER_ADMIN') {
-      throw new ForbiddenException('Administrador de empresa não pode definir Super Admin');
+    if (
+      usuarioLogado.tipo === 'ADMIN_EMPRESA' &&
+      dados.tipo === 'SUPER_ADMIN'
+    ) {
+      throw new ForbiddenException(
+        'Administrador de empresa não pode definir Super Admin',
+      );
     }
+
+    return this.prisma.usuario.update({
+      where: { id },
+      data: {
+        nome: dados.nome,
+        email: dados.email,
+        tipo: dados.tipo,
+      },
+      select: this.selectSeguro,
+    });
   }
 
-  return this.prisma.usuario.update({
-    where: { id },
-    data: {
-      nome: dados.nome,
-      email: dados.email,
-      tipo: dados.tipo,
-    },
-    select: this.selectSeguro,
-  });
-}
-
-  async ativar(id: string, usuarioLogado?: any) {
+  async ativar(id: string, usuarioLogado: AuthenticatedUser) {
     await this.buscarPorId(id, usuarioLogado);
 
     return this.prisma.usuario.update({
@@ -148,7 +157,7 @@ async atualizar(
     });
   }
 
-  async desativar(id: string, usuarioLogado?: any) {
+  async desativar(id: string, usuarioLogado: AuthenticatedUser) {
     await this.buscarPorId(id, usuarioLogado);
 
     return this.prisma.usuario.update({

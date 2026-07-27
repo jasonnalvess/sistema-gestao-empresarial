@@ -6,30 +6,38 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 
 import { CriarProdutoDto } from './dto/criar-produto.dto';
 import { AtualizarProdutoDto } from './dto/atualizar-produto.dto';
 import { FiltroProdutosDto } from './dto/filtro-produtos.dto';
 import { CriarProdutoHistoricoDto } from './dto/criar-produto-historico.dto';
 
+const PRODUTO_INCLUDE = {
+  categoria: true,
+  marca: true,
+  unidadeMedida: true,
+  estoques: {
+    include: {
+      deposito: true,
+    },
+  },
+} satisfies Prisma.ProdutoInclude;
+
+type ProdutoCompleto = Prisma.ProdutoGetPayload<{
+  include: typeof PRODUTO_INCLUDE;
+}>;
+
 @Injectable()
 export class ProdutosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private readonly includeProduto = {
-    categoria: true,
-    marca: true,
-    unidadeMedida: true,
-    estoques: {
-      include: {
-        deposito: true,
-      },
-    },
-  };
+  private readonly includeProduto = PRODUTO_INCLUDE;
 
   private tratarErroPrisma(error: unknown): never {
     if (
@@ -80,7 +88,10 @@ export class ProdutosService {
     return String(valor);
   }
 
-  private montarDescricaoAlteracoes(anterior: any, atualizado: any): string | null {
+  private montarDescricaoAlteracoes(
+    anterior: ProdutoCompleto,
+    atualizado: ProdutoCompleto,
+  ): string | null {
     const campos = [
       {
         label: 'Nome',
@@ -191,13 +202,13 @@ export class ProdutosService {
   private async registrarHistorico(
     produtoId: string,
     descricao: string,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     return this.prisma.produtoHistorico.create({
       data: {
         produtoId,
         descricao,
-        usuarioId: usuarioLogado.id ?? usuarioLogado.sub,
+        usuarioId: usuarioLogado.id,
       },
     });
   }
@@ -279,8 +290,8 @@ export class ProdutosService {
     }
   }
 
-  async criar(dados: CriarProdutoDto, usuarioLogado: any) {
-    const empresaId = usuarioLogado.empresaId;
+  async criar(dados: CriarProdutoDto, usuarioLogado: AuthenticatedUser) {
+    const empresaId = obterEmpresaId(usuarioLogado);
 
     await this.validarVinculos(
       {
@@ -329,17 +340,17 @@ export class ProdutosService {
     }
   }
 
-  async listar(usuarioLogado: any, filtros: FiltroProdutosDto) {
+  async listar(usuarioLogado: AuthenticatedUser, filtros: FiltroProdutosDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
 
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: any =
+    const where: Prisma.ProdutoWhereInput =
       usuarioLogado.tipo === 'SUPER_ADMIN'
         ? {}
         : {
-            empresaId: usuarioLogado.empresaId,
+            empresaId: obterEmpresaId(usuarioLogado),
           };
 
     if (filtros.search) {
@@ -428,7 +439,7 @@ export class ProdutosService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuarioLogado: any) {
+  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
     const produto = await this.prisma.produto.findUnique({
       where: {
         id,
@@ -444,9 +455,7 @@ export class ProdutosService {
       usuarioLogado.tipo !== 'SUPER_ADMIN' &&
       produto.empresaId !== usuarioLogado.empresaId
     ) {
-      throw new ForbiddenException(
-        'Acesso negado a produto de outra empresa',
-      );
+      throw new ForbiddenException('Acesso negado a produto de outra empresa');
     }
 
     return produto;
@@ -455,7 +464,7 @@ export class ProdutosService {
   async atualizar(
     id: string,
     dados: AtualizarProdutoDto,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     const produtoAnterior = await this.buscarPorId(id, usuarioLogado);
 
@@ -500,11 +509,7 @@ export class ProdutosService {
       );
 
       if (descricaoHistorico) {
-        await this.registrarHistorico(
-          id,
-          descricaoHistorico,
-          usuarioLogado,
-        );
+        await this.registrarHistorico(id, descricaoHistorico, usuarioLogado);
       }
 
       return produtoAtualizado;
@@ -513,7 +518,7 @@ export class ProdutosService {
     }
   }
 
-  async ativar(id: string, usuarioLogado: any) {
+  async ativar(id: string, usuarioLogado: AuthenticatedUser) {
     const produto = await this.buscarPorId(id, usuarioLogado);
 
     if (produto.ativo) {
@@ -530,16 +535,12 @@ export class ProdutosService {
       include: this.includeProduto,
     });
 
-    await this.registrarHistorico(
-      id,
-      'Produto ativado.',
-      usuarioLogado,
-    );
+    await this.registrarHistorico(id, 'Produto ativado.', usuarioLogado);
 
     return produtoAtualizado;
   }
 
-  async desativar(id: string, usuarioLogado: any) {
+  async desativar(id: string, usuarioLogado: AuthenticatedUser) {
     const produto = await this.buscarPorId(id, usuarioLogado);
 
     if (!produto.ativo) {
@@ -556,11 +557,7 @@ export class ProdutosService {
       include: this.includeProduto,
     });
 
-    await this.registrarHistorico(
-      id,
-      'Produto desativado.',
-      usuarioLogado,
-    );
+    await this.registrarHistorico(id, 'Produto desativado.', usuarioLogado);
 
     return produtoAtualizado;
   }
@@ -568,7 +565,7 @@ export class ProdutosService {
   async adicionarHistorico(
     produtoId: string,
     dados: CriarProdutoHistoricoDto,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     await this.buscarPorId(produtoId, usuarioLogado);
 
@@ -576,7 +573,7 @@ export class ProdutosService {
       data: {
         produtoId,
         descricao: dados.descricao,
-        usuarioId: usuarioLogado.id ?? usuarioLogado.sub,
+        usuarioId: usuarioLogado.id,
       },
       include: {
         usuario: {
@@ -591,7 +588,7 @@ export class ProdutosService {
     });
   }
 
-  async listarHistorico(produtoId: string, usuarioLogado: any) {
+  async listarHistorico(produtoId: string, usuarioLogado: AuthenticatedUser) {
     await this.buscarPorId(produtoId, usuarioLogado);
 
     return this.prisma.produtoHistorico.findMany({

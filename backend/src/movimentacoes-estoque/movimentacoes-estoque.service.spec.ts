@@ -2,9 +2,15 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Prisma, TipoMovimentacaoEstoque } from '@prisma/client';
 import { MovimentacoesEstoqueService } from './movimentacoes-estoque.service';
 import { PrismaService } from '../prisma/prisma.service';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 describe('MovimentacoesEstoqueService hardening', () => {
-  const usuario = { id: 'u1', empresaId: 'e1' };
+  const usuario: AuthenticatedUser = {
+    id: 'u1',
+    email: 'admin@empresa.com',
+    tipo: 'ADMIN_EMPRESA',
+    empresaId: 'e1',
+  };
   const produto = {
     id: 'p1',
     empresaId: 'e1',
@@ -138,7 +144,7 @@ describe('MovimentacoesEstoqueService hardening', () => {
         depositoOrigemId: 'z',
         depositoDestinoId: 'a',
         quantidade: 1,
-      } as any,
+      },
       usuario,
     );
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
@@ -159,7 +165,7 @@ describe('MovimentacoesEstoqueService hardening', () => {
         depositoOrigemId: 'd1',
         depositoDestinoId: 'd2',
         quantidade: 1.25,
-      } as any,
+      },
       usuario,
     );
     expect(

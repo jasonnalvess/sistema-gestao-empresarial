@@ -1,30 +1,26 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 import { MovimentacoesEstoqueService } from './movimentacoes-estoque.service';
 import { CriarMovimentacaoEstoqueDto } from './dto/criar-movimentacao-estoque.dto';
 import { CriarTransferenciaEstoqueDto } from './dto/criar-transferencia-estoque.dto';
-import { Auditar } from '../common/decorators/auditar.decorator';
-import { AuditoriaAcao, AuditoriaEntidade } from '../common/enums/auditoria.enum';
 import { FiltroMovimentacoesEstoqueDto } from './dto/filtro-movimentacoes-estoque.dto';
+
+import { Auditar } from '../common/decorators/auditar.decorator';
+import {
+  AuditoriaAcao,
+  AuditoriaEntidade,
+} from '../common/enums/auditoria.enum';
 
 @Controller('movimentacoes-estoque')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class MovimentacoesEstoqueController {
-  constructor(
-    private readonly service: MovimentacoesEstoqueService,
-  ) {}
+  constructor(private readonly service: MovimentacoesEstoqueService) {}
 
   @Post()
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
@@ -34,23 +30,26 @@ export class MovimentacoesEstoqueController {
   })
   criar(
     @Body() body: CriarMovimentacaoEstoqueDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.service.criar(body, req.user);
+    return this.service.criar(body, usuario);
   }
 
   @Post('transferencias')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   transferir(
     @Body() body: CriarTransferenciaEstoqueDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.service.transferir(body, req.user);
+    return this.service.transferir(body, usuario);
   }
 
   @Get()
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
-  listar(@Req() req: any, @Query() filtros: FiltroMovimentacoesEstoqueDto) {
-    return this.service.listar(req.user, filtros);
+  listar(
+    @CurrentUser() usuario: AuthenticatedUser,
+    @Query() filtros: FiltroMovimentacoesEstoqueDto,
+  ) {
+    return this.service.listar(usuario, filtros);
   }
 }

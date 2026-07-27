@@ -1,6 +1,14 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 import { CriarMarcaProdutoDto } from './dto/criar-marca-produto.dto';
+import { AtualizarMarcaProdutoDto } from './dto/atualizar-marca-produto.dto';
 import { PaginacaoDto } from '../common/dto/paginacao.dto';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
@@ -9,25 +17,25 @@ import { respostaPaginada } from '../common/utils/resposta-paginada';
 export class MarcasProdutosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async criar(dados: CriarMarcaProdutoDto, usuarioLogado: any) {
+  async criar(dados: CriarMarcaProdutoDto, usuarioLogado: AuthenticatedUser) {
     return this.prisma.marcaProduto.create({
       data: {
         nome: dados.nome,
         descricao: dados.descricao,
-        empresaId: usuarioLogado.empresaId,
+        empresaId: obterEmpresaId(usuarioLogado),
       },
     });
   }
 
-  async listar(usuarioLogado: any, paginacao: PaginacaoDto) {
+  async listar(usuarioLogado: AuthenticatedUser, paginacao: PaginacaoDto) {
     const page = paginacao.page ?? 1;
     const limit = paginacao.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: any =
+    const where: Prisma.MarcaProdutoWhereInput =
       usuarioLogado.tipo === 'SUPER_ADMIN'
         ? {}
-        : { empresaId: usuarioLogado.empresaId };
+        : { empresaId: obterEmpresaId(usuarioLogado) };
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.marcaProduto.findMany({
@@ -42,7 +50,7 @@ export class MarcasProdutosService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuarioLogado: any) {
+  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
     const marca = await this.prisma.marcaProduto.findUnique({
       where: { id },
     });
@@ -53,7 +61,7 @@ export class MarcasProdutosService {
 
     if (
       usuarioLogado.tipo !== 'SUPER_ADMIN' &&
-      marca.empresaId !== usuarioLogado.empresaId
+      marca.empresaId !== obterEmpresaId(usuarioLogado)
     ) {
       throw new ForbiddenException('Acesso negado a marca de outra empresa');
     }
@@ -63,8 +71,8 @@ export class MarcasProdutosService {
 
   async atualizar(
     id: string,
-    dados: Partial<CriarMarcaProdutoDto>,
-    usuarioLogado: any,
+    dados: AtualizarMarcaProdutoDto,
+    usuarioLogado: AuthenticatedUser,
   ) {
     await this.buscarPorId(id, usuarioLogado);
 
@@ -77,7 +85,7 @@ export class MarcasProdutosService {
     });
   }
 
-  async ativar(id: string, usuarioLogado: any) {
+  async ativar(id: string, usuarioLogado: AuthenticatedUser) {
     await this.buscarPorId(id, usuarioLogado);
 
     return this.prisma.marcaProduto.update({
@@ -86,7 +94,7 @@ export class MarcasProdutosService {
     });
   }
 
-  async desativar(id: string, usuarioLogado: any) {
+  async desativar(id: string, usuarioLogado: AuthenticatedUser) {
     await this.buscarPorId(id, usuarioLogado);
 
     return this.prisma.marcaProduto.update({
