@@ -8,6 +8,7 @@ import {
 
 import {
   CondicaoPagamentoVenda,
+  FormaPagamentoVenda,
   OrigemContaReceber,
   Prisma,
   StatusContaReceber,
@@ -175,7 +176,7 @@ export class VendasService {
   private validarCondicaoPagamento(dados: {
     condicaoPagamento: CondicaoPagamentoVenda;
 
-    formaPagamento?: any;
+    formaPagamento?: FormaPagamentoVenda;
 
     quantidadeParcelas?: number;
 

@@ -15,8 +15,8 @@ export class AuditoriaService {
     acao: string;
     entidade: string;
     entidadeId?: string;
-    dadosAntigos?: any;
-    dadosNovos?: any;
+    dadosAntigos?: Prisma.InputJsonValue;
+    dadosNovos?: Prisma.InputJsonValue;
     empresaId?: string;
     usuarioId?: string;
     ip?: string;

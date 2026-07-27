@@ -1,4 +1,3 @@
-
 import {
   ArgumentsHost,
   Catch,
@@ -6,13 +5,14 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-  catch(exception: any, host: ArgumentsHost) {
+  catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse();
-    const request = ctx.getRequest();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
 
     const status =
       exception instanceof HttpException
@@ -20,23 +20,31 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const exceptionResponse =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : null;
+      exception instanceof HttpException ? exception.getResponse() : null;
 
-    let message: any = 'Erro interno do servidor';
-    let error = exception?.name || 'Internal Server Error';
+    let message: string | string[] = 'Erro interno do servidor';
+    let error =
+      exception instanceof Error ? exception.name : 'Internal Server Error';
 
     if (typeof exceptionResponse === 'string') {
       message = exceptionResponse;
     }
 
-    if (
-      typeof exceptionResponse === 'object' &&
-      exceptionResponse !== null
-    ) {
-      message = (exceptionResponse as any).message ?? message;
-      error = (exceptionResponse as any).error ?? error;
+    if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
+      if (
+        'message' in exceptionResponse &&
+        (typeof exceptionResponse.message === 'string' ||
+          Array.isArray(exceptionResponse.message))
+      ) {
+        message = exceptionResponse.message;
+      }
+
+      if (
+        'error' in exceptionResponse &&
+        typeof exceptionResponse.error === 'string'
+      ) {
+        error = exceptionResponse.error;
+      }
     }
 
     response.status(status).json({

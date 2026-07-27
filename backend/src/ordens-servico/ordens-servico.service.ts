@@ -51,7 +51,7 @@ export class OrdensServicoService {
     if (!usuario?.empresaId) {
       throw new ForbiddenException('Usuário sem empresa vinculada');
     }
-    return usuario.empresaId as string;
+    return usuario.empresaId;
   }
 
   private obterUsuarioId(usuario: AuthenticatedUser): string {

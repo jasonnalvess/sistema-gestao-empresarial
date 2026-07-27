@@ -431,7 +431,7 @@ export class PedidosCompraService {
     const limit = filtros.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: any =
+    const where: Prisma.PedidoCompraWhereInput =
       usuarioLogado.tipo === 'SUPER_ADMIN'
         ? {}
         : {
@@ -839,7 +839,22 @@ export class PedidosCompraService {
         );
       }
 
-      const movimentacoesCriadas: any[] = [];
+      const movimentacoesCriadas: Array<
+        Prisma.MovimentacaoEstoqueGetPayload<{
+          include: {
+            produto: true;
+            deposito: true;
+            usuario: {
+              select: {
+                id: true;
+                nome: true;
+                email: true;
+                tipo: true;
+              };
+            };
+          };
+        }>
+      > = [];
       for (const { itemRecebimento, itemPedido } of itensOrdenados) {
         if (itemPedido.status === StatusItemPedidoCompra.CANCELADO) {
           throw new BadRequestException(

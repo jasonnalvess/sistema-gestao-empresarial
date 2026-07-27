@@ -176,7 +176,7 @@ describe('OrdensServicoService', () => {
       'converte P2002 conhecido com target %p',
       async (target) => {
         const { service, tx } = criarContexto();
-        tx.ordemServico.create.mockRejectedValue(erroP2002(target as any));
+        tx.ordemServico.create.mockRejectedValue(erroP2002(target));
         await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
           ConflictException,
         );

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Matchers assimetricos do Jest expoem valores como any. */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Matchers assimetricos do Jest expoem valores como any. */
 import {
   BadRequestException,
   ConflictException,

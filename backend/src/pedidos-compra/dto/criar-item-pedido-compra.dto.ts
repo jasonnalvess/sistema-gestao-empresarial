@@ -1,9 +1,4 @@
-import {
-  IsNumber,
-  IsOptional,
-  IsUUID,
-  Min,
-} from 'class-validator';
+import { IsNumber, IsOptional, IsUUID, Min } from 'class-validator';
 import { IsValorMonetario } from '../../contas-pagar/valor-monetario';
 
 export class CriarItemPedidoCompraDto {
