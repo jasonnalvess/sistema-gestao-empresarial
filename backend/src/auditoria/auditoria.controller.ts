@@ -1,8 +1,12 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
-import { AuditoriaService } from './auditoria.service';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+
+import { AuditoriaService } from './auditoria.service';
 import { FiltroAuditoriaDto } from './dto/filtro-auditoria.dto';
 
 @Controller('auditoria')
@@ -12,7 +16,10 @@ export class AuditoriaController {
 
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
-  listar(@Req() req: any, @Query() filtros: FiltroAuditoriaDto) {
-    return this.auditoriaService.listar(req.user, filtros);
+  listar(
+    @CurrentUser() usuario: AuthenticatedUser,
+    @Query() filtros: FiltroAuditoriaDto,
+  ) {
+    return this.auditoriaService.listar(usuario, filtros);
   }
 }

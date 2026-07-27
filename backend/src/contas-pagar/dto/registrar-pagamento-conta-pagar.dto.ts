@@ -1,7 +1,6 @@
 import {
   IsDateString,
   IsEnum,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -9,24 +8,25 @@ import {
 } from 'class-validator';
 
 import { FormaPagamento } from '@prisma/client';
+import { IsValorMonetario } from '../valor-monetario';
 
 export class RegistrarPagamentoContaPagarDto {
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0.01)
   valor: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   desconto?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   juros?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsValorMonetario()
   @Min(0)
   multa?: number;
 

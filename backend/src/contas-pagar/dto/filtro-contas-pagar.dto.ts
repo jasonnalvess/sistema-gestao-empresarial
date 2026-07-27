@@ -1,14 +1,6 @@
-import {
-  IsDateString,
-  IsEnum,
-  IsOptional,
-  IsUUID,
-} from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsUUID } from 'class-validator';
 
-import {
-  OrigemContaPagar,
-  StatusContaPagar,
-} from '@prisma/client';
+import { OrigemContaPagar, StatusContaPagar } from '@prisma/client';
 
 import { QueryBaseDto } from '../../common/dto/query-base.dto';
 

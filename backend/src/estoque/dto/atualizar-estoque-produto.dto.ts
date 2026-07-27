@@ -1,4 +1,10 @@
-import { IsNumber, IsOptional, Min } from 'class-validator';
+import {
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class AtualizarEstoqueProdutoDto {
   @IsOptional()
@@ -15,4 +21,9 @@ export class AtualizarEstoqueProdutoDto {
   @IsNumber()
   @Min(0)
   estoqueMaximo?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  motivoAjuste?: string;
 }

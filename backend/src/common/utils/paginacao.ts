@@ -1,7 +1,4 @@
-export function calcularPaginacao(
-  page: number,
-  limit: number,
-) {
+export function calcularPaginacao(page: number, limit: number) {
   const skip = (page - 1) * limit;
 
   return {

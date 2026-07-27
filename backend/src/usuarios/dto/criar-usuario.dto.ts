@@ -1,4 +1,11 @@
-import { IsEmail, IsEnum, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 
 export enum TipoUsuarioDto {
   SUPER_ADMIN = 'SUPER_ADMIN',

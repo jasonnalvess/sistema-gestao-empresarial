@@ -1,18 +1,66 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+
 import { OrdensServicoController } from './ordens-servico.controller';
+import type { OrdensServicoService } from './ordens-servico.service';
 
 describe('OrdensServicoController', () => {
-  let controller: OrdensServicoController;
+  const usuario: AuthenticatedUser = {
+    id: 'usuario-1',
+    email: 'usuario@empresa.com',
+    tipo: 'ADMIN_EMPRESA',
+    empresaId: 'empresa-1',
+  };
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [OrdensServicoController],
-    }).compile();
+  it('delega a criação ao service preservando usuário e DTO', async () => {
+    const service = {
+      criar: jest.fn().mockResolvedValue({
+        id: 'ordem-1',
+      }),
+    };
 
-    controller = module.get<OrdensServicoController>(OrdensServicoController);
+    const controller = new OrdensServicoController(
+      service as unknown as OrdensServicoService,
+    );
+
+    const body = {
+      titulo: 'Manutenção',
+      clienteId: 'cliente-1',
+    };
+
+    await expect(controller.criar(body, usuario)).resolves.toEqual({
+      id: 'ordem-1',
+    });
+
+    expect(service.criar).toHaveBeenCalledWith(body, usuario);
   });
 
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+  it('delega alteração de status ao service', async () => {
+    const service = {
+      alterarStatus: jest.fn().mockResolvedValue({
+        id: 'ordem-1',
+        status: 'CONCLUIDA',
+      }),
+    };
+
+    const controller = new OrdensServicoController(
+      service as unknown as OrdensServicoService,
+    );
+
+    const body = {
+      status: 'CONCLUIDA',
+    };
+
+    await expect(
+      controller.alterarStatus('ordem-1', body, usuario),
+    ).resolves.toEqual({
+      id: 'ordem-1',
+      status: 'CONCLUIDA',
+    });
+
+    expect(service.alterarStatus).toHaveBeenCalledWith(
+      'ordem-1',
+      body,
+      usuario,
+    );
   });
 });

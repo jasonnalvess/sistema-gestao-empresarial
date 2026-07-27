@@ -16,6 +16,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 import { CriarCaixaDto } from './dto/criar-caixa.dto';
 import { AtualizarCaixaDto } from './dto/atualizar-caixa.dto';
@@ -28,9 +29,7 @@ import { FiltroResumoCaixasDto } from './dto/filtro-resumo-caixas.dto';
 
 @Injectable()
 export class CaixasService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   private readonly usuarioSelect = {
     id: true,
@@ -136,62 +135,98 @@ export class CaixasService {
     },
   };
 
-  private obterEmpresaId(usuario: any): string {
+  private obterEmpresaId(usuario: AuthenticatedUser): string {
     if (!usuario.empresaId) {
-      throw new BadRequestException(
-        'O usuário não possui empresa vinculada',
-      );
+      throw new BadRequestException('O usuário não possui empresa vinculada');
     }
 
     return usuario.empresaId;
   }
 
-  private obterUsuarioId(
-    usuario: any,
-  ): string | undefined {
-    return usuario.id ?? usuario.sub;
+  private obterUsuarioId(usuario: AuthenticatedUser): string {
+    return usuario.id;
+  }
+
+  private alvoP2002(error: unknown, campos: string[], indice: string): boolean {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== 'P2002'
+    ) {
+      return false;
+    }
+    const target = error.meta?.target;
+    return Array.isArray(target)
+      ? campos.every((campo) => target.includes(campo))
+      : typeof target === 'string' && target.includes(indice);
   }
 
   private tratarErroPrisma(error: unknown): never {
     if (
-      error instanceof
-        Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
+      this.alvoP2002(
+        error,
+        ['empresaId', 'codigo'],
+        'Caixa_empresaId_codigo_key',
+      )
     ) {
       throw new ConflictException(
-        'Já existe um caixa com este nome ou código nesta empresa',
+        'Já existe um caixa com este código nesta empresa',
       );
     }
-
+    if (
+      this.alvoP2002(error, ['empresaId', 'nome'], 'Caixa_empresaId_nome_key')
+    ) {
+      throw new ConflictException(
+        'Já existe um caixa com este nome nesta empresa',
+      );
+    }
     throw error;
+  }
+
+  private async bloquearCaixa(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "Caixa" WHERE "id" = ${id} FOR UPDATE`,
+    );
+  }
+
+  private async registrarHistorico(
+    tx: Prisma.TransactionClient,
+    caixaId: string,
+    empresaId: string,
+    descricao: string,
+    usuario: { id?: string },
+  ) {
+    return tx.caixaHistorico.create({
+      data: {
+        caixaId,
+        empresaId,
+        descricao,
+        usuarioId: usuario.id,
+      },
+    });
   }
 
   private async validarCaixa(
     id: string,
-    usuario: any,
+    usuario: AuthenticatedUser,
+    cliente: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
-    const caixa =
-      await this.prisma.caixa.findUnique({
-        where: {
-          id,
-        },
+    const caixa = await cliente.caixa.findUnique({
+      where: {
+        id,
+      },
 
-        include: this.includeCaixa,
-      });
+      include: this.includeCaixa,
+    });
 
     if (!caixa) {
-      throw new NotFoundException(
-        'Caixa não encontrado',
-      );
+      throw new NotFoundException('Caixa não encontrado');
     }
 
     if (
       usuario.tipo !== 'SUPER_ADMIN' &&
-      caixa.empresaId !== usuario.empresaId
+      caixa.empresaId !== this.obterEmpresaId(usuario)
     ) {
-      throw new ForbiddenException(
-        'Caixa pertence a outra empresa',
-      );
+      throw new ForbiddenException('Caixa pertence a outra empresa');
     }
 
     return caixa;
@@ -199,8 +234,9 @@ export class CaixasService {
 
   private async buscarAberturaAtual(
     caixaId: string,
+    cliente: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
-    return this.prisma.aberturaCaixa.findFirst({
+    return cliente.aberturaCaixa.findFirst({
       where: {
         caixaId,
         aberto: true,
@@ -214,27 +250,20 @@ export class CaixasService {
     });
   }
 
-  async criar(
-    dados: CriarCaixaDto,
-    usuario: any,
-  ) {
-    const empresaId =
-      this.obterEmpresaId(usuario);
+  async criar(dados: CriarCaixaDto, usuario: AuthenticatedUser) {
+    const empresaId = this.obterEmpresaId(usuario);
 
     try {
       return await this.prisma.caixa.create({
         data: {
           nome: dados.nome.trim(),
-          codigo:
-            dados.codigo.trim().toUpperCase(),
+          codigo: dados.codigo.trim().toUpperCase(),
 
-          descricao:
-            dados.descricao?.trim(),
+          descricao: dados.descricao?.trim(),
 
           empresaId,
 
-          usuarioCriacaoId:
-            this.obterUsuarioId(usuario),
+          usuarioCriacaoId: this.obterUsuarioId(usuario),
 
           status: StatusCaixa.FECHADO,
           saldoAtual: 0,
@@ -248,21 +277,17 @@ export class CaixasService {
     }
   }
 
-  async listar(
-    usuario: any,
-    filtros: FiltroCaixasDto,
-  ) {
+  async listar(usuario: AuthenticatedUser, filtros: FiltroCaixasDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
 
-    const { skip, take } =
-      calcularPaginacao(page, limit);
+    const { skip, take } = calcularPaginacao(page, limit);
 
     const where: Prisma.CaixaWhereInput =
       usuario.tipo === 'SUPER_ADMIN'
         ? {}
         : {
-            empresaId: usuario.empresaId,
+            empresaId: this.obterEmpresaId(usuario),
           };
 
     if (filtros.status) {
@@ -307,110 +332,92 @@ export class CaixasService {
       'updatedAt',
     ];
 
-    const sortBy =
-      camposOrdenacao.includes(
-        filtros.sortBy ?? '',
-      )
-        ? filtros.sortBy
-        : 'nome';
+    const sortBy = camposOrdenacao.includes(filtros.sortBy ?? '')
+      ? filtros.sortBy
+      : 'nome';
 
-    const [data, total] =
-      await this.prisma.$transaction([
-        this.prisma.caixa.findMany({
-          where,
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.caixa.findMany({
+        where,
 
-          include: this.includeCaixa,
+        include: this.includeCaixa,
 
-          orderBy: {
-            [sortBy!]:
-              filtros.order ?? 'asc',
-          },
+        orderBy: {
+          [sortBy!]: filtros.order ?? 'asc',
+        },
 
-          skip,
-          take,
-        }),
+        skip,
+        take,
+      }),
 
-        this.prisma.caixa.count({
-          where,
-        }),
-      ]);
+      this.prisma.caixa.count({
+        where,
+      }),
+    ]);
 
-    return respostaPaginada(
-      data,
-      total,
-      page,
-      limit,
-    );
+    return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(
-    id: string,
-    usuario: any,
-  ) {
-    const caixa =
-      await this.prisma.caixa.findUnique({
-        where: {
-          id,
+  async buscarPorId(id: string, usuario: AuthenticatedUser) {
+    const caixa = await this.prisma.caixa.findUnique({
+      where: {
+        id,
+      },
+
+      include: {
+        usuarioCriacao: {
+          select: this.usuarioSelect,
         },
 
-        include: {
-          usuarioCriacao: {
-            select: this.usuarioSelect,
+        aberturas: {
+          include: {
+            usuarioAbertura: {
+              select: this.usuarioSelect,
+            },
+
+            usuarioFechamento: {
+              select: this.usuarioSelect,
+            },
+
+            _count: {
+              select: {
+                movimentacoes: true,
+              },
+            },
           },
 
-          aberturas: {
-            include: {
-              usuarioAbertura: {
-                select: this.usuarioSelect,
-              },
-
-              usuarioFechamento: {
-                select: this.usuarioSelect,
-              },
-
-              _count: {
-                select: {
-                  movimentacoes: true,
-                },
-              },
-            },
-
-            orderBy: {
-              dataAbertura: 'desc',
-            },
-
-            take: 20,
+          orderBy: {
+            dataAbertura: 'desc',
           },
 
-          movimentacoes: {
-            include: {
-              usuario: {
-                select: this.usuarioSelect,
-              },
-            },
-
-            orderBy: {
-              dataMovimentacao: 'desc',
-            },
-
-            take: 30,
-          },
+          take: 20,
         },
-      });
+
+        movimentacoes: {
+          include: {
+            usuario: {
+              select: this.usuarioSelect,
+            },
+          },
+
+          orderBy: {
+            dataMovimentacao: 'desc',
+          },
+
+          take: 30,
+        },
+      },
+    });
 
     if (!caixa) {
-      throw new NotFoundException(
-        'Caixa não encontrado',
-      );
+      throw new NotFoundException('Caixa não encontrado');
     }
 
     if (
       usuario.tipo !== 'SUPER_ADMIN' &&
-      caixa.empresaId !== usuario.empresaId
+      caixa.empresaId !== this.obterEmpresaId(usuario)
     ) {
-      throw new ForbiddenException(
-        'Caixa pertence a outra empresa',
-      );
+      throw new ForbiddenException('Caixa pertence a outra empresa');
     }
 
     return caixa;
@@ -419,20 +426,12 @@ export class CaixasService {
   async atualizar(
     id: string,
     dados: AtualizarCaixaDto,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
-    const caixa = await this.validarCaixa(
-      id,
-      usuario,
-    );
+    const caixa = await this.validarCaixa(id, usuario);
 
-    if (
-      dados.ativo === false &&
-      caixa.status === StatusCaixa.ABERTO
-    ) {
-      throw new BadRequestException(
-        'Um caixa aberto não pode ser desativado',
-      );
+    if (dados.ativo === false && caixa.status === StatusCaixa.ABERTO) {
+      throw new BadRequestException('Um caixa aberto não pode ser desativado');
     }
 
     try {
@@ -442,31 +441,22 @@ export class CaixasService {
         },
 
         data: {
-          nome:
-            dados.nome !== undefined
-              ? dados.nome.trim()
-              : undefined,
+          nome: dados.nome !== undefined ? dados.nome.trim() : undefined,
 
           codigo:
             dados.codigo !== undefined
-              ? dados.codigo
-                  .trim()
-                  .toUpperCase()
+              ? dados.codigo.trim().toUpperCase()
               : undefined,
 
           descricao:
-            dados.descricao !== undefined
-              ? dados.descricao.trim()
-              : undefined,
+            dados.descricao !== undefined ? dados.descricao.trim() : undefined,
 
           ativo: dados.ativo,
 
           status:
             dados.ativo === false
               ? StatusCaixa.INATIVO
-              : dados.ativo === true &&
-                  caixa.status ===
-                    StatusCaixa.INATIVO
+              : dados.ativo === true && caixa.status === StatusCaixa.INATIVO
                 ? StatusCaixa.FECHADO
                 : undefined,
         },
@@ -478,360 +468,425 @@ export class CaixasService {
     }
   }
 
-  async abrir(
-    id: string,
-    dados: AbrirCaixaDto,
-    usuario: any,
+  async abrir(id: string, dados: AbrirCaixaDto, usuario: AuthenticatedUser) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await this.bloquearCaixa(tx, id);
+        const caixa = await this.validarCaixa(id, usuario, tx);
+
+        if (!caixa.ativo) {
+          throw new BadRequestException('Caixa inativo não pode ser aberto');
+        }
+        if (caixa.status === StatusCaixa.ABERTO) {
+          throw new BadRequestException('Este caixa já está aberto');
+        }
+        if (await this.buscarAberturaAtual(id, tx)) {
+          throw new BadRequestException(
+            'Já existe uma abertura ativa para este caixa',
+          );
+        }
+
+        const saldoInicial = Number(dados.saldoInicial);
+        const transicao = await tx.caixa.updateMany({
+          where: {
+            id,
+            empresaId: caixa.empresaId,
+            ativo: true,
+            status: StatusCaixa.FECHADO,
+          },
+          data: { status: StatusCaixa.ABERTO, saldoAtual: saldoInicial },
+        });
+        if (transicao.count !== 1) {
+          throw new BadRequestException(
+            'Este caixa já está aberto ou não pode mais ser aberto',
+          );
+        }
+
+        const abertura = await tx.aberturaCaixa.create({
+          data: {
+            saldoInicial,
+            observacaoAbertura: dados.observacao?.trim(),
+            aberto: true,
+            empresaId: caixa.empresaId,
+            caixaId: caixa.id,
+            usuarioAberturaId: this.obterUsuarioId(usuario),
+          },
+          include: this.includeAbertura,
+        });
+
+        await this.registrarHistorico(
+          tx,
+          caixa.id,
+          caixa.empresaId,
+          `Caixa aberto com saldo inicial de R$ ${saldoInicial.toFixed(2)}.`,
+          usuario,
+        );
+
+        const caixaAtualizado = await tx.caixa.findUniqueOrThrow({
+          where: { id: caixa.id },
+          include: this.includeCaixa,
+        });
+        return { abertura, caixa: caixaAtualizado };
+      });
+    } catch (error) {
+      if (
+        this.alvoP2002(error, ['caixaId'], 'AberturaCaixa_caixaId_aberto_key')
+      ) {
+        throw new ConflictException(
+          'Já existe uma abertura ativa para este caixa',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async registrarMovimentacaoFinanceira(
+    tx: Prisma.TransactionClient,
+    dados: {
+      caixaId: string;
+      empresaId: string;
+      tipo: TipoMovimentacaoCaixa;
+      origem: OrigemMovimentacaoCaixa;
+      descricao: string;
+      valor: Prisma.Decimal;
+      dataMovimentacao: Date;
+      usuarioId?: string;
+      documento?: string;
+      observacao?: string;
+      pagamentoContaPagarId?: string;
+      recebimentoContaReceberId?: string;
+    },
   ) {
-    const caixa = await this.validarCaixa(
-      id,
-      usuario,
-    );
+    await this.bloquearCaixa(tx, dados.caixaId);
 
-    if (!caixa.ativo) {
+    const caixa = await tx.caixa.findUnique({
+      where: { id: dados.caixaId },
+    });
+
+    if (!caixa) {
+      throw new NotFoundException('Caixa não encontrado');
+    }
+
+    if (caixa.empresaId !== dados.empresaId) {
+      throw new ForbiddenException('Caixa pertence a outra empresa');
+    }
+
+    if (!caixa.ativo || caixa.status !== StatusCaixa.ABERTO) {
       throw new BadRequestException(
-        'Caixa inativo não pode ser aberto',
+        'O caixa selecionado precisa estar ativo e aberto',
       );
     }
 
-    if (caixa.status === StatusCaixa.ABERTO) {
-      throw new BadRequestException(
-        'Este caixa já está aberto',
-      );
-    }
-
-    const aberturaExistente =
-      await this.buscarAberturaAtual(id);
-
-    if (aberturaExistente) {
-      throw new BadRequestException(
-        'Já existe uma abertura ativa para este caixa',
-      );
-    }
-
-    const saldoInicial = Number(
-      dados.saldoInicial,
-    );
-
-    return this.prisma.$transaction(
-      async (tx) => {
-        const abertura =
-          await tx.aberturaCaixa.create({
-            data: {
-              saldoInicial,
-
-              observacaoAbertura:
-                dados.observacao?.trim(),
-
-              aberto: true,
-
-              empresaId:
-                caixa.empresaId,
-
-              caixaId: caixa.id,
-
-              usuarioAberturaId:
-                this.obterUsuarioId(
-                  usuario,
-                ),
-            },
-
-            include: this.includeAbertura,
-          });
-
-        const caixaAtualizado =
-          await tx.caixa.update({
-            where: {
-              id: caixa.id,
-            },
-
-            data: {
-              status: StatusCaixa.ABERTO,
-              saldoAtual: saldoInicial,
-            },
-
-            include: this.includeCaixa,
-          });
-
-        return {
-          abertura,
-          caixa: caixaAtualizado,
-        };
+    const abertura = await tx.aberturaCaixa.findFirst({
+      where: {
+        caixaId: caixa.id,
+        empresaId: dados.empresaId,
+        aberto: true,
       },
+      orderBy: { dataAbertura: 'desc' },
+    });
+
+    if (!abertura) {
+      throw new BadRequestException('O caixa não possui uma abertura ativa');
+    }
+
+    const alteracao = await tx.caixa.updateMany({
+      where: {
+        id: caixa.id,
+        empresaId: dados.empresaId,
+        ativo: true,
+        status: StatusCaixa.ABERTO,
+        ...(dados.tipo === TipoMovimentacaoCaixa.SAIDA
+          ? { saldoAtual: { gte: dados.valor } }
+          : {}),
+      },
+      data: {
+        saldoAtual:
+          dados.tipo === TipoMovimentacaoCaixa.ENTRADA
+            ? { increment: dados.valor }
+            : { decrement: dados.valor },
+      },
+    });
+
+    if (alteracao.count !== 1) {
+      const atual = await tx.caixa.findUnique({
+        where: { id: caixa.id },
+        select: { saldoAtual: true },
+      });
+
+      if (dados.tipo === TipoMovimentacaoCaixa.SAIDA) {
+        throw new BadRequestException(
+          'Saldo insuficiente no caixa. Saldo disponível: R$ ' +
+            Number(atual?.saldoAtual ?? 0).toFixed(2),
+        );
+      }
+
+      throw new BadRequestException(
+        'O caixa não está mais disponível para movimentação',
+      );
+    }
+
+    const caixaAtualizado = await tx.caixa.findUniqueOrThrow({
+      where: { id: caixa.id },
+    });
+
+    const saldoPosterior = new Prisma.Decimal(caixaAtualizado.saldoAtual);
+
+    const saldoAnterior =
+      dados.tipo === TipoMovimentacaoCaixa.ENTRADA
+        ? saldoPosterior.minus(dados.valor)
+        : saldoPosterior.plus(dados.valor);
+
+    const movimentacao = await tx.movimentacaoCaixa.create({
+      data: {
+        tipo: dados.tipo,
+        origem: dados.origem,
+        descricao: dados.descricao,
+        documento: dados.documento,
+        observacao: dados.observacao,
+        valor: dados.valor,
+        saldoAnterior,
+        saldoPosterior,
+        dataMovimentacao: dados.dataMovimentacao,
+        empresaId: dados.empresaId,
+        caixaId: caixa.id,
+        aberturaCaixaId: abertura.id,
+        usuarioId: dados.usuarioId,
+        pagamentoContaPagarId: dados.pagamentoContaPagarId,
+        recebimentoContaReceberId: dados.recebimentoContaReceberId,
+      },
+    });
+
+    await this.registrarHistorico(
+      tx,
+      caixa.id,
+      dados.empresaId,
+      (dados.tipo === TipoMovimentacaoCaixa.ENTRADA ? 'Entrada' : 'Saída') +
+        ' de R$ ' +
+        dados.valor.toFixed(2) +
+        ' referente a ' +
+        dados.descricao +
+        '.',
+      { id: dados.usuarioId },
     );
+
+    return {
+      movimentacao,
+      caixa: caixaAtualizado,
+    };
   }
 
   async criarMovimentacao(
     caixaId: string,
     dados: CriarMovimentacaoCaixaDto,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
-    const caixa = await this.validarCaixa(
-      caixaId,
-      usuario,
-    );
+    return this.prisma.$transaction(async (tx) => {
+      await this.bloquearCaixa(tx, caixaId);
+      const caixa = await this.validarCaixa(caixaId, usuario, tx);
 
-    if (!caixa.ativo) {
-      throw new BadRequestException(
-        'Caixa inativo não aceita movimentações',
-      );
-    }
-
-    if (caixa.status !== StatusCaixa.ABERTO) {
-      throw new BadRequestException(
-        'O caixa precisa estar aberto para receber movimentações',
-      );
-    }
-
-    const abertura =
-      await this.buscarAberturaAtual(caixaId);
-
-    if (!abertura) {
-      throw new BadRequestException(
-        'Nenhuma abertura ativa foi encontrada para este caixa',
-      );
-    }
-
-    const valor = Number(dados.valor);
-    const saldoAnterior = Number(
-      caixa.saldoAtual,
-    );
-
-    let saldoPosterior = saldoAnterior;
-
-    if (
-      dados.tipo ===
-      TipoMovimentacaoCaixa.ENTRADA
-    ) {
-      saldoPosterior =
-        saldoAnterior + valor;
-    } else {
-      saldoPosterior =
-        saldoAnterior - valor;
-
-      if (saldoPosterior < 0) {
+      if (!caixa.ativo) {
+        throw new BadRequestException('Caixa inativo não aceita movimentações');
+      }
+      if (caixa.status !== StatusCaixa.ABERTO) {
         throw new BadRequestException(
-          `Saldo insuficiente. Saldo disponível: R$ ${saldoAnterior.toFixed(
-            2,
-          )}`,
+          'O caixa precisa estar aberto para receber movimentações',
         );
       }
-    }
 
-    return this.prisma.$transaction(
-      async (tx) => {
-        const movimentacao =
-          await tx.movimentacaoCaixa.create({
-            data: {
-              tipo: dados.tipo,
+      const abertura = await this.buscarAberturaAtual(caixaId, tx);
+      if (!abertura) {
+        throw new BadRequestException(
+          'Nenhuma abertura ativa foi encontrada para este caixa',
+        );
+      }
 
-              origem:
-                dados.origem ??
-                OrigemMovimentacaoCaixa.MANUAL,
+      const valor = Number(dados.valor);
+      const where = {
+        id: caixa.id,
+        empresaId: caixa.empresaId,
+        ativo: true,
+        status: StatusCaixa.ABERTO,
+        ...(dados.tipo === TipoMovimentacaoCaixa.SAIDA
+          ? { saldoAtual: { gte: valor } }
+          : {}),
+      };
+      const alteracao = await tx.caixa.updateMany({
+        where,
+        data: {
+          saldoAtual:
+            dados.tipo === TipoMovimentacaoCaixa.ENTRADA
+              ? { increment: valor }
+              : { decrement: valor },
+        },
+      });
 
-              descricao:
-                dados.descricao.trim(),
+      if (alteracao.count !== 1) {
+        const atual = await tx.caixa.findUnique({
+          where: { id: caixa.id },
+          select: { saldoAtual: true },
+        });
+        if (dados.tipo === TipoMovimentacaoCaixa.SAIDA) {
+          throw new BadRequestException(
+            `Saldo insuficiente. Saldo disponível: R$ ${Number(atual?.saldoAtual ?? 0).toFixed(2)}`,
+          );
+        }
+        throw new BadRequestException(
+          'O caixa não está mais disponível para movimentação',
+        );
+      }
 
-              documento:
-                dados.documento?.trim(),
+      const caixaAtualizado = await tx.caixa.findUniqueOrThrow({
+        where: { id: caixa.id },
+      });
+      const saldoPosterior = Number(caixaAtualizado.saldoAtual);
+      const saldoAnterior =
+        dados.tipo === TipoMovimentacaoCaixa.ENTRADA
+          ? saldoPosterior - valor
+          : saldoPosterior + valor;
 
-              observacao:
-                dados.observacao?.trim(),
+      const movimentacao = await tx.movimentacaoCaixa.create({
+        data: {
+          tipo: dados.tipo,
+          origem: dados.origem ?? OrigemMovimentacaoCaixa.MANUAL,
+          descricao: dados.descricao.trim(),
+          documento: dados.documento?.trim(),
+          observacao: dados.observacao?.trim(),
+          valor,
+          saldoAnterior,
+          saldoPosterior,
+          dataMovimentacao: dados.dataMovimentacao
+            ? new Date(dados.dataMovimentacao)
+            : new Date(),
+          empresaId: caixa.empresaId,
+          caixaId: caixa.id,
+          aberturaCaixaId: abertura.id,
+          usuarioId: this.obterUsuarioId(usuario),
+        },
+        include: {
+          caixa: true,
+          aberturaCaixa: true,
+          usuario: { select: this.usuarioSelect },
+        },
+      });
 
-              valor,
-
-              saldoAnterior,
-              saldoPosterior,
-
-              dataMovimentacao:
-                dados.dataMovimentacao
-                  ? new Date(
-                      dados.dataMovimentacao,
-                    )
-                  : new Date(),
-
-              empresaId:
-                caixa.empresaId,
-
-              caixaId:
-                caixa.id,
-
-              aberturaCaixaId:
-                abertura.id,
-
-              usuarioId:
-                this.obterUsuarioId(
-                  usuario,
-                ),
-            },
-
-            include: {
-              caixa: true,
-
-              aberturaCaixa: true,
-
-              usuario: {
-                select: this.usuarioSelect,
-              },
-            },
-          });
-
-        const caixaAtualizado =
-          await tx.caixa.update({
-            where: {
-              id: caixa.id,
-            },
-
-            data: {
-              saldoAtual:
-                saldoPosterior,
-            },
-          });
-
-        return {
-          movimentacao,
-          caixa: caixaAtualizado,
-        };
-      },
-    );
+      await this.registrarHistorico(
+        tx,
+        caixa.id,
+        caixa.empresaId,
+        `${dados.tipo === TipoMovimentacaoCaixa.ENTRADA ? 'Entrada' : 'Saída'} manual de R$ ${valor.toFixed(2)} registrada.`,
+        usuario,
+      );
+      return { movimentacao, caixa: caixaAtualizado };
+    });
   }
 
-  async fechar(
-    id: string,
-    dados: FecharCaixaDto,
-    usuario: any,
-  ) {
-    const caixa = await this.validarCaixa(
-      id,
-      usuario,
-    );
+  async fechar(id: string, dados: FecharCaixaDto, usuario: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.bloquearCaixa(tx, id);
+      const caixa = await this.validarCaixa(id, usuario, tx);
 
-    if (caixa.status !== StatusCaixa.ABERTO) {
-      throw new BadRequestException(
-        'Este caixa não está aberto',
+      if (caixa.status !== StatusCaixa.ABERTO) {
+        throw new BadRequestException('Este caixa não está aberto');
+      }
+      const abertura = await this.buscarAberturaAtual(id, tx);
+      if (!abertura) {
+        throw new BadRequestException('Nenhuma abertura ativa foi encontrada');
+      }
+
+      const saldoSistema = Number(caixa.saldoAtual);
+      const saldoInformado = Number(dados.saldoInformado);
+      const diferenca = saldoInformado - saldoSistema;
+      const dataFechamento = new Date();
+
+      const transicaoAbertura = await tx.aberturaCaixa.updateMany({
+        where: {
+          id: abertura.id,
+          caixaId: id,
+          empresaId: caixa.empresaId,
+          aberto: true,
+        },
+        data: {
+          aberto: false,
+          dataFechamento,
+          saldoSistema,
+          saldoInformado,
+          diferenca,
+          observacaoFechamento: dados.observacao?.trim(),
+          usuarioFechamentoId: this.obterUsuarioId(usuario),
+        },
+      });
+      if (transicaoAbertura.count !== 1) {
+        throw new BadRequestException('Esta abertura já foi fechada');
+      }
+
+      const transicaoCaixa = await tx.caixa.updateMany({
+        where: {
+          id,
+          empresaId: caixa.empresaId,
+          ativo: true,
+          status: StatusCaixa.ABERTO,
+        },
+        data: { status: StatusCaixa.FECHADO, saldoAtual: saldoInformado },
+      });
+      if (transicaoCaixa.count !== 1) {
+        throw new BadRequestException('Este caixa já foi fechado');
+      }
+
+      await this.registrarHistorico(
+        tx,
+        caixa.id,
+        caixa.empresaId,
+        `Caixa fechado com saldo de sistema de R$ ${saldoSistema.toFixed(2)} e saldo informado de R$ ${saldoInformado.toFixed(2)}.`,
+        usuario,
       );
-    }
 
-    const abertura =
-      await this.buscarAberturaAtual(id);
-
-    if (!abertura) {
-      throw new BadRequestException(
-        'Nenhuma abertura ativa foi encontrada',
-      );
-    }
-
-    const saldoSistema = Number(
-      caixa.saldoAtual,
-    );
-
-    const saldoInformado = Number(
-      dados.saldoInformado,
-    );
-
-    const diferenca =
-      saldoInformado - saldoSistema;
-
-    return this.prisma.$transaction(
-      async (tx) => {
-        const fechamento =
-          await tx.aberturaCaixa.update({
-            where: {
-              id: abertura.id,
-            },
-
-            data: {
-              aberto: false,
-
-              dataFechamento:
-                new Date(),
-
-              saldoSistema,
-
-              saldoInformado,
-
-              diferenca,
-
-              observacaoFechamento:
-                dados.observacao?.trim(),
-
-              usuarioFechamentoId:
-                this.obterUsuarioId(
-                  usuario,
-                ),
-            },
-
-            include: this.includeAbertura,
-          });
-
-        const caixaAtualizado =
-          await tx.caixa.update({
-            where: {
-              id: caixa.id,
-            },
-
-            data: {
-              status: StatusCaixa.FECHADO,
-              saldoAtual: saldoInformado,
-            },
-
-            include: this.includeCaixa,
-          });
-
-        return {
-          fechamento,
-          caixa: caixaAtualizado,
-        };
-      },
-    );
+      const fechamento = await tx.aberturaCaixa.findUniqueOrThrow({
+        where: { id: abertura.id },
+        include: this.includeAbertura,
+      });
+      const caixaAtualizado = await tx.caixa.findUniqueOrThrow({
+        where: { id: caixa.id },
+        include: this.includeCaixa,
+      });
+      return { fechamento, caixa: caixaAtualizado };
+    });
   }
 
-  async buscarAberturaAtiva(
-    caixaId: string,
-    usuario: any,
-  ) {
-    await this.validarCaixa(
-      caixaId,
-      usuario,
-    );
+  async buscarAberturaAtiva(caixaId: string, usuario: AuthenticatedUser) {
+    await this.validarCaixa(caixaId, usuario);
 
-    const abertura =
-      await this.buscarAberturaAtual(caixaId);
+    const abertura = await this.buscarAberturaAtual(caixaId);
 
     if (!abertura) {
-      throw new NotFoundException(
-        'Nenhuma abertura ativa encontrada',
-      );
+      throw new NotFoundException('Nenhuma abertura ativa encontrada');
     }
 
     return abertura;
   }
 
   async listarMovimentacoes(
-    usuario: any,
+    usuario: AuthenticatedUser,
     filtros: FiltroMovimentacoesCaixaDto,
   ) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
 
-    const { skip, take } =
-      calcularPaginacao(page, limit);
+    const { skip, take } = calcularPaginacao(page, limit);
 
     const where: Prisma.MovimentacaoCaixaWhereInput =
       usuario.tipo === 'SUPER_ADMIN'
         ? {}
         : {
-            empresaId: usuario.empresaId,
+            empresaId: this.obterEmpresaId(usuario),
           };
 
     if (filtros.caixaId) {
-      where.caixaId =
-        filtros.caixaId;
+      where.caixaId = filtros.caixaId;
     }
 
     if (filtros.aberturaCaixaId) {
-      where.aberturaCaixaId =
-        filtros.aberturaCaixaId;
+      where.aberturaCaixaId = filtros.aberturaCaixaId;
     }
 
     if (filtros.tipo) {
@@ -842,33 +897,19 @@ export class CaixasService {
       where.origem = filtros.origem;
     }
 
-    if (
-      filtros.dataInicio ||
-      filtros.dataFim
-    ) {
+    if (filtros.dataInicio || filtros.dataFim) {
       where.dataMovimentacao = {};
 
       if (filtros.dataInicio) {
-        where.dataMovimentacao.gte =
-          new Date(
-            filtros.dataInicio,
-          );
+        where.dataMovimentacao.gte = new Date(filtros.dataInicio);
       }
 
       if (filtros.dataFim) {
-        const dataFim = new Date(
-          filtros.dataFim,
-        );
+        const dataFim = new Date(filtros.dataFim);
 
-        dataFim.setUTCHours(
-          23,
-          59,
-          59,
-          999,
-        );
+        dataFim.setUTCHours(23, 59, 59, 999);
 
-        where.dataMovimentacao.lte =
-          dataFim;
+        where.dataMovimentacao.lte = dataFim;
       }
     }
 
@@ -923,89 +964,73 @@ export class CaixasService {
       'createdAt',
     ];
 
-    const sortBy =
-      camposOrdenacao.includes(
-        filtros.sortBy ?? '',
-      )
-        ? filtros.sortBy
-        : 'dataMovimentacao';
+    const sortBy = camposOrdenacao.includes(filtros.sortBy ?? '')
+      ? filtros.sortBy
+      : 'dataMovimentacao';
 
-    const [data, total] =
-      await this.prisma.$transaction([
-        this.prisma.movimentacaoCaixa.findMany({
-          where,
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.movimentacaoCaixa.findMany({
+        where,
 
-          include: {
-            caixa: true,
+        include: {
+          caixa: true,
 
-            aberturaCaixa: {
-              select: {
-                id: true,
-                dataAbertura: true,
-                dataFechamento: true,
-                aberto: true,
-              },
+          aberturaCaixa: {
+            select: {
+              id: true,
+              dataAbertura: true,
+              dataFechamento: true,
+              aberto: true,
             },
+          },
 
-            usuario: {
-              select: this.usuarioSelect,
-            },
+          usuario: {
+            select: this.usuarioSelect,
+          },
 
-            pagamentoContaPagar: {
-              include: {
-                contaPagar: {
-                  select: {
-                    id: true,
-                    numero: true,
-                    descricao: true,
-                  },
-                },
-              },
-            },
-
-            recebimentoContaReceber: {
-              include: {
-                contaReceber: {
-                  select: {
-                    id: true,
-                    numero: true,
-                    descricao: true,
-                  },
+          pagamentoContaPagar: {
+            include: {
+              contaPagar: {
+                select: {
+                  id: true,
+                  numero: true,
+                  descricao: true,
                 },
               },
             },
           },
 
-          orderBy: {
-            [sortBy!]:
-              filtros.order ?? 'desc',
+          recebimentoContaReceber: {
+            include: {
+              contaReceber: {
+                select: {
+                  id: true,
+                  numero: true,
+                  descricao: true,
+                },
+              },
+            },
           },
+        },
 
-          skip,
-          take,
-        }),
+        orderBy: {
+          [sortBy!]: filtros.order ?? 'desc',
+        },
 
-        this.prisma.movimentacaoCaixa.count({
-          where,
-        }),
-      ]);
+        skip,
+        take,
+      }),
 
-    return respostaPaginada(
-      data,
-      total,
-      page,
-      limit,
-    );
+      this.prisma.movimentacaoCaixa.count({
+        where,
+      }),
+    ]);
+
+    return respostaPaginada(data, total, page, limit);
   }
 
-  async listarAberturas(
-    caixaId: string,
-    usuario: any,
-  ) {
-    const caixa = await this.validarCaixa(
-      caixaId,
-      usuario,
-    );
+  async listarAberturas(caixaId: string, usuario: AuthenticatedUser) {
+    const caixa = await this.validarCaixa(caixaId, usuario);
 
     return this.prisma.aberturaCaixa.findMany({
       where: {
@@ -1034,14 +1059,9 @@ export class CaixasService {
     });
   }
 
-  async resumo(
-    usuario: any,
-    filtros: FiltroResumoCaixasDto,
-  ) {
+  async resumo(usuario: AuthenticatedUser, filtros: FiltroResumoCaixasDto) {
     const empresaId =
-      usuario.tipo === 'SUPER_ADMIN'
-        ? undefined
-        : usuario.empresaId;
+      usuario.tipo === 'SUPER_ADMIN' ? undefined : this.obterEmpresaId(usuario);
 
     const whereCaixas: Prisma.CaixaWhereInput = {
       ...(empresaId
@@ -1051,28 +1071,24 @@ export class CaixasService {
         : {}),
     };
 
-    const whereMovimentacoes: Prisma.MovimentacaoCaixaWhereInput =
-      {
-        ...(empresaId
-          ? {
-              empresaId,
-            }
-          : {}),
-      };
+    const whereMovimentacoes: Prisma.MovimentacaoCaixaWhereInput = {
+      ...(empresaId
+        ? {
+            empresaId,
+          }
+        : {}),
+    };
 
     if (filtros.caixaId) {
-      whereMovimentacoes.caixaId =
-        filtros.caixaId;
+      whereMovimentacoes.caixaId = filtros.caixaId;
     }
 
     if (filtros.tipo) {
-      whereMovimentacoes.tipo =
-        filtros.tipo;
+      whereMovimentacoes.tipo = filtros.tipo;
     }
 
     if (filtros.origem) {
-      whereMovimentacoes.origem =
-        filtros.origem;
+      whereMovimentacoes.origem = filtros.origem;
     }
 
     if (filtros.search) {
@@ -1118,61 +1134,40 @@ export class CaixasService {
       whereMovimentacoes.dataMovimentacao = {};
 
       if (filtros.dataInicio) {
-        whereMovimentacoes.dataMovimentacao.gte =
-          new Date(filtros.dataInicio);
+        whereMovimentacoes.dataMovimentacao.gte = new Date(filtros.dataInicio);
       }
 
       if (filtros.dataFim) {
-        const dataFim = new Date(
-          filtros.dataFim,
-        );
+        const dataFim = new Date(filtros.dataFim);
 
-        dataFim.setUTCHours(
-          23,
-          59,
-          59,
-          999,
-        );
+        dataFim.setUTCHours(23, 59, 59, 999);
 
-        whereMovimentacoes.dataMovimentacao.lte =
-          dataFim;
+        whereMovimentacoes.dataMovimentacao.lte = dataFim;
       }
     }
 
     // Criar filtros específicos para entradas e saídas
-    const whereEntradas: Prisma.MovimentacaoCaixaWhereInput =
-      {
-        ...whereMovimentacoes,
+    const whereEntradas: Prisma.MovimentacaoCaixaWhereInput = {
+      ...whereMovimentacoes,
 
-        tipo:
-          TipoMovimentacaoCaixa.ENTRADA,
-      };
+      tipo: TipoMovimentacaoCaixa.ENTRADA,
+    };
 
-    const whereSaidas: Prisma.MovimentacaoCaixaWhereInput =
-      {
-        ...whereMovimentacoes,
+    const whereSaidas: Prisma.MovimentacaoCaixaWhereInput = {
+      ...whereMovimentacoes,
 
-        tipo:
-          TipoMovimentacaoCaixa.SAIDA,
-      };
+      tipo: TipoMovimentacaoCaixa.SAIDA,
+    };
 
-    if (
-      filtros.tipo ===
-      TipoMovimentacaoCaixa.SAIDA
-    ) {
+    if (filtros.tipo === TipoMovimentacaoCaixa.SAIDA) {
       whereEntradas.id = {
-        equals:
-          '00000000-0000-0000-0000-000000000000',
+        equals: '00000000-0000-0000-0000-000000000000',
       };
     }
 
-    if (
-      filtros.tipo ===
-      TipoMovimentacaoCaixa.ENTRADA
-    ) {
+    if (filtros.tipo === TipoMovimentacaoCaixa.ENTRADA) {
       whereSaidas.id = {
-        equals:
-          '00000000-0000-0000-0000-000000000000',
+        equals: '00000000-0000-0000-0000-000000000000',
       };
     }
 
@@ -1250,33 +1245,23 @@ export class CaixasService {
       }),
     ]);
 
-    const valorEntradas = Number(
-      entradas._sum.valor ?? 0,
-    );
+    const valorEntradas = Number(entradas._sum.valor ?? 0);
 
-    const valorSaidas = Number(
-      saidas._sum.valor ?? 0,
-    );
+    const valorSaidas = Number(saidas._sum.valor ?? 0);
 
     return {
       filtros: {
-        search:
-          filtros.search ?? null,
+        search: filtros.search ?? null,
 
-        caixaId:
-          filtros.caixaId ?? null,
+        caixaId: filtros.caixaId ?? null,
 
-        tipo:
-          filtros.tipo ?? null,
+        tipo: filtros.tipo ?? null,
 
-        origem:
-          filtros.origem ?? null,
+        origem: filtros.origem ?? null,
 
-        dataInicio:
-          filtros.dataInicio ?? null,
+        dataInicio: filtros.dataInicio ?? null,
 
-        dataFim:
-          filtros.dataFim ?? null,
+        dataFim: filtros.dataFim ?? null,
       },
 
       caixas: {
@@ -1285,24 +1270,19 @@ export class CaixasService {
         fechados: caixasFechados,
         inativos: caixasInativos,
 
-        saldoTotal: Number(
-          saldoTotal._sum.saldoAtual ?? 0,
-        ),
+        saldoTotal: Number(saldoTotal._sum.saldoAtual ?? 0),
       },
 
       movimentacoes: {
         entradas: valorEntradas,
         saidas: valorSaidas,
 
-        resultado:
-          valorEntradas - valorSaidas,
+        resultado: valorEntradas - valorSaidas,
 
         quantidadeEntradas,
         quantidadeSaidas,
 
-        quantidadeTotal:
-          quantidadeEntradas +
-          quantidadeSaidas,
+        quantidadeTotal: quantidadeEntradas + quantidadeSaidas,
       },
     };
   }

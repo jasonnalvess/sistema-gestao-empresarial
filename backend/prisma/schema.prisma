@@ -185,6 +185,7 @@ model Empresa {
   movimentacoesCaixa       MovimentacaoCaixa[]
   aberturasCaixa           AberturaCaixa[]
   vendas                   Venda[]
+  caixaHistoricos          CaixaHistorico[]
 }
 
 model Usuario {
@@ -232,6 +233,7 @@ model Usuario {
   vendasCanceladas         Venda[]                   @relation("VendaUsuarioCancelamento")
   vendasConcluidas         Venda[]                   @relation("VendaUsuarioConclusao")
   vendaHistoricos          VendaHistorico[]
+  caixaHistoricos          CaixaHistorico[]
 }
 
 model ModuloSistema {
@@ -558,6 +560,8 @@ model OrdemServico {
   updatedAt     DateTime                @updatedAt
   historicos    OrdemServicoHistorico[]
   contasReceber ContaReceber[]
+
+  @@unique([empresaId, numero])
 }
 
 model OrdemServicoHistorico {
@@ -834,9 +838,9 @@ model ContaPagar {
   updatedAt DateTime @updatedAt
 
   @@unique([empresaId, numero])
+  @@unique([pedidoCompraId])
   @@index([empresaId])
   @@index([fornecedorId])
-  @@index([pedidoCompraId])
   @@index([status])
   @@index([dataVencimento])
 }
@@ -940,10 +944,10 @@ model ContaReceber {
   updatedAt DateTime @updatedAt
 
   @@unique([empresaId, numero])
+  @@unique([vendaId, parcelaAtual])
   @@index([empresaId])
   @@index([clienteId])
   @@index([ordemServicoId])
-  @@index([vendaId])
   @@index([status])
   @@index([dataVencimento])
 }
@@ -1014,8 +1018,9 @@ model Caixa {
   aberturas     AberturaCaixa[]
   movimentacoes MovimentacaoCaixa[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  caixaHistoricos CaixaHistorico[]
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, nome])
@@ -1105,6 +1110,27 @@ model MovimentacaoCaixa {
   @@index([tipo])
   @@index([origem])
   @@index([dataMovimentacao])
+}
+
+model CaixaHistorico {
+  id String @id @default(uuid())
+
+  descricao String
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  caixaId String
+  caixa   Caixa  @relation(fields: [caixaId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([empresaId])
+  @@index([caixaId])
+  @@index([createdAt])
 }
 
 model Venda {

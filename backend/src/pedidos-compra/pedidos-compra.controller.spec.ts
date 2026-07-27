@@ -1,18 +1,36 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+
 import { PedidosCompraController } from './pedidos-compra.controller';
+import { PedidosCompraService } from './pedidos-compra.service';
 
 describe('PedidosCompraController', () => {
-  let controller: PedidosCompraController;
+  it('encaminha o recebimento sem alterar o contrato público', async () => {
+    const service = {
+      receber: jest.fn(),
+    };
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [PedidosCompraController],
-    }).compile();
+    const controller = new PedidosCompraController(
+      service as unknown as PedidosCompraService,
+    );
 
-    controller = module.get<PedidosCompraController>(PedidosCompraController);
-  });
+    const dto = {
+      itens: [
+        {
+          itemId: 'item1',
+          quantidadeRecebida: 1,
+        },
+      ],
+    };
 
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+    const usuario: AuthenticatedUser = {
+      id: 'u1',
+      email: 'usuario@empresa.com',
+      empresaId: 'e1',
+      tipo: 'ADMIN_EMPRESA',
+    };
+
+    await controller.receber('p1', dto, usuario);
+
+    expect(service.receber).toHaveBeenCalledWith('p1', dto, usuario);
   });
 });

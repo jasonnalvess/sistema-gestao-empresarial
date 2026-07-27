@@ -1,4 +1,10 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -14,8 +20,8 @@ export class EmpresasService {
     });
   }
 
-  listar(usuarioLogado?: any) {
-    if (usuarioLogado?.tipo === 'SUPER_ADMIN') {
+  listar(usuarioLogado: AuthenticatedUser) {
+    if (usuarioLogado.tipo === 'SUPER_ADMIN') {
       return this.prisma.empresa.findMany({
         orderBy: { createdAt: 'desc' },
       });
@@ -23,24 +29,18 @@ export class EmpresasService {
 
     return this.prisma.empresa.findMany({
       where: {
-        id: usuarioLogado.empresaId,
+        id: obterEmpresaId(usuarioLogado),
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async buscarPorId(id: string, usuarioLogado?: any) {
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id },
-    });
-
-    if (!empresa) {
-      throw new NotFoundException('Empresa não encontrada');
-    }
+  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
+    const empresa = await this.buscarEmpresaOuFalhar(id);
 
     if (
-      usuarioLogado?.tipo !== 'SUPER_ADMIN' &&
-      empresa.id !== usuarioLogado.empresaId
+      usuarioLogado.tipo !== 'SUPER_ADMIN' &&
+      empresa.id !== obterEmpresaId(usuarioLogado)
     ) {
       throw new ForbiddenException('Acesso negado a empresa de outro usuário');
     }
@@ -49,7 +49,7 @@ export class EmpresasService {
   }
 
   async atualizar(id: string, dados: { nome?: string; cnpj?: string }) {
-    await this.buscarPorId(id, { tipo: 'SUPER_ADMIN' });
+    await this.buscarEmpresaOuFalhar(id);
 
     return this.prisma.empresa.update({
       where: { id },
@@ -58,7 +58,7 @@ export class EmpresasService {
   }
 
   async ativar(id: string) {
-    await this.buscarPorId(id, { tipo: 'SUPER_ADMIN' });
+    await this.buscarEmpresaOuFalhar(id);
 
     return this.prisma.empresa.update({
       where: { id },
@@ -67,7 +67,7 @@ export class EmpresasService {
   }
 
   async desativar(id: string) {
-    await this.buscarPorId(id, { tipo: 'SUPER_ADMIN' });
+    await this.buscarEmpresaOuFalhar(id);
 
     return this.prisma.empresa.update({
       where: { id },
@@ -76,10 +76,22 @@ export class EmpresasService {
   }
 
   async excluir(id: string) {
-    await this.buscarPorId(id, { tipo: 'SUPER_ADMIN' });
+    await this.buscarEmpresaOuFalhar(id);
 
     return this.prisma.empresa.delete({
       where: { id },
     });
+  }
+
+  private async buscarEmpresaOuFalhar(id: string) {
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id },
+    });
+
+    if (!empresa) {
+      throw new NotFoundException('Empresa não encontrada');
+    }
+
+    return empresa;
   }
 }

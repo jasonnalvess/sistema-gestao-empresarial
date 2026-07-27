@@ -14,6 +14,8 @@ import { FiltroDepositoDto } from './dto/filtro-deposito.dto';
 
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 
 @Injectable()
 export class DepositosService {
@@ -32,12 +34,12 @@ export class DepositosService {
     throw error;
   }
 
-  async criar(dados: CriarDepositoDto, usuario: any) {
+  async criar(dados: CriarDepositoDto, usuario: AuthenticatedUser) {
     try {
       return await this.prisma.deposito.create({
         data: {
           ...dados,
-          empresaId: usuario.empresaId,
+          empresaId: obterEmpresaId(usuario),
         },
       });
     } catch (error) {
@@ -45,16 +47,16 @@ export class DepositosService {
     }
   }
 
-  async listar(usuario: any, filtros: FiltroDepositoDto) {
+  async listar(usuario: AuthenticatedUser, filtros: FiltroDepositoDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
 
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: any =
+    const where: Prisma.DepositoWhereInput =
       usuario.tipo === 'SUPER_ADMIN'
         ? {}
-        : { empresaId: usuario.empresaId };
+        : { empresaId: obterEmpresaId(usuario) };
 
     if (filtros.search) {
       where.OR = [
@@ -81,8 +83,7 @@ export class DepositosService {
       this.prisma.deposito.findMany({
         where,
         orderBy: {
-          [filtros.sortBy ?? 'createdAt']:
-            filtros.order ?? 'desc',
+          [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
         },
         skip,
         take,
@@ -93,7 +94,7 @@ export class DepositosService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuario: any): Promise<Deposito> {
+  async buscarPorId(id: string, usuario: AuthenticatedUser): Promise<Deposito> {
     const deposito = await this.prisma.deposito.findUnique({
       where: { id },
     });
@@ -104,11 +105,9 @@ export class DepositosService {
 
     if (
       usuario.tipo !== 'SUPER_ADMIN' &&
-      deposito.empresaId !== usuario.empresaId
+      deposito.empresaId !== obterEmpresaId(usuario)
     ) {
-      throw new ForbiddenException(
-        'Depósito pertence a outra empresa.',
-      );
+      throw new ForbiddenException('Depósito pertence a outra empresa.');
     }
 
     return deposito;
@@ -117,7 +116,7 @@ export class DepositosService {
   async atualizar(
     id: string,
     dados: AtualizarDepositoDto,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
     await this.buscarPorId(id, usuario);
 
@@ -131,7 +130,7 @@ export class DepositosService {
     }
   }
 
-  async ativar(id: string, usuario: any) {
+  async ativar(id: string, usuario: AuthenticatedUser) {
     await this.buscarPorId(id, usuario);
 
     return this.prisma.deposito.update({
@@ -142,7 +141,7 @@ export class DepositosService {
     });
   }
 
-  async desativar(id: string, usuario: any) {
+  async desativar(id: string, usuario: AuthenticatedUser) {
     await this.buscarPorId(id, usuario);
 
     return this.prisma.deposito.update({
