@@ -14,6 +14,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 import { CriarInventarioEstoqueDto } from './dto/criar-inventario-estoque.dto';
 import { AtualizarInventarioEstoqueDto } from './dto/atualizar-inventario-estoque.dto';
 import { ContarItemInventarioDto } from './dto/contar-item-inventario.dto';
@@ -45,7 +47,7 @@ export class InventariosEstoqueService {
   private async validarDeposito(
     tx: Prisma.TransactionClient,
     depositoId: string,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
     const deposito = await tx.deposito.findUnique({
       where: { id: depositoId },
@@ -53,7 +55,7 @@ export class InventariosEstoqueService {
     if (!deposito) throw new NotFoundException('Depósito não encontrado');
     if (
       usuario.tipo !== 'SUPER_ADMIN' &&
-      deposito.empresaId !== usuario.empresaId
+      deposito.empresaId !== obterEmpresaId(usuario)
     ) {
       throw new ForbiddenException('Depósito pertence a outra empresa');
     }
@@ -88,7 +90,7 @@ export class InventariosEstoqueService {
   private async buscarInventarioMutacao(
     tx: Prisma.TransactionClient,
     id: string,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
     await this.bloquearInventario(tx, id);
     const inventario = await tx.inventarioEstoque.findUnique({
@@ -98,7 +100,7 @@ export class InventariosEstoqueService {
     if (!inventario) throw new NotFoundException('Inventário não encontrado');
     if (
       usuario.tipo !== 'SUPER_ADMIN' &&
-      inventario.empresaId !== usuario.empresaId
+      inventario.empresaId !== obterEmpresaId(usuario)
     ) {
       throw new ForbiddenException('Inventário pertence a outra empresa');
     }
@@ -119,7 +121,7 @@ export class InventariosEstoqueService {
           target.includes('InventarioEstoque_empresaId_numero_key');
   }
 
-  async criar(dados: CriarInventarioEstoqueDto, usuario: any) {
+  async criar(dados: CriarInventarioEstoqueDto, usuario: AuthenticatedUser) {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const deposito = await this.validarDeposito(
@@ -161,7 +163,7 @@ export class InventariosEstoqueService {
             status: StatusInventarioEstoque.ABERTO,
             empresaId: deposito.empresaId,
             depositoId: deposito.id,
-            usuarioAberturaId: usuario.id ?? usuario.sub,
+            usuarioAberturaId: usuario.id,
             itens: {
               create: estoques.map((estoque) => ({
                 produtoId: estoque.produtoId,
@@ -183,12 +185,17 @@ export class InventariosEstoqueService {
     }
   }
 
-  async listar(usuario: any, filtros: FiltroInventariosEstoqueDto) {
+  async listar(
+    usuario: AuthenticatedUser,
+    filtros: FiltroInventariosEstoqueDto,
+  ) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
     const where: Prisma.InventarioEstoqueWhereInput =
-      usuario.tipo === 'SUPER_ADMIN' ? {} : { empresaId: usuario.empresaId };
+      usuario.tipo === 'SUPER_ADMIN'
+        ? {}
+        : { empresaId: obterEmpresaId(usuario) };
     if (filtros.status) where.status = filtros.status;
     if (filtros.depositoId) where.depositoId = filtros.depositoId;
     if (filtros.search) {
@@ -224,7 +231,7 @@ export class InventariosEstoqueService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuario: any) {
+  async buscarPorId(id: string, usuario: AuthenticatedUser) {
     const inventario = await this.prisma.inventarioEstoque.findUnique({
       where: { id },
       include: this.includeInventario,
@@ -232,7 +239,7 @@ export class InventariosEstoqueService {
     if (!inventario) throw new NotFoundException('Inventário não encontrado');
     if (
       usuario.tipo !== 'SUPER_ADMIN' &&
-      inventario.empresaId !== usuario.empresaId
+      inventario.empresaId !== obterEmpresaId(usuario)
     ) {
       throw new ForbiddenException('Inventário pertence a outra empresa');
     }
@@ -242,7 +249,7 @@ export class InventariosEstoqueService {
   async atualizar(
     id: string,
     dados: AtualizarInventarioEstoqueDto,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
     return this.prisma.$transaction(async (tx) => {
       const inventario = await this.buscarInventarioMutacao(tx, id, usuario);
@@ -266,7 +273,7 @@ export class InventariosEstoqueService {
     inventarioId: string,
     itemId: string,
     dados: ContarItemInventarioDto,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
     const quantidadeContada = new Prisma.Decimal(dados.quantidadeContada);
     return this.prisma.$transaction(async (tx) => {
@@ -315,7 +322,7 @@ export class InventariosEstoqueService {
     });
   }
 
-  async cancelar(id: string, usuario: any) {
+  async cancelar(id: string, usuario: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
       const inventario = await this.buscarInventarioMutacao(tx, id, usuario);
       if (inventario.status === StatusInventarioEstoque.FINALIZADO) {
@@ -345,7 +352,7 @@ export class InventariosEstoqueService {
     });
   }
 
-  async finalizar(id: string, usuario: any) {
+  async finalizar(id: string, usuario: AuthenticatedUser) {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const inventario = await this.buscarInventarioMutacao(tx, id, usuario);
@@ -441,7 +448,7 @@ export class InventariosEstoqueService {
               empresaId: inventario.empresaId,
               produtoId: item.produtoId,
               depositoId: inventario.depositoId,
-              usuarioId: usuario.id ?? usuario.sub,
+              usuarioId: usuario.id,
             },
           });
         }
@@ -454,7 +461,7 @@ export class InventariosEstoqueService {
           data: {
             status: StatusInventarioEstoque.FINALIZADO,
             dataConclusao: new Date(),
-            usuarioConclusaoId: usuario.id ?? usuario.sub,
+            usuarioConclusaoId: usuario.id,
           },
         });
         if (transicao.count !== 1) {

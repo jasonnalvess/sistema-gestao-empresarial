@@ -9,6 +9,8 @@ import { Prisma, TipoMovimentacaoEstoque } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 import { CriarEstoqueProdutoDto } from './dto/criar-estoque-produto.dto';
 import { AtualizarEstoqueProdutoDto } from './dto/atualizar-estoque-produto.dto';
 import { FiltroEstoqueDto } from './dto/filtro-estoque.dto';
@@ -24,8 +26,8 @@ import {
 export class EstoqueService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async criar(dados: CriarEstoqueProdutoDto, usuario: any) {
-    const empresaId = usuario.empresaId;
+  async criar(dados: CriarEstoqueProdutoDto, usuario: AuthenticatedUser) {
+    const empresaId = obterEmpresaId(usuario);
     const quantidadeInicial = new Prisma.Decimal(dados.quantidadeAtual ?? 0);
     if (!quantidadeInicial.isFinite() || quantidadeInicial.lt(0)) {
       throw new BadRequestException(
@@ -82,7 +84,7 @@ export class EstoqueService {
               empresaId,
               produtoId: dados.produtoId,
               depositoId: dados.depositoId,
-              usuarioId: usuario.id ?? usuario.sub,
+              usuarioId: usuario.id,
             },
           });
         }
@@ -93,12 +95,12 @@ export class EstoqueService {
     }
   }
 
-  async listar(usuario: any, filtros: FiltroEstoqueDto) {
+  async listar(usuario: AuthenticatedUser, filtros: FiltroEstoqueDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
     const where: Prisma.EstoqueProdutoWhereInput = {
-      empresaId: usuario.empresaId,
+      empresaId: obterEmpresaId(usuario),
     };
     if (filtros.produtoId) where.produtoId = filtros.produtoId;
     if (filtros.depositoId) where.depositoId = filtros.depositoId;
@@ -122,14 +124,14 @@ export class EstoqueService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuario: any) {
+  async buscarPorId(id: string, usuario: AuthenticatedUser) {
     const estoque = await this.prisma.estoqueProduto.findUnique({
       where: { id },
       include: { produto: true, deposito: true },
     });
     if (!estoque)
       throw new NotFoundException('Estoque do produto não encontrado');
-    if (estoque.empresaId !== usuario.empresaId) {
+    if (estoque.empresaId !== obterEmpresaId(usuario)) {
       throw new ForbiddenException('Acesso negado a estoque de outra empresa');
     }
     return estoque;
@@ -138,15 +140,19 @@ export class EstoqueService {
   async buscarPorProdutoDeposito(
     produtoId: string,
     depositoId: string,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
     return this.prisma.estoqueProduto.findFirst({
-      where: { produtoId, depositoId, empresaId: usuario.empresaId },
+      where: { produtoId, depositoId, empresaId: obterEmpresaId(usuario) },
       include: { produto: true, deposito: true },
     });
   }
 
-  async atualizar(id: string, dados: AtualizarEstoqueProdutoDto, usuario: any) {
+  async atualizar(
+    id: string,
+    dados: AtualizarEstoqueProdutoDto,
+    usuario: AuthenticatedUser,
+  ) {
     const saldoInformado =
       dados.quantidadeAtual === undefined
         ? undefined
@@ -164,7 +170,7 @@ export class EstoqueService {
       });
       if (!minimo)
         throw new NotFoundException('Estoque do produto não encontrado');
-      if (minimo.empresaId !== usuario.empresaId) {
+      if (minimo.empresaId !== obterEmpresaId(usuario)) {
         throw new ForbiddenException(
           'Acesso negado a estoque de outra empresa',
         );
@@ -173,7 +179,7 @@ export class EstoqueService {
         chaveLockEstoque(minimo.empresaId, minimo.produtoId, minimo.depositoId),
       ]);
       const estoque = await tx.estoqueProduto.findUnique({ where: { id } });
-      if (!estoque || estoque.empresaId !== usuario.empresaId) {
+      if (!estoque || estoque.empresaId !== obterEmpresaId(usuario)) {
         throw new NotFoundException('Estoque do produto não encontrado');
       }
       const saldoAnterior = new Prisma.Decimal(estoque.quantidadeAtual);
@@ -209,7 +215,7 @@ export class EstoqueService {
             empresaId: estoque.empresaId,
             produtoId: estoque.produtoId,
             depositoId: estoque.depositoId,
-            usuarioId: usuario.id ?? usuario.sub,
+            usuarioId: usuario.id,
           },
         });
       }

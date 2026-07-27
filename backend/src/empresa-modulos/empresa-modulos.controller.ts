@@ -1,9 +1,19 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { EmpresaModulosService } from './empresa-modulos.service';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { VincularEmpresaModuloDto } from './dto/vincular-empresa-modulo.dto';
+import { EmpresaModulosService } from './empresa-modulos.service';
 
 @Controller('empresa-modulos')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -18,8 +28,11 @@ export class EmpresaModulosController {
 
   @Get('empresa/:empresaId')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
-  listarPorEmpresa(@Param('empresaId') empresaId: string, @Req() req: any) {
-    return this.empresaModulosService.listarPorEmpresa(empresaId, req.user);
+  listarPorEmpresa(
+    @Param('empresaId') empresaId: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.empresaModulosService.listarPorEmpresa(empresaId, usuario);
   }
 
   @Patch(':id/ativar')

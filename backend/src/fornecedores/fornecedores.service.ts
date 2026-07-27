@@ -10,6 +10,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 
 import { CriarFornecedorDto } from './dto/criar-fornecedor.dto';
 import { AtualizarFornecedorDto } from './dto/atualizar-fornecedor.dto';
@@ -42,9 +44,7 @@ export class FornecedoresService {
         );
       }
 
-      throw new ConflictException(
-        'Já existe um fornecedor com esses dados',
-      );
+      throw new ConflictException('Já existe um fornecedor com esses dados');
     }
 
     throw error;
@@ -71,8 +71,8 @@ export class FornecedoresService {
   }
 
   private montarDescricaoAlteracoes(
-    anterior: any,
-    atualizado: any,
+    anterior: Prisma.FornecedorGetPayload<object>,
+    atualizado: Prisma.FornecedorGetPayload<object>,
   ): string | null {
     const campos = [
       {
@@ -185,22 +185,19 @@ export class FornecedoresService {
   private async registrarHistorico(
     fornecedorId: string,
     descricao: string,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     return this.prisma.fornecedorHistorico.create({
       data: {
         fornecedorId,
         descricao,
-        usuarioId: usuarioLogado.id ?? usuarioLogado.sub,
+        usuarioId: usuarioLogado.id,
       },
     });
   }
 
-  async criar(
-    dados: CriarFornecedorDto,
-    usuarioLogado: any,
-  ) {
-    const empresaId = usuarioLogado.empresaId;
+  async criar(dados: CriarFornecedorDto, usuarioLogado: AuthenticatedUser) {
+    const empresaId = obterEmpresaId(usuarioLogado);
 
     try {
       const fornecedor = await this.prisma.fornecedor.create({
@@ -239,18 +236,18 @@ export class FornecedoresService {
   }
 
   async listar(
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
     filtros: FiltroFornecedoresDto,
   ) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: any =
+    const where: Prisma.FornecedorWhereInput =
       usuarioLogado.tipo === 'SUPER_ADMIN'
         ? {}
         : {
-            empresaId: usuarioLogado.empresaId,
+            empresaId: obterEmpresaId(usuarioLogado),
           };
 
     if (filtros.search) {
@@ -318,8 +315,7 @@ export class FornecedoresService {
       this.prisma.fornecedor.findMany({
         where,
         orderBy: {
-          [filtros.sortBy ?? 'createdAt']:
-            filtros.order ?? 'desc',
+          [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
         },
         skip,
         take,
@@ -333,7 +329,7 @@ export class FornecedoresService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuarioLogado: any) {
+  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
     const fornecedor = await this.prisma.fornecedor.findUnique({
       where: {
         id,
@@ -359,7 +355,7 @@ export class FornecedoresService {
 
     if (
       usuarioLogado.tipo !== 'SUPER_ADMIN' &&
-      fornecedor.empresaId !== usuarioLogado.empresaId
+      fornecedor.empresaId !== obterEmpresaId(usuarioLogado)
     ) {
       throw new ForbiddenException(
         'Acesso negado a fornecedor de outra empresa',
@@ -372,58 +368,45 @@ export class FornecedoresService {
   async atualizar(
     id: string,
     dados: AtualizarFornecedorDto,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
-    const fornecedorAnterior = await this.buscarPorId(
-      id,
-      usuarioLogado,
-    );
+    const fornecedorAnterior = await this.buscarPorId(id, usuarioLogado);
 
     try {
-      const fornecedorAtualizado =
-        await this.prisma.fornecedor.update({
-          where: {
-            id,
-          },
-          data: {
-            razaoSocial: dados.razaoSocial?.trim(),
-            nomeFantasia: dados.nomeFantasia?.trim(),
-            documento: dados.documento
-              ? this.limparDocumento(dados.documento)
-              : undefined,
-            inscricaoEstadual:
-              dados.inscricaoEstadual?.trim(),
-            inscricaoMunicipal:
-              dados.inscricaoMunicipal?.trim(),
-            email: dados.email?.trim().toLowerCase(),
-            telefone: dados.telefone?.trim(),
-            celular: dados.celular?.trim(),
-            contato: dados.contato?.trim(),
-            cep: dados.cep
-              ? dados.cep.replace(/\D/g, '')
-              : undefined,
-            endereco: dados.endereco?.trim(),
-            numero: dados.numero?.trim(),
-            complemento: dados.complemento?.trim(),
-            bairro: dados.bairro?.trim(),
-            cidade: dados.cidade?.trim(),
-            estado: dados.estado?.trim().toUpperCase(),
-            observacao: dados.observacao?.trim(),
-          },
-        });
+      const fornecedorAtualizado = await this.prisma.fornecedor.update({
+        where: {
+          id,
+        },
+        data: {
+          razaoSocial: dados.razaoSocial?.trim(),
+          nomeFantasia: dados.nomeFantasia?.trim(),
+          documento: dados.documento
+            ? this.limparDocumento(dados.documento)
+            : undefined,
+          inscricaoEstadual: dados.inscricaoEstadual?.trim(),
+          inscricaoMunicipal: dados.inscricaoMunicipal?.trim(),
+          email: dados.email?.trim().toLowerCase(),
+          telefone: dados.telefone?.trim(),
+          celular: dados.celular?.trim(),
+          contato: dados.contato?.trim(),
+          cep: dados.cep ? dados.cep.replace(/\D/g, '') : undefined,
+          endereco: dados.endereco?.trim(),
+          numero: dados.numero?.trim(),
+          complemento: dados.complemento?.trim(),
+          bairro: dados.bairro?.trim(),
+          cidade: dados.cidade?.trim(),
+          estado: dados.estado?.trim().toUpperCase(),
+          observacao: dados.observacao?.trim(),
+        },
+      });
 
-      const descricaoHistorico =
-        this.montarDescricaoAlteracoes(
-          fornecedorAnterior,
-          fornecedorAtualizado,
-        );
+      const descricaoHistorico = this.montarDescricaoAlteracoes(
+        fornecedorAnterior,
+        fornecedorAtualizado,
+      );
 
       if (descricaoHistorico) {
-        await this.registrarHistorico(
-          id,
-          descricaoHistorico,
-          usuarioLogado,
-        );
+        await this.registrarHistorico(id, descricaoHistorico, usuarioLogado);
       }
 
       return fornecedorAtualizado;
@@ -432,60 +415,44 @@ export class FornecedoresService {
     }
   }
 
-  async ativar(id: string, usuarioLogado: any) {
-    const fornecedor = await this.buscarPorId(
-      id,
-      usuarioLogado,
-    );
+  async ativar(id: string, usuarioLogado: AuthenticatedUser) {
+    const fornecedor = await this.buscarPorId(id, usuarioLogado);
 
     if (fornecedor.ativo) {
       return fornecedor;
     }
 
-    const fornecedorAtualizado =
-      await this.prisma.fornecedor.update({
-        where: {
-          id,
-        },
-        data: {
-          ativo: true,
-        },
-      });
+    const fornecedorAtualizado = await this.prisma.fornecedor.update({
+      where: {
+        id,
+      },
+      data: {
+        ativo: true,
+      },
+    });
 
-    await this.registrarHistorico(
-      id,
-      'Fornecedor ativado.',
-      usuarioLogado,
-    );
+    await this.registrarHistorico(id, 'Fornecedor ativado.', usuarioLogado);
 
     return fornecedorAtualizado;
   }
 
-  async desativar(id: string, usuarioLogado: any) {
-    const fornecedor = await this.buscarPorId(
-      id,
-      usuarioLogado,
-    );
+  async desativar(id: string, usuarioLogado: AuthenticatedUser) {
+    const fornecedor = await this.buscarPorId(id, usuarioLogado);
 
     if (!fornecedor.ativo) {
       return fornecedor;
     }
 
-    const fornecedorAtualizado =
-      await this.prisma.fornecedor.update({
-        where: {
-          id,
-        },
-        data: {
-          ativo: false,
-        },
-      });
+    const fornecedorAtualizado = await this.prisma.fornecedor.update({
+      where: {
+        id,
+      },
+      data: {
+        ativo: false,
+      },
+    });
 
-    await this.registrarHistorico(
-      id,
-      'Fornecedor desativado.',
-      usuarioLogado,
-    );
+    await this.registrarHistorico(id, 'Fornecedor desativado.', usuarioLogado);
 
     return fornecedorAtualizado;
   }
@@ -493,7 +460,7 @@ export class FornecedoresService {
   async adicionarHistorico(
     fornecedorId: string,
     dados: CriarFornecedorHistoricoDto,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     await this.buscarPorId(fornecedorId, usuarioLogado);
 
@@ -501,7 +468,7 @@ export class FornecedoresService {
       data: {
         fornecedorId,
         descricao: dados.descricao.trim(),
-        usuarioId: usuarioLogado.id ?? usuarioLogado.sub,
+        usuarioId: usuarioLogado.id,
       },
       include: {
         usuario: {
@@ -513,7 +480,7 @@ export class FornecedoresService {
 
   async listarHistorico(
     fornecedorId: string,
-    usuarioLogado: any,
+    usuarioLogado: AuthenticatedUser,
   ) {
     await this.buscarPorId(fornecedorId, usuarioLogado);
 

@@ -1,21 +1,14 @@
-import {
-  Injectable,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
-import {
-  Prisma,
-  StatusContaPagar,
-  StatusContaReceber,
-} from '@prisma/client';
+import { Prisma, StatusContaPagar, StatusContaReceber } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { FiltroResumoFinanceiroDto } from './dto/filtro-resumo-financeiro.dto';
 
 @Injectable()
 export class FinanceiroService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   private inicioHoje(): Date {
     const hoje = new Date();
@@ -42,12 +35,7 @@ export class FinanceiroService {
     if (fim) {
       const dataFim = new Date(fim);
 
-      dataFim.setUTCHours(
-        23,
-        59,
-        59,
-        999,
-      );
+      dataFim.setUTCHours(23, 59, 59, 999);
 
       filtro.lte = dataFim;
     }
@@ -55,9 +43,7 @@ export class FinanceiroService {
     return filtro;
   }
 
-  private async atualizarVencimentos(
-    empresaId?: string,
-  ) {
+  private async atualizarVencimentos(empresaId?: string) {
     const filtroEmpresa = empresaId
       ? {
           empresaId,
@@ -74,10 +60,7 @@ export class FinanceiroService {
           },
 
           status: {
-            in: [
-              StatusContaPagar.PENDENTE,
-              StatusContaPagar.PARCIALMENTE_PAGA,
-            ],
+            in: [StatusContaPagar.PENDENTE, StatusContaPagar.PARCIALMENTE_PAGA],
           },
 
           valorAberto: {
@@ -86,8 +69,7 @@ export class FinanceiroService {
         },
 
         data: {
-          status:
-            StatusContaPagar.VENCIDA,
+          status: StatusContaPagar.VENCIDA,
         },
       }),
 
@@ -102,8 +84,7 @@ export class FinanceiroService {
           status: {
             in: [
               StatusContaReceber.PENDENTE,
-              StatusContaReceber
-                .PARCIALMENTE_RECEBIDA,
+              StatusContaReceber.PARCIALMENTE_RECEBIDA,
             ],
           },
 
@@ -113,31 +94,24 @@ export class FinanceiroService {
         },
 
         data: {
-          status:
-            StatusContaReceber.VENCIDA,
+          status: StatusContaReceber.VENCIDA,
         },
       }),
     ]);
   }
 
-  async resumo(
-    usuario: any,
-    filtros: FiltroResumoFinanceiroDto,
-  ) {
+  async resumo(usuario: AuthenticatedUser, filtros: FiltroResumoFinanceiroDto) {
     const empresaId =
       usuario.tipo === 'SUPER_ADMIN'
         ? undefined
-        : usuario.empresaId;
+        : (usuario.empresaId ?? undefined);
 
-    await this.atualizarVencimentos(
-      empresaId,
+    await this.atualizarVencimentos(empresaId);
+
+    const filtroPeriodo = this.criarFiltroPeriodo(
+      filtros.vencimentoInicio,
+      filtros.vencimentoFim,
     );
-
-    const filtroPeriodo =
-      this.criarFiltroPeriodo(
-        filtros.vencimentoInicio,
-        filtros.vencimentoFim,
-      );
 
     const wherePagar: Prisma.ContaPagarWhereInput = {
       ...(empresaId
@@ -171,8 +145,7 @@ export class FinanceiroService {
         : {}),
 
       status: {
-        not:
-          StatusContaReceber.CANCELADA,
+        not: StatusContaReceber.CANCELADA,
       },
     };
 
@@ -296,119 +269,73 @@ export class FinanceiroService {
     ]);
 
     const pagar = {
-      valorOriginal: Number(
-        pagarTotais._sum.valorOriginal ?? 0,
-      ),
+      valorOriginal: Number(pagarTotais._sum.valorOriginal ?? 0),
 
-      valorPago: Number(
-        pagarTotais._sum.valorPago ?? 0,
-      ),
+      valorPago: Number(pagarTotais._sum.valorPago ?? 0),
 
-      valorAberto: Number(
-        pagarTotais._sum.valorAberto ?? 0,
-      ),
+      valorAberto: Number(pagarTotais._sum.valorAberto ?? 0),
 
-      valorVencido: Number(
-        pagarVencidas._sum.valorAberto ?? 0,
-      ),
+      valorVencido: Number(pagarVencidas._sum.valorAberto ?? 0),
 
-      descontos: Number(
-        pagarTotais._sum.valorDesconto ?? 0,
-      ),
+      descontos: Number(pagarTotais._sum.valorDesconto ?? 0),
 
-      juros: Number(
-        pagarTotais._sum.valorJuros ?? 0,
-      ),
+      juros: Number(pagarTotais._sum.valorJuros ?? 0),
 
-      multas: Number(
-        pagarTotais._sum.valorMulta ?? 0,
-      ),
+      multas: Number(pagarTotais._sum.valorMulta ?? 0),
 
-      quantidade:
-        contasPagarQuantidade,
+      quantidade: contasPagarQuantidade,
 
-      quantidadeEmAberto:
-        contasPagarEmAbertoQuantidade,
+      quantidadeEmAberto: contasPagarEmAbertoQuantidade,
 
-      quantidadeVencidas:
-        contasPagarVencidasQuantidade,
+      quantidadeVencidas: contasPagarVencidasQuantidade,
     };
 
     const receber = {
-      valorOriginal: Number(
-        receberTotais._sum.valorOriginal ?? 0,
-      ),
+      valorOriginal: Number(receberTotais._sum.valorOriginal ?? 0),
 
-      valorRecebido: Number(
-        receberTotais._sum.valorRecebido ?? 0,
-      ),
+      valorRecebido: Number(receberTotais._sum.valorRecebido ?? 0),
 
-      valorAberto: Number(
-        receberTotais._sum.valorAberto ?? 0,
-      ),
+      valorAberto: Number(receberTotais._sum.valorAberto ?? 0),
 
-      valorVencido: Number(
-        receberVencidas._sum.valorAberto ?? 0,
-      ),
+      valorVencido: Number(receberVencidas._sum.valorAberto ?? 0),
 
-      descontos: Number(
-        receberTotais._sum.valorDesconto ?? 0,
-      ),
+      descontos: Number(receberTotais._sum.valorDesconto ?? 0),
 
-      juros: Number(
-        receberTotais._sum.valorJuros ?? 0,
-      ),
+      juros: Number(receberTotais._sum.valorJuros ?? 0),
 
-      multas: Number(
-        receberTotais._sum.valorMulta ?? 0,
-      ),
+      multas: Number(receberTotais._sum.valorMulta ?? 0),
 
-      quantidade:
-        contasReceberQuantidade,
+      quantidade: contasReceberQuantidade,
 
-      quantidadeEmAberto:
-        contasReceberEmAbertoQuantidade,
+      quantidadeEmAberto: contasReceberEmAbertoQuantidade,
 
-      quantidadeVencidas:
-        contasReceberVencidasQuantidade,
+      quantidadeVencidas: contasReceberVencidasQuantidade,
     };
 
     return {
       periodo: {
-        vencimentoInicio:
-          filtros.vencimentoInicio ?? null,
+        vencimentoInicio: filtros.vencimentoInicio ?? null,
 
-        vencimentoFim:
-          filtros.vencimentoFim ?? null,
+        vencimentoFim: filtros.vencimentoFim ?? null,
       },
 
       pagar,
       receber,
 
       consolidado: {
-        saldoProjetado:
-          receber.valorAberto -
-          pagar.valorAberto,
+        saldoProjetado: receber.valorAberto - pagar.valorAberto,
 
-        resultadoRealizado:
-          receber.valorRecebido -
-          pagar.valorPago,
+        resultadoRealizado: receber.valorRecebido - pagar.valorPago,
 
-        saldoVencido:
-          receber.valorVencido -
-          pagar.valorVencido,
+        saldoVencido: receber.valorVencido - pagar.valorVencido,
 
-        totalVencido:
-          receber.valorVencido +
-          pagar.valorVencido,
+        totalVencido: receber.valorVencido + pagar.valorVencido,
 
         contasEmAberto:
-          contasPagarEmAbertoQuantidade +
-          contasReceberEmAbertoQuantidade,
+          contasPagarEmAbertoQuantidade + contasReceberEmAbertoQuantidade,
 
         contasVencidas:
-          contasPagarVencidasQuantidade +
-          contasReceberVencidasQuantidade,
+          contasPagarVencidasQuantidade + contasReceberVencidasQuantidade,
       },
     };
   }

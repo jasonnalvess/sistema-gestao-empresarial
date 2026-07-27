@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -6,11 +11,21 @@ export class EmpresaModulosService {
   constructor(private readonly prisma: PrismaService) {}
 
   async vincular(empresaId: string, moduloId: string) {
-    const empresa = await this.prisma.empresa.findUnique({ where: { id: empresaId } });
-    const modulo = await this.prisma.moduloSistema.findUnique({ where: { id: moduloId } });
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: empresaId },
+    });
 
-    if (!empresa) throw new NotFoundException('Empresa não encontrada');
-    if (!modulo) throw new NotFoundException('Módulo não encontrado');
+    const modulo = await this.prisma.moduloSistema.findUnique({
+      where: { id: moduloId },
+    });
+
+    if (!empresa) {
+      throw new NotFoundException('Empresa não encontrada');
+    }
+
+    if (!modulo) {
+      throw new NotFoundException('Módulo não encontrado');
+    }
 
     return this.prisma.empresaModulo.upsert({
       where: {
@@ -34,7 +49,7 @@ export class EmpresaModulosService {
     });
   }
 
-  async listarPorEmpresa(empresaId: string, usuarioLogado: any) {
+  async listarPorEmpresa(empresaId: string, usuarioLogado: AuthenticatedUser) {
     if (
       usuarioLogado.tipo !== 'SUPER_ADMIN' &&
       usuarioLogado.empresaId !== empresaId

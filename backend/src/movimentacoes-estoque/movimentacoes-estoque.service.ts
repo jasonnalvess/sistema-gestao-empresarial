@@ -3,6 +3,8 @@ import { Prisma, TipoMovimentacaoEstoque } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 import { CriarMovimentacaoEstoqueDto } from './dto/criar-movimentacao-estoque.dto';
 import { CriarTransferenciaEstoqueDto } from './dto/criar-transferencia-estoque.dto';
 import { FiltroMovimentacoesEstoqueDto } from './dto/filtro-movimentacoes-estoque.dto';
@@ -22,8 +24,8 @@ export class MovimentacoesEstoqueService {
     return new Prisma.Decimal(valor);
   }
 
-  async criar(dto: CriarMovimentacaoEstoqueDto, usuario: any) {
-    const empresaId = usuario.empresaId;
+  async criar(dto: CriarMovimentacaoEstoqueDto, usuario: AuthenticatedUser) {
+    const empresaId = obterEmpresaId(usuario);
     const quantidade = this.decimal(dto.quantidade);
     const custoUnitario =
       dto.custoUnitario === undefined
@@ -137,7 +139,7 @@ export class MovimentacoesEstoqueService {
             empresaId,
             produtoId: dto.produtoId,
             depositoId: dto.depositoId,
-            usuarioId: usuario.id ?? usuario.sub,
+            usuarioId: usuario.id,
           },
           include: {
             produto: true,
@@ -154,13 +156,16 @@ export class MovimentacoesEstoqueService {
     }
   }
 
-  async transferir(dto: CriarTransferenciaEstoqueDto, usuario: any) {
+  async transferir(
+    dto: CriarTransferenciaEstoqueDto,
+    usuario: AuthenticatedUser,
+  ) {
     if (dto.depositoOrigemId === dto.depositoDestinoId) {
       throw new BadRequestException(
         'O depósito de origem deve ser diferente do depósito de destino',
       );
     }
-    const empresaId = usuario.empresaId;
+    const empresaId = obterEmpresaId(usuario);
     const quantidade = this.decimal(dto.quantidade);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -257,7 +262,7 @@ export class MovimentacoesEstoqueService {
           observacao,
           empresaId,
           produtoId: dto.produtoId,
-          usuarioId: usuario.id ?? usuario.sub,
+          usuarioId: usuario.id,
         };
         const movimentacaoSaida = await tx.movimentacaoEstoque.create({
           data: {
@@ -291,12 +296,17 @@ export class MovimentacoesEstoqueService {
     }
   }
 
-  async listar(usuario: any, filtros: FiltroMovimentacoesEstoqueDto) {
+  async listar(
+    usuario: AuthenticatedUser,
+    filtros: FiltroMovimentacoesEstoqueDto,
+  ) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
     const where: Prisma.MovimentacaoEstoqueWhereInput =
-      usuario.tipo === 'SUPER_ADMIN' ? {} : { empresaId: usuario.empresaId };
+      usuario.tipo === 'SUPER_ADMIN'
+        ? {}
+        : { empresaId: obterEmpresaId(usuario) };
     if (filtros.produtoId) where.produtoId = filtros.produtoId;
     if (filtros.depositoId) where.depositoId = filtros.depositoId;
     if (filtros.tipo) where.tipo = filtros.tipo;

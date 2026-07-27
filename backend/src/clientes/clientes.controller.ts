@@ -6,17 +6,18 @@ import {
   Patch,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-
-import { ClientesService } from './clientes.service';
-import { CriarClienteDto } from './dto/criar-cliente.dto';
-import { FiltroClientesDto } from './dto/filtro-clientes.dto';
-import { CriarClienteHistoricoDto } from './dto/criar-cliente-historico.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { ClientesService } from './clientes.service';
+import { AtualizarClienteDto } from './dto/atualizar-cliente.dto';
+import { CriarClienteHistoricoDto } from './dto/criar-cliente-historico.dto';
+import { CriarClienteDto } from './dto/criar-cliente.dto';
+import { FiltroClientesDto } from './dto/filtro-clientes.dto';
 
 @Controller('clientes')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -25,14 +26,20 @@ export class ClientesController {
 
   @Post()
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
-  criar(@Body() body: CriarClienteDto, @Req() req: any) {
-    return this.clientesService.criar(body, req.user);
+  criar(
+    @Body() body: CriarClienteDto,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.clientesService.criar(body, usuario);
   }
 
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
-  listar(@Req() req: any, @Query() paginacao: FiltroClientesDto) {
-    return this.clientesService.listar(req.user, paginacao);
+  listar(
+    @CurrentUser() usuario: AuthenticatedUser,
+    @Query() paginacao: FiltroClientesDto,
+  ) {
+    return this.clientesService.listar(usuario, paginacao);
   }
 
   @Post(':id/historico')
@@ -40,42 +47,51 @@ export class ClientesController {
   adicionarHistorico(
     @Param('id') id: string,
     @Body() body: CriarClienteHistoricoDto,
-    @Req() req: any,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.clientesService.adicionarHistorico(id, body, req.user);
+    return this.clientesService.adicionarHistorico(id, body, usuario);
   }
 
   @Get(':id/historico')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
-  listarHistorico(@Param('id') id: string, @Req() req: any) {
-    return this.clientesService.listarHistorico(id, req.user);
+  listarHistorico(
+    @Param('id') id: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.clientesService.listarHistorico(id, usuario);
   }
 
   @Get(':id')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
-  buscarPorId(@Param('id') id: string, @Req() req: any) {
-    return this.clientesService.buscarPorId(id, req.user);
+  buscarPorId(
+    @Param('id') id: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.clientesService.buscarPorId(id, usuario);
   }
 
   @Patch(':id')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
   atualizar(
     @Param('id') id: string,
-    @Body() body: Partial<CriarClienteDto>,
-    @Req() req: any,
+    @Body() body: AtualizarClienteDto,
+    @CurrentUser() usuario: AuthenticatedUser,
   ) {
-    return this.clientesService.atualizar(id, body, req.user);
+    return this.clientesService.atualizar(id, body, usuario);
   }
 
   @Patch(':id/ativar')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
-  ativar(@Param('id') id: string, @Req() req: any) {
-    return this.clientesService.ativar(id, req.user);
+  ativar(@Param('id') id: string, @CurrentUser() usuario: AuthenticatedUser) {
+    return this.clientesService.ativar(id, usuario);
   }
 
   @Patch(':id/desativar')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
-  desativar(@Param('id') id: string, @Req() req: any) {
-    return this.clientesService.desativar(id, req.user);
+  desativar(
+    @Param('id') id: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.clientesService.desativar(id, usuario);
   }
 }

@@ -8,6 +8,7 @@ import { OrdensServicoService } from './ordens-servico.service';
 
 const usuario = {
   id: 'usuario-1',
+  email: 'usuario@teste.com',
   empresaId: 'empresa-1',
   tipo: 'ADMIN_EMPRESA',
 };
@@ -175,7 +176,7 @@ describe('OrdensServicoService', () => {
       'converte P2002 conhecido com target %p',
       async (target) => {
         const { service, tx } = criarContexto();
-        tx.ordemServico.create.mockRejectedValue(erroP2002(target as any));
+        tx.ordemServico.create.mockRejectedValue(erroP2002(target));
         await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
           ConflictException,
         );

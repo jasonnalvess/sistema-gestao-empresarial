@@ -29,6 +29,7 @@ import { RegistrarRecebimentoContaReceberDto } from './dto/registrar-recebimento
 import { CriarContaReceberHistoricoDto } from './dto/criar-conta-receber-historico.dto';
 import { GerarContaOrdemServicoDto } from './dto/gerar-conta-ordem-servico.dto';
 import { paraDecimalMonetario } from '../contas-pagar/valor-monetario';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 @Injectable()
 export class ContasReceberService {
@@ -134,7 +135,7 @@ export class ContasReceberService {
     },
   };
 
-  private obterEmpresaId(usuario: any): string {
+  private obterEmpresaId(usuario: AuthenticatedUser): string {
     if (!usuario.empresaId) {
       throw new BadRequestException('O usuário não possui empresa vinculada');
     }
@@ -142,8 +143,8 @@ export class ContasReceberService {
     return usuario.empresaId;
   }
 
-  private obterUsuarioId(usuario: any): string | undefined {
-    return usuario.id ?? usuario.sub;
+  private obterUsuarioId(usuario: AuthenticatedUser): string {
+    return usuario.id;
   }
 
   private inicioHoje(): Date {
@@ -260,7 +261,7 @@ export class ContasReceberService {
   private async prepararContaParaAlteracao(
     tx: Prisma.TransactionClient,
     id: string,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
     const referencia = await tx.contaReceber.findUnique({
       where: { id },
@@ -394,7 +395,7 @@ export class ContasReceberService {
   private async registrarHistorico(
     contaReceberId: string,
     descricao: string,
-    usuario: any,
+    usuario: AuthenticatedUser,
     tx?: Prisma.TransactionClient,
   ) {
     const cliente = tx ?? this.prisma;
@@ -409,7 +410,7 @@ export class ContasReceberService {
     });
   }
 
-  async criar(dados: CriarContaReceberDto, usuario: any) {
+  async criar(dados: CriarContaReceberDto, usuario: AuthenticatedUser) {
     const empresaId = this.obterEmpresaId(usuario);
     const parcelaAtual = dados.parcelaAtual ?? 1;
     const totalParcelas = dados.totalParcelas ?? 1;
@@ -526,9 +527,9 @@ export class ContasReceberService {
     }
   }
 
-  async listar(usuario: any, filtros: FiltroContasReceberDto) {
+  async listar(usuario: AuthenticatedUser, filtros: FiltroContasReceberDto) {
     const empresaId =
-      usuario.tipo === 'SUPER_ADMIN' ? undefined : usuario.empresaId;
+      usuario.tipo === 'SUPER_ADMIN' ? undefined : this.obterEmpresaId(usuario);
 
     await this.atualizarContasVencidas(empresaId);
 
@@ -541,7 +542,7 @@ export class ContasReceberService {
       usuario.tipo === 'SUPER_ADMIN'
         ? {}
         : {
-            empresaId: usuario.empresaId,
+            empresaId: this.obterEmpresaId(usuario),
           };
 
     if (filtros.status) {
@@ -696,9 +697,9 @@ export class ContasReceberService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuario: any) {
+  async buscarPorId(id: string, usuario: AuthenticatedUser) {
     await this.atualizarContasVencidas(
-      usuario.tipo === 'SUPER_ADMIN' ? undefined : usuario.empresaId,
+      usuario.tipo === 'SUPER_ADMIN' ? undefined : this.obterEmpresaId(usuario),
     );
 
     const conta = await this.prisma.contaReceber.findUnique({
@@ -723,7 +724,11 @@ export class ContasReceberService {
     return conta;
   }
 
-  async atualizar(id: string, dados: AtualizarContaReceberDto, usuario: any) {
+  async atualizar(
+    id: string,
+    dados: AtualizarContaReceberDto,
+    usuario: AuthenticatedUser,
+  ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const conta = await this.prepararContaParaAlteracao(tx, id, usuario);
@@ -856,7 +861,7 @@ export class ContasReceberService {
   async registrarRecebimento(
     id: string,
     dados: RegistrarRecebimentoContaReceberDto,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -1011,7 +1016,7 @@ export class ContasReceberService {
     }
   }
 
-  async cancelar(id: string, usuario: any) {
+  async cancelar(id: string, usuario: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
       const conta = await this.prepararContaParaAlteracao(tx, id, usuario);
 
@@ -1074,7 +1079,7 @@ export class ContasReceberService {
   async gerarAPartirOrdemServico(
     ordemServicoId: string,
     dados: GerarContaOrdemServicoDto,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
     const empresaId = this.obterEmpresaId(usuario);
     const valorOriginal = paraDecimalMonetario(
@@ -1184,7 +1189,7 @@ export class ContasReceberService {
   async adicionarHistorico(
     contaReceberId: string,
     dados: CriarContaReceberHistoricoDto,
-    usuario: any,
+    usuario: AuthenticatedUser,
   ) {
     await this.buscarPorId(contaReceberId, usuario);
 
@@ -1205,7 +1210,7 @@ export class ContasReceberService {
     });
   }
 
-  async listarHistorico(contaReceberId: string, usuario: any) {
+  async listarHistorico(contaReceberId: string, usuario: AuthenticatedUser) {
     await this.buscarPorId(contaReceberId, usuario);
 
     return this.prisma.contaReceberHistorico.findMany({

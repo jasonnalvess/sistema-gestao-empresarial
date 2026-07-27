@@ -9,9 +9,9 @@ import { PaginatedResponse } from '../responses/paginated-response';
 
 @Injectable()
 export class RespostaInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
-      map((response) => {
+      map((response: unknown) => {
         if (response instanceof PaginatedResponse) {
           return {
             success: true,

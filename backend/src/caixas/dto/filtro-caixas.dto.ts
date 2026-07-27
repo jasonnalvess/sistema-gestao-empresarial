@@ -1,10 +1,6 @@
 import { Transform } from 'class-transformer';
 
-import {
-  IsBoolean,
-  IsEnum,
-  IsOptional,
-} from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
 
 import { StatusCaixa } from '@prisma/client';
 import { QueryBaseDto } from '../../common/dto/query-base.dto';

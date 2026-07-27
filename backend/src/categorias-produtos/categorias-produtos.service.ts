@@ -1,5 +1,12 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 import { CriarCategoriaProdutoDto } from './dto/criar-categoria-produto.dto';
 import { AtualizarCategoriaProdutoDto } from './dto/atualizar-categoria-produto.dto';
 import { FiltroCategoriasProdutosDto } from './dto/filtro-categorias-produtos.dto';
@@ -10,24 +17,30 @@ import { respostaPaginada } from '../common/utils/resposta-paginada';
 export class CategoriasProdutosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async criar(dados: CriarCategoriaProdutoDto, usuarioLogado: any) {
+  async criar(
+    dados: CriarCategoriaProdutoDto,
+    usuarioLogado: AuthenticatedUser,
+  ) {
     return this.prisma.categoriaProduto.create({
       data: {
         nome: dados.nome,
         descricao: dados.descricao,
-        empresaId: usuarioLogado.empresaId,
+        empresaId: obterEmpresaId(usuarioLogado),
       },
     });
   }
 
-  async listar(usuarioLogado: any, filtros: FiltroCategoriasProdutosDto) {
+  async listar(
+    usuarioLogado: AuthenticatedUser,
+    filtros: FiltroCategoriasProdutosDto,
+  ) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
 
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: any = {
-      empresaId: usuarioLogado.empresaId,
+    const where: Prisma.CategoriaProdutoWhereInput = {
+      empresaId: obterEmpresaId(usuarioLogado),
     };
 
     if (filtros.search) {
@@ -45,8 +58,8 @@ export class CategoriasProdutosService {
       this.prisma.categoriaProduto.findMany({
         where,
         orderBy: {
-  [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
-},
+          [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
+        },
         skip,
         take,
       }),
@@ -58,7 +71,7 @@ export class CategoriasProdutosService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuarioLogado: any) {
+  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
     const categoria = await this.prisma.categoriaProduto.findUnique({
       where: { id },
     });
@@ -67,14 +80,20 @@ export class CategoriasProdutosService {
       throw new NotFoundException('Categoria não encontrada');
     }
 
-    if (categoria.empresaId !== usuarioLogado.empresaId) {
-      throw new ForbiddenException('Acesso negado a categoria de outra empresa');
+    if (categoria.empresaId !== obterEmpresaId(usuarioLogado)) {
+      throw new ForbiddenException(
+        'Acesso negado a categoria de outra empresa',
+      );
     }
 
     return categoria;
   }
 
-  async atualizar(id: string, dados: AtualizarCategoriaProdutoDto, usuarioLogado: any) {
+  async atualizar(
+    id: string,
+    dados: AtualizarCategoriaProdutoDto,
+    usuarioLogado: AuthenticatedUser,
+  ) {
     await this.buscarPorId(id, usuarioLogado);
 
     return this.prisma.categoriaProduto.update({
@@ -83,7 +102,7 @@ export class CategoriasProdutosService {
     });
   }
 
-  async ativar(id: string, usuarioLogado: any) {
+  async ativar(id: string, usuarioLogado: AuthenticatedUser) {
     await this.buscarPorId(id, usuarioLogado);
 
     return this.prisma.categoriaProduto.update({
@@ -92,7 +111,7 @@ export class CategoriasProdutosService {
     });
   }
 
-  async desativar(id: string, usuarioLogado: any) {
+  async desativar(id: string, usuarioLogado: AuthenticatedUser) {
     await this.buscarPorId(id, usuarioLogado);
 
     return this.prisma.categoriaProduto.update({

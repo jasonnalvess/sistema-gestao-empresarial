@@ -8,10 +8,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-import {
-  OrigemMovimentacaoCaixa,
-  TipoMovimentacaoCaixa,
-} from '@prisma/client';
+import { OrigemMovimentacaoCaixa, TipoMovimentacaoCaixa } from '@prisma/client';
 
 export class CriarMovimentacaoCaixaDto {
   @IsEnum(TipoMovimentacaoCaixa)

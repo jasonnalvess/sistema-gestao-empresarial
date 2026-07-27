@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async resumo(usuarioLogado: any) {
+  async resumo(usuarioLogado: AuthenticatedUser) {
     if (usuarioLogado.tipo === 'SUPER_ADMIN') {
       const [
         empresas,
@@ -33,7 +35,7 @@ export class DashboardService {
       };
     }
 
-    const empresaId = usuarioLogado.empresaId;
+    const empresaId = obterEmpresaId(usuarioLogado);
 
     const [
       usuarios,

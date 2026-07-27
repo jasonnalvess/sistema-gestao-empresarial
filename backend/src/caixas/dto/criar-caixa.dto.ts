@@ -1,8 +1,4 @@
-import {
-  IsOptional,
-  IsString,
-  MinLength,
-} from 'class-validator';
+import { IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CriarCaixaDto {
   @IsString()

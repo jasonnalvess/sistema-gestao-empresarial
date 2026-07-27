@@ -1,10 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { EmpresasService } from './empresas.service';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { CriarEmpresaDto } from './dto/criar-empresa.dto';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { AtualizarEmpresaDto } from './dto/atualizar-empresa.dto';
+import { CriarEmpresaDto } from './dto/criar-empresa.dto';
+import { EmpresasService } from './empresas.service';
 
 @Controller('empresas')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -18,13 +29,16 @@ export class EmpresasController {
   }
 
   @Get()
-  listar(@Req() req: any) {
-    return this.empresasService.listar(req.user);
+  listar(@CurrentUser() usuario: AuthenticatedUser) {
+    return this.empresasService.listar(usuario);
   }
 
   @Get(':id')
-  buscarPorId(@Param('id') id: string, @Req() req: any) {
-    return this.empresasService.buscarPorId(id, req.user);
+  buscarPorId(
+    @Param('id') id: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.empresasService.buscarPorId(id, usuario);
   }
 
   @Patch(':id')

@@ -4,13 +4,26 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { LogOut, Menu } from "lucide-react";
 
-export function Header() {
+interface HeaderProps {
+  menuAberto: boolean;
+  aoAbrirMenu: () => void;
+}
+
+export function Header({ menuAberto, aoAbrirMenu }: HeaderProps) {
   const { usuario, logout } = useAuth();
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-white px-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="md:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          onClick={aoAbrirMenu}
+          aria-label="Abrir menu"
+          aria-controls="menu-lateral"
+          aria-expanded={menuAberto}
+        >
           <Menu size={20} />
         </Button>
 
