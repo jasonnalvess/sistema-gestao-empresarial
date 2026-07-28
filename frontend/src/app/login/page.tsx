@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -21,7 +22,8 @@ type LoginResponse = {
 };
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const router = useRouter();
+  const { login, autenticado, carregando: carregandoSessao } = useAuth();
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -29,6 +31,12 @@ export default function LoginPage() {
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [carregando, setCarregando] = useState(false);
+
+  useEffect(() => {
+    if (!carregandoSessao && autenticado) {
+      router.replace("/dashboard");
+    }
+  }, [autenticado, carregandoSessao, router]);
 
   useEffect(() => {
     const parametros = new URLSearchParams(window.location.search);
@@ -43,6 +51,20 @@ export default function LoginPage() {
       );
     }
   }, []);
+
+  if (carregandoSessao || autenticado) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-100">
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-slate-600"
+        >
+          Carregando sistema...
+        </p>
+      </main>
+    );
+  }
 
   async function fazerLogin(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
