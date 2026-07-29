@@ -728,6 +728,134 @@ async function main() {
     );
   }
 
+  // ============================================================
+  // VÍNCULOS PADRÃO ENTRE USUÁRIOS E PERFIS
+  // ============================================================
+
+  type VinculoUsuarioPerfilPadrao = {
+    emailUsuario: string;
+    chavePerfil: string;
+  };
+
+  const vinculosUsuarioPerfilPadrao: VinculoUsuarioPerfilPadrao[] = [
+    {
+      emailUsuario: 'admin@sistema.com',
+      chavePerfil: 'super_administrador',
+    },
+    {
+      emailUsuario: 'admin.empresa@sistema.com',
+      chavePerfil: 'administrador_empresa',
+    },
+    {
+      emailUsuario: 'teste@sistema.com',
+      chavePerfil: 'colaborador',
+    },
+  ];
+
+  for (const vinculoPadrao of vinculosUsuarioPerfilPadrao) {
+    const usuario = await prisma.usuario.findUnique({
+      where: {
+        email: vinculoPadrao.emailUsuario,
+      },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        empresaId: true,
+      },
+    });
+
+    if (!usuario) {
+      throw new Error(
+        `Usuário padrão não encontrado: ${vinculoPadrao.emailUsuario}`,
+      );
+    }
+
+    const perfil = await prisma.perfil.findFirst({
+      where: {
+        chave: vinculoPadrao.chavePerfil,
+        ativo: true,
+        OR: [
+          {
+            empresaId: usuario.empresaId,
+          },
+          {
+            empresaId: null,
+          },
+        ],
+      },
+      select: {
+        id: true,
+        nome: true,
+        chave: true,
+        escopo: true,
+        empresaId: true,
+        ativo: true,
+      },
+    });
+
+    if (!perfil) {
+      throw new Error(
+        `Perfil ativo não encontrado para o usuário ${usuario.email}: ${vinculoPadrao.chavePerfil}`,
+      );
+    }
+
+    if (perfil.escopo === 'SISTEMA') {
+      if (perfil.empresaId !== null) {
+        throw new Error(
+          `Perfil de sistema associado indevidamente a uma empresa: ${perfil.chave}`,
+        );
+      }
+
+      if (usuario.empresaId !== null) {
+        throw new Error(
+          `Usuário empresarial ${usuario.email} não pode receber o perfil global ${perfil.chave}`,
+        );
+      }
+    }
+
+    if (perfil.escopo === 'EMPRESA') {
+      if (usuario.empresaId === null) {
+        throw new Error(
+          `Usuário global ${usuario.email} não pode receber o perfil empresarial ${perfil.chave}`,
+        );
+      }
+
+      if (perfil.empresaId === null) {
+        throw new Error(
+          `Perfil empresarial ${perfil.chave} não possui empresa vinculada`,
+        );
+      }
+
+      if (perfil.empresaId !== usuario.empresaId) {
+        throw new Error(
+          `O perfil ${perfil.chave} pertence a uma empresa diferente da empresa do usuário ${usuario.email}`,
+        );
+      }
+    }
+
+    const vinculo = await prisma.usuarioPerfil.upsert({
+      where: {
+        usuarioId_perfilId: {
+          usuarioId: usuario.id,
+          perfilId: perfil.id,
+        },
+      },
+      update: {
+        ativo: true,
+      },
+      create: {
+        usuarioId: usuario.id,
+        perfilId: perfil.id,
+        ativo: true,
+      },
+    });
+
+    console.log(
+      `Vínculo sincronizado: ${usuario.email} -> ${perfil.nome} (${vinculo.ativo ? 'ativo' : 'inativo'})`,
+    );
+  }
+
   console.log('Seed executado com sucesso!');
 }
 
