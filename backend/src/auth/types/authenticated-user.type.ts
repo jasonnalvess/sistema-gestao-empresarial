@@ -3,4 +3,6 @@ export type AuthenticatedUser = {
   email: string;
   tipo: string;
   empresaId: string | null;
+  perfis?: string[];
+  permissoes?: string[];
 };

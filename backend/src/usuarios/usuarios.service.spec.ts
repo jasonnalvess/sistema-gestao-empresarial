@@ -37,4 +37,58 @@ describe('UsuariosService', () => {
   it('deve estar definido', () => {
     expect(service).toBeDefined();
   });
+  it('deve buscar usuário com perfis e permissões ativos', async () => {
+    prismaServiceMock.usuario.findUnique.mockResolvedValue(null);
+
+    await service.buscarPorEmailComAutorizacao('admin@sistema.com');
+
+    expect(prismaServiceMock.usuario.findUnique).toHaveBeenCalledWith({
+      where: {
+        email: 'admin@sistema.com',
+      },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        senha: true,
+        tipo: true,
+        ativo: true,
+        empresaId: true,
+        perfis: {
+          where: {
+            ativo: true,
+            perfil: {
+              ativo: true,
+            },
+          },
+          select: {
+            perfil: {
+              select: {
+                id: true,
+                nome: true,
+                chave: true,
+                escopo: true,
+                empresaId: true,
+                permissoes: {
+                  where: {
+                    permitido: true,
+                    permissao: {
+                      ativo: true,
+                    },
+                  },
+                  select: {
+                    permissao: {
+                      select: {
+                        chave: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  });
 });
