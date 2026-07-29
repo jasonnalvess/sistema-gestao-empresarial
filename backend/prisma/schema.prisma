@@ -288,11 +288,49 @@ model Perfil {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  usuarios UsuarioPerfil[]
+  usuarios   UsuarioPerfil[]
+  permissoes PerfilPermissao[]
 
   @@unique([empresaId, chave])
   @@index([empresaId])
   @@index([ativo])
+}
+
+model Permissao {
+  id        String  @id @default(uuid())
+  nome      String
+  chave     String  @unique
+  descricao String?
+  modulo    String
+  ativo     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  perfis PerfilPermissao[]
+
+  @@index([modulo])
+  @@index([ativo])
+}
+
+model PerfilPermissao {
+  id String @id @default(uuid())
+
+  perfilId String
+  perfil   Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  permissaoId String
+  permissao   Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
+
+  permitido Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([perfilId, permissaoId])
+  @@index([perfilId])
+  @@index([permissaoId])
+  @@index([permitido])
 }
 
 model UsuarioPerfil {
