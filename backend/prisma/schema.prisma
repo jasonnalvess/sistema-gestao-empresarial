@@ -13,6 +13,11 @@ enum UserType {
   USUARIO_EMPRESA
 }
 
+enum PerfilEscopo {
+  SISTEMA
+  EMPRESA
+}
+
 enum TipoMovimentacaoEstoque {
   ENTRADA
   SAIDA
@@ -235,6 +240,7 @@ model Usuario {
   vendasConcluidas         Venda[]                   @relation("VendaUsuarioConclusao")
   vendaHistoricos          VendaHistorico[]
   caixaHistoricos          CaixaHistorico[]
+  perfis                   UsuarioPerfil[]
 }
 
 model ModuloSistema {
@@ -268,12 +274,13 @@ model EmpresaModulo {
 }
 
 model Perfil {
-  id        String  @id @default(uuid())
+  id        String       @id @default(uuid())
   nome      String
   chave     String
   descricao String?
-  sistema   Boolean @default(false)
-  ativo     Boolean @default(true)
+  sistema   Boolean      @default(false)
+  escopo    PerfilEscopo @default(EMPRESA)
+  ativo     Boolean      @default(true)
 
   empresaId String?
   empresa   Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
@@ -281,8 +288,30 @@ model Perfil {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  usuarios UsuarioPerfil[]
+
   @@unique([empresaId, chave])
   @@index([empresaId])
+  @@index([ativo])
+}
+
+model UsuarioPerfil {
+  id String @id @default(uuid())
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  perfilId String
+  perfil   Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  ativo Boolean @default(true)
+
+  atribuidoEm DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([usuarioId, perfilId])
+  @@index([usuarioId])
+  @@index([perfilId])
   @@index([ativo])
 }
 
