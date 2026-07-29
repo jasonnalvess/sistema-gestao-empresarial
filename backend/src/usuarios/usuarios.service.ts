@@ -172,4 +172,53 @@ export class UsuariosService {
       where: { email },
     });
   }
+
+  buscarPorEmailComAutorizacao(email: string) {
+    return this.prisma.usuario.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        senha: true,
+        tipo: true,
+        ativo: true,
+        empresaId: true,
+        perfis: {
+          where: {
+            ativo: true,
+            perfil: {
+              ativo: true,
+            },
+          },
+          select: {
+            perfil: {
+              select: {
+                id: true,
+                nome: true,
+                chave: true,
+                escopo: true,
+                empresaId: true,
+                permissoes: {
+                  where: {
+                    permitido: true,
+                    permissao: {
+                      ativo: true,
+                    },
+                  },
+                  select: {
+                    permissao: {
+                      select: {
+                        chave: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
 }

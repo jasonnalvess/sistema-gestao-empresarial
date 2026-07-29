@@ -13,6 +13,11 @@ enum UserType {
   USUARIO_EMPRESA
 }
 
+enum PerfilEscopo {
+  SISTEMA
+  EMPRESA
+}
+
 enum TipoMovimentacaoEstoque {
   ENTRADA
   SAIDA
@@ -162,6 +167,7 @@ model Empresa {
   updatedAt DateTime @updatedAt
 
   usuarios                 Usuario[]
+  perfis                   Perfil[]
   modulos                  EmpresaModulo[]
   categoriasProduto        CategoriaProduto[]
   produtos                 Produto[]
@@ -234,6 +240,7 @@ model Usuario {
   vendasConcluidas         Venda[]                   @relation("VendaUsuarioConclusao")
   vendaHistoricos          VendaHistorico[]
   caixaHistoricos          CaixaHistorico[]
+  perfis                   UsuarioPerfil[]
 }
 
 model ModuloSistema {
@@ -264,6 +271,86 @@ model EmpresaModulo {
   updatedAt DateTime @updatedAt
 
   @@unique([empresaId, moduloId])
+}
+
+model Perfil {
+  id        String       @id @default(uuid())
+  nome      String
+  chave     String
+  descricao String?
+  sistema   Boolean      @default(false)
+  escopo    PerfilEscopo @default(EMPRESA)
+  ativo     Boolean      @default(true)
+
+  empresaId String?
+  empresa   Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuarios   UsuarioPerfil[]
+  permissoes PerfilPermissao[]
+
+  @@unique([empresaId, chave])
+  @@index([empresaId])
+  @@index([ativo])
+}
+
+model Permissao {
+  id        String  @id @default(uuid())
+  nome      String
+  chave     String  @unique
+  descricao String?
+  modulo    String
+  ativo     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  perfis PerfilPermissao[]
+
+  @@index([modulo])
+  @@index([ativo])
+}
+
+model PerfilPermissao {
+  id String @id @default(uuid())
+
+  perfilId String
+  perfil   Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  permissaoId String
+  permissao   Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
+
+  permitido Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([perfilId, permissaoId])
+  @@index([perfilId])
+  @@index([permissaoId])
+  @@index([permitido])
+}
+
+model UsuarioPerfil {
+  id String @id @default(uuid())
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  perfilId String
+  perfil   Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  ativo Boolean @default(true)
+
+  atribuidoEm DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([usuarioId, perfilId])
+  @@index([usuarioId])
+  @@index([perfilId])
+  @@index([ativo])
 }
 
 model CategoriaProduto {
