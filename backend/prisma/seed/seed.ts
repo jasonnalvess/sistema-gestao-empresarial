@@ -474,6 +474,260 @@ async function main() {
     });
   }
 
+  // ============================================================
+  // PERFIS PADRÃO DO IAM
+  // ============================================================
+
+  const permissoesCadastradas = await prisma.permissao.findMany({
+    where: {
+      ativo: true,
+    },
+    select: {
+      id: true,
+      chave: true,
+      modulo: true,
+    },
+    orderBy: {
+      chave: 'asc',
+    },
+  });
+
+  if (permissoesCadastradas.length !== permissoes.length) {
+    throw new Error(
+      `Quantidade inesperada de permissões ativas. Esperado: ${permissoes.length}. Encontrado: ${permissoesCadastradas.length}.`,
+    );
+  }
+
+  const todasAsChaves = permissoesCadastradas.map(
+    (permissao) => permissao.chave,
+  );
+
+  const selecionarPermissoes = ({
+    modulos = [],
+    chavesAdicionais = [],
+    chavesExcluidas = [],
+  }: {
+    modulos?: string[];
+    chavesAdicionais?: string[];
+    chavesExcluidas?: string[];
+  }): string[] => {
+    const selecionadas = permissoesCadastradas
+      .filter(
+        (permissao) =>
+          modulos.includes(permissao.modulo) ||
+          chavesAdicionais.includes(permissao.chave),
+      )
+      .filter((permissao) => !chavesExcluidas.includes(permissao.chave))
+      .map((permissao) => permissao.chave);
+
+    return [...new Set(selecionadas)].sort();
+  };
+
+  const permissoesAdministradorSistema = todasAsChaves.filter(
+    (chave) => !['sistema.editar'].includes(chave),
+  );
+
+  const permissoesAdministradorEmpresa = selecionarPermissoes({
+    modulos: [
+      'usuarios',
+      'perfis',
+      'clientes',
+      'agenda',
+      'funcionarios',
+      'estoque',
+      'caixa',
+      'financeiro',
+      'fiscal',
+    ],
+    chavesAdicionais: [
+      'empresas.visualizar',
+      'empresas.editar',
+      'empresas.modulos.gerenciar',
+    ],
+  });
+
+  const permissoesSupervisor = selecionarPermissoes({
+    modulos: ['clientes', 'agenda', 'estoque', 'caixa'],
+    chavesAdicionais: ['funcionarios.visualizar'],
+    chavesExcluidas: [
+      'clientes.excluir',
+      'agenda.excluir',
+      'estoque.movimentacoes.cancelar',
+      'estoque.ajustar',
+      'caixa.movimentacoes.cancelar',
+    ],
+  });
+
+  const permissoesRh = selecionarPermissoes({
+    modulos: ['funcionarios', 'agenda'],
+    chavesAdicionais: ['clientes.visualizar'],
+    chavesExcluidas: ['agenda.excluir'],
+  });
+
+  const permissoesColaborador = selecionarPermissoes({
+    chavesAdicionais: [
+      'clientes.visualizar',
+      'agenda.visualizar',
+      'agenda.criar',
+      'agenda.editar',
+      'funcionarios.visualizar',
+      'estoque.visualizar',
+      'caixa.visualizar',
+    ],
+  });
+
+  type PerfilPadrao = {
+    nome: string;
+    chave: string;
+    descricao: string;
+    sistema: boolean;
+    escopo: 'SISTEMA' | 'EMPRESA';
+    empresaId: string | null;
+    permissoes: string[];
+  };
+
+  const perfisPadrao: PerfilPadrao[] = [
+    {
+      nome: 'Super Administrador',
+      chave: 'super_administrador',
+      descricao:
+        'Perfil global com acesso integral a todos os recursos do sistema',
+      sistema: true,
+      escopo: 'SISTEMA',
+      empresaId: null,
+      permissoes: todasAsChaves,
+    },
+    {
+      nome: 'Administrador do Sistema',
+      chave: 'administrador_sistema',
+      descricao:
+        'Perfil global responsável pela gestão operacional das empresas',
+      sistema: true,
+      escopo: 'SISTEMA',
+      empresaId: null,
+      permissoes: permissoesAdministradorSistema,
+    },
+    {
+      nome: 'Administrador da Empresa',
+      chave: 'administrador_empresa',
+      descricao:
+        'Perfil responsável pela administração dos recursos da própria empresa',
+      sistema: true,
+      escopo: 'EMPRESA',
+      empresaId: empresa.id,
+      permissoes: permissoesAdministradorEmpresa,
+    },
+    {
+      nome: 'Supervisor',
+      chave: 'supervisor',
+      descricao:
+        'Perfil empresarial responsável pelo acompanhamento das operações',
+      sistema: true,
+      escopo: 'EMPRESA',
+      empresaId: empresa.id,
+      permissoes: permissoesSupervisor,
+    },
+    {
+      nome: 'RH',
+      chave: 'rh',
+      descricao:
+        'Perfil empresarial direcionado à gestão de funcionários e agendas',
+      sistema: true,
+      escopo: 'EMPRESA',
+      empresaId: empresa.id,
+      permissoes: permissoesRh,
+    },
+    {
+      nome: 'Colaborador',
+      chave: 'colaborador',
+      descricao: 'Perfil empresarial com acesso operacional básico e restrito',
+      sistema: true,
+      escopo: 'EMPRESA',
+      empresaId: empresa.id,
+      permissoes: permissoesColaborador,
+    },
+  ];
+
+  const permissoesPorChave = new Map(
+    permissoesCadastradas.map((permissao) => [permissao.chave, permissao]),
+  );
+
+  for (const perfilPadrao of perfisPadrao) {
+    const chavesInexistentes = perfilPadrao.permissoes.filter(
+      (chave) => !permissoesPorChave.has(chave),
+    );
+
+    if (chavesInexistentes.length > 0) {
+      throw new Error(
+        `O perfil ${perfilPadrao.chave} referencia permissões inexistentes: ${chavesInexistentes.join(', ')}`,
+      );
+    }
+
+    const perfilExistente = await prisma.perfil.findFirst({
+      where: {
+        empresaId: perfilPadrao.empresaId,
+        chave: perfilPadrao.chave,
+      },
+    });
+
+    const perfil = perfilExistente
+      ? await prisma.perfil.update({
+          where: {
+            id: perfilExistente.id,
+          },
+          data: {
+            nome: perfilPadrao.nome,
+            descricao: perfilPadrao.descricao,
+            sistema: perfilPadrao.sistema,
+            escopo: perfilPadrao.escopo,
+            ativo: true,
+          },
+        })
+      : await prisma.perfil.create({
+          data: {
+            nome: perfilPadrao.nome,
+            chave: perfilPadrao.chave,
+            descricao: perfilPadrao.descricao,
+            sistema: perfilPadrao.sistema,
+            escopo: perfilPadrao.escopo,
+            ativo: true,
+            empresaId: perfilPadrao.empresaId,
+          },
+        });
+
+    const vinculos = perfilPadrao.permissoes.map((chave) => {
+      const permissao = permissoesPorChave.get(chave);
+
+      if (!permissao) {
+        throw new Error(`Permissão não encontrada: ${chave}`);
+      }
+
+      return {
+        perfilId: perfil.id,
+        permissaoId: permissao.id,
+        permitido: true,
+      };
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.perfilPermissao.deleteMany({
+        where: {
+          perfilId: perfil.id,
+        },
+      });
+
+      if (vinculos.length > 0) {
+        await tx.perfilPermissao.createMany({
+          data: vinculos,
+        });
+      }
+    });
+
+    console.log(
+      `Perfil sincronizado: ${perfilPadrao.nome} (${vinculos.length} permissões)`,
+    );
+  }
+
   console.log('Seed executado com sucesso!');
 }
 
