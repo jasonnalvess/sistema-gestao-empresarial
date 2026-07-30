@@ -3,6 +3,65 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+type PermissaoSeed = {
+  nome: string;
+  chave: string;
+  descricao: string;
+  modulo: string;
+};
+
+type OpcoesPermissoesCrud = {
+  modulo: string;
+  nomePlural: string;
+  incluirAtivacao?: boolean;
+};
+
+function criarPermissoesCrud({
+  modulo,
+  nomePlural,
+  incluirAtivacao = false,
+}: OpcoesPermissoesCrud): PermissaoSeed[] {
+  const permissoes: PermissaoSeed[] = [
+    {
+      nome: `Visualizar ${nomePlural}`,
+      chave: `${modulo}.visualizar`,
+      descricao: `Permite consultar ${nomePlural}`,
+      modulo,
+    },
+    {
+      nome: `Criar ${nomePlural}`,
+      chave: `${modulo}.criar`,
+      descricao: `Permite cadastrar ${nomePlural}`,
+      modulo,
+    },
+    {
+      nome: `Editar ${nomePlural}`,
+      chave: `${modulo}.editar`,
+      descricao: `Permite alterar ${nomePlural}`,
+      modulo,
+    },
+  ];
+
+  if (incluirAtivacao) {
+    permissoes.push(
+      {
+        nome: `Ativar ${nomePlural}`,
+        chave: `${modulo}.ativar`,
+        descricao: `Permite ativar ${nomePlural}`,
+        modulo,
+      },
+      {
+        nome: `Inativar ${nomePlural}`,
+        chave: `${modulo}.inativar`,
+        descricao: `Permite inativar ${nomePlural}`,
+        modulo,
+      },
+    );
+  }
+
+  return permissoes;
+}
+
 async function main() {
   const senhaPadrao = await bcrypt.hash('123456', 10);
 
@@ -67,6 +126,11 @@ async function main() {
       chave: 'funcionarios',
       descricao: 'Cadastro e controle de funcionários',
     },
+    {
+      nome: 'Fornecedores',
+      chave: 'fornecedores',
+      descricao: 'Cadastro e gestão de fornecedores',
+    },
   ];
 
   for (const modulo of modulos) {
@@ -80,7 +144,16 @@ async function main() {
     });
   }
 
-  const permissoes = [
+  const permissoesGeradas: PermissaoSeed[] = [
+    ...criarPermissoesCrud({
+      modulo: 'fornecedores',
+      nomePlural: 'fornecedores',
+      incluirAtivacao: true,
+    }),
+  ];
+
+  const permissoes: PermissaoSeed[] = [
+    ...permissoesGeradas,
     // Sistema
     {
       nome: 'Visualizar configurações do sistema',
@@ -458,6 +531,18 @@ async function main() {
     },
   ];
 
+  const chavesDuplicadas = permissoes
+    .map((permissao) => permissao.chave)
+    .filter((chave, indice, chaves) => chaves.indexOf(chave) !== indice);
+
+  if (chavesDuplicadas.length > 0) {
+    throw new Error(
+      `Foram encontradas permissões duplicadas no catálogo: ${[
+        ...new Set(chavesDuplicadas),
+      ].join(', ')}`,
+    );
+  }
+
   for (const permissao of permissoes) {
     await prisma.permissao.upsert({
       where: { chave: permissao.chave },
@@ -534,6 +619,7 @@ async function main() {
       'clientes',
       'agenda',
       'funcionarios',
+      'fornecedores',
       'estoque',
       'caixa',
       'financeiro',
