@@ -10,8 +10,10 @@ import {
 } from '@nestjs/common';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Permissoes } from '../auth/decorators/permissions.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
@@ -22,12 +24,13 @@ import { CriarFornecedorHistoricoDto } from './dto/criar-fornecedor-historico.dt
 import { FiltroFornecedoresDto } from './dto/filtro-fornecedores.dto';
 
 @Controller('fornecedores')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 export class FornecedoresController {
   constructor(private readonly fornecedoresService: FornecedoresService) {}
 
   @Post()
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('fornecedores.criar')
   criar(
     @Body() body: CriarFornecedorDto,
     @CurrentUser() usuario: AuthenticatedUser,
@@ -37,6 +40,7 @@ export class FornecedoresController {
 
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('fornecedores.visualizar')
   listar(
     @Query() filtros: FiltroFornecedoresDto,
     @CurrentUser() usuario: AuthenticatedUser,
@@ -46,6 +50,7 @@ export class FornecedoresController {
 
   @Post(':id/historico')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('fornecedores.editar')
   adicionarHistorico(
     @Param('id') id: string,
     @Body() body: CriarFornecedorHistoricoDto,
@@ -56,6 +61,7 @@ export class FornecedoresController {
 
   @Get(':id/historico')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('fornecedores.visualizar')
   listarHistorico(
     @Param('id') id: string,
     @CurrentUser() usuario: AuthenticatedUser,
@@ -65,6 +71,7 @@ export class FornecedoresController {
 
   @Get(':id')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('fornecedores.visualizar')
   buscarPorId(
     @Param('id') id: string,
     @CurrentUser() usuario: AuthenticatedUser,
@@ -74,6 +81,7 @@ export class FornecedoresController {
 
   @Patch(':id')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('fornecedores.editar')
   atualizar(
     @Param('id') id: string,
     @Body() body: AtualizarFornecedorDto,
@@ -84,12 +92,14 @@ export class FornecedoresController {
 
   @Patch(':id/ativar')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('fornecedores.ativar')
   ativar(@Param('id') id: string, @CurrentUser() usuario: AuthenticatedUser) {
     return this.fornecedoresService.ativar(id, usuario);
   }
 
   @Patch(':id/desativar')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('fornecedores.inativar')
   desativar(
     @Param('id') id: string,
     @CurrentUser() usuario: AuthenticatedUser,

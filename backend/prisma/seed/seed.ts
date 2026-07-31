@@ -206,6 +206,12 @@ async function main() {
       modulo: 'empresas',
     },
     {
+      nome: 'Excluir empresas',
+      chave: 'empresas.excluir',
+      descricao: 'Permite excluir empresas',
+      modulo: 'empresas',
+    },
+    {
       nome: 'Gerenciar módulos da empresa',
       chave: 'empresas.modulos.gerenciar',
       descricao: 'Permite ativar ou desativar módulos de uma empresa',

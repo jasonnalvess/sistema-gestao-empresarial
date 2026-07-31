@@ -8,26 +8,30 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Permissoes } from '../auth/decorators/permissions.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { VincularEmpresaModuloDto } from './dto/vincular-empresa-modulo.dto';
 import { EmpresaModulosService } from './empresa-modulos.service';
 
 @Controller('empresa-modulos')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 export class EmpresaModulosController {
   constructor(private readonly empresaModulosService: EmpresaModulosService) {}
 
   @Post()
   @Roles('SUPER_ADMIN')
+  @Permissoes('empresas.modulos.gerenciar')
   vincular(@Body() body: VincularEmpresaModuloDto) {
     return this.empresaModulosService.vincular(body.empresaId, body.moduloId);
   }
 
   @Get('empresa/:empresaId')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('empresas.modulos.gerenciar')
   listarPorEmpresa(
     @Param('empresaId') empresaId: string,
     @CurrentUser() usuario: AuthenticatedUser,
@@ -37,12 +41,14 @@ export class EmpresaModulosController {
 
   @Patch(':id/ativar')
   @Roles('SUPER_ADMIN')
+  @Permissoes('empresas.modulos.gerenciar')
   ativar(@Param('id') id: string) {
     return this.empresaModulosService.ativar(id);
   }
 
   @Patch(':id/desativar')
   @Roles('SUPER_ADMIN')
+  @Permissoes('empresas.modulos.gerenciar')
   desativar(@Param('id') id: string) {
     return this.empresaModulosService.desativar(id);
   }
