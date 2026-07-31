@@ -603,6 +603,8 @@ model Cliente {
   ordensServico OrdemServico[]
   contasReceber ContaReceber[]
   vendas        Venda[]
+
+  @@unique([empresaId, documento])
 }
 
 model ClienteHistorico {

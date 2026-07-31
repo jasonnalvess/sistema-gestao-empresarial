@@ -3,6 +3,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  Length,
   MinLength,
 } from 'class-validator';
 
@@ -41,6 +42,7 @@ export class CriarClienteDto {
 
   @IsOptional()
   @IsString()
+  @Length(2, 2)
   estado?: string;
 
   @IsOptional()
