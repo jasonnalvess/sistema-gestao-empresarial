@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,6 +15,23 @@ import { CriarFornecedorDto } from './dto/criar-fornecedor.dto';
 import { AtualizarFornecedorDto } from './dto/atualizar-fornecedor.dto';
 import { FiltroFornecedoresDto } from './dto/filtro-fornecedores.dto';
 import { CriarFornecedorHistoricoDto } from './dto/criar-fornecedor-historico.dto';
+
+const CAMPOS_ORDENACAO_FORNECEDOR = [
+  'razaoSocial',
+  'nomeFantasia',
+  'documento',
+  'email',
+  'telefone',
+  'celular',
+  'contato',
+  'cidade',
+  'estado',
+  'ativo',
+  'createdAt',
+  'updatedAt',
+] as const satisfies readonly (keyof Prisma.FornecedorOrderByWithRelationInput)[];
+
+type CampoOrdenacaoFornecedor = (typeof CAMPOS_ORDENACAO_FORNECEDOR)[number];
 
 @Injectable()
 export class FornecedoresService {
@@ -33,27 +49,37 @@ export class FornecedoresService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      const target = Array.isArray(error.meta?.target)
-        ? error.meta.target.map(String)
-        : [];
+      const target = error.meta?.target;
 
-      if (target.includes('documento')) {
+      if (
+        Array.isArray(target) &&
+        target.length === 2 &&
+        target.includes('empresaId') &&
+        target.includes('documento')
+      ) {
         throw new ConflictException(
-          'Já existe um fornecedor com este documento nesta empresa',
+          'Já existe um fornecedor com este CPF/CNPJ nesta empresa.',
         );
       }
-
-      throw new ConflictException('Já existe um fornecedor com esses dados');
     }
 
     throw error;
+  }
+
+  private obterCampoOrdenacao(sortBy?: string): CampoOrdenacaoFornecedor {
+    return (
+      CAMPOS_ORDENACAO_FORNECEDOR.find((campo) => campo === sortBy) ??
+      'createdAt'
+    );
   }
 
   private limparDocumento(documento: string) {
     return documento.replace(/\D/g, '');
   }
 
-  private valorComparavel(valor: unknown): string {
+  private valorComparavel(
+    valor: string | number | boolean | null | undefined,
+  ): string {
     if (valor === null || valor === undefined) {
       return '';
     }
@@ -61,7 +87,9 @@ export class FornecedoresService {
     return String(valor);
   }
 
-  private valorExibicao(valor: unknown): string {
+  private valorExibicao(
+    valor: string | number | boolean | null | undefined,
+  ): string {
     if (valor === null || valor === undefined || valor === '') {
       return 'não informado';
     }
@@ -200,8 +228,8 @@ export class FornecedoresService {
     dados: CriarFornecedorDto,
     usuarioLogado: AuthenticatedUser,
   ) {
-    try {
-      const fornecedor = await this.prisma.fornecedor.create({
+    const fornecedor = await this.prisma.fornecedor
+      .create({
         data: {
           razaoSocial: dados.razaoSocial.trim(),
           nomeFantasia: dados.nomeFantasia?.trim(),
@@ -222,24 +250,23 @@ export class FornecedoresService {
           observacao: dados.observacao?.trim(),
           empresaId,
         },
-      });
+      })
+      .catch((error: unknown) => this.tratarErroPrisma(error));
 
-      await this.registrarHistorico(
-        fornecedor.id,
-        'Fornecedor cadastrado.',
-        usuarioLogado,
-      );
+    await this.registrarHistorico(
+      fornecedor.id,
+      'Fornecedor cadastrado.',
+      usuarioLogado,
+    );
 
-      return fornecedor;
-    } catch (error) {
-      this.tratarErroPrisma(error);
-    }
+    return fornecedor;
   }
 
   async listar(empresaId: string, filtros: FiltroFornecedoresDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
+    const sortBy = this.obterCampoOrdenacao(filtros.sortBy);
 
     const where: Prisma.FornecedorWhereInput = { empresaId };
 
@@ -308,7 +335,7 @@ export class FornecedoresService {
       this.prisma.fornecedor.findMany({
         where,
         orderBy: {
-          [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
+          [sortBy]: filtros.order ?? 'desc',
         },
         skip,
         take,
@@ -323,9 +350,10 @@ export class FornecedoresService {
   }
 
   async buscarPorId(empresaId: string, id: string) {
-    const fornecedor = await this.prisma.fornecedor.findUnique({
+    const fornecedor = await this.prisma.fornecedor.findFirst({
       where: {
         id,
+        empresaId,
       },
       include: {
         historicos: {
@@ -346,12 +374,6 @@ export class FornecedoresService {
       throw new NotFoundException('Fornecedor não encontrado');
     }
 
-    if (fornecedor.empresaId !== empresaId) {
-      throw new ForbiddenException(
-        'Acesso negado a fornecedor de outra empresa',
-      );
-    }
-
     return fornecedor;
   }
 
@@ -363,8 +385,8 @@ export class FornecedoresService {
   ) {
     const fornecedorAnterior = await this.buscarPorId(empresaId, id);
 
-    try {
-      const fornecedorAtualizado = await this.prisma.fornecedor.update({
+    const fornecedorAtualizado = await this.prisma.fornecedor
+      .update({
         where: {
           id,
         },
@@ -389,21 +411,19 @@ export class FornecedoresService {
           estado: dados.estado?.trim().toUpperCase(),
           observacao: dados.observacao?.trim(),
         },
-      });
+      })
+      .catch((error: unknown) => this.tratarErroPrisma(error));
 
-      const descricaoHistorico = this.montarDescricaoAlteracoes(
-        fornecedorAnterior,
-        fornecedorAtualizado,
-      );
+    const descricaoHistorico = this.montarDescricaoAlteracoes(
+      fornecedorAnterior,
+      fornecedorAtualizado,
+    );
 
-      if (descricaoHistorico) {
-        await this.registrarHistorico(id, descricaoHistorico, usuarioLogado);
-      }
-
-      return fornecedorAtualizado;
-    } catch (error) {
-      this.tratarErroPrisma(error);
+    if (descricaoHistorico) {
+      await this.registrarHistorico(id, descricaoHistorico, usuarioLogado);
     }
+
+    return fornecedorAtualizado;
   }
 
   async ativar(
