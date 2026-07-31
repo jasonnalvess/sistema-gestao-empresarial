@@ -11,7 +11,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
-import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 
 import { CriarFornecedorDto } from './dto/criar-fornecedor.dto';
 import { AtualizarFornecedorDto } from './dto/atualizar-fornecedor.dto';
@@ -196,9 +195,11 @@ export class FornecedoresService {
     });
   }
 
-  async criar(dados: CriarFornecedorDto, usuarioLogado: AuthenticatedUser) {
-    const empresaId = obterEmpresaId(usuarioLogado);
-
+  async criar(
+    empresaId: string,
+    dados: CriarFornecedorDto,
+    usuarioLogado: AuthenticatedUser,
+  ) {
     try {
       const fornecedor = await this.prisma.fornecedor.create({
         data: {
@@ -235,20 +236,12 @@ export class FornecedoresService {
     }
   }
 
-  async listar(
-    usuarioLogado: AuthenticatedUser,
-    filtros: FiltroFornecedoresDto,
-  ) {
+  async listar(empresaId: string, filtros: FiltroFornecedoresDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: Prisma.FornecedorWhereInput =
-      usuarioLogado.tipo === 'SUPER_ADMIN'
-        ? {}
-        : {
-            empresaId: obterEmpresaId(usuarioLogado),
-          };
+    const where: Prisma.FornecedorWhereInput = { empresaId };
 
     if (filtros.search) {
       where.OR = [
@@ -329,7 +322,7 @@ export class FornecedoresService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
+  async buscarPorId(empresaId: string, id: string) {
     const fornecedor = await this.prisma.fornecedor.findUnique({
       where: {
         id,
@@ -353,10 +346,7 @@ export class FornecedoresService {
       throw new NotFoundException('Fornecedor não encontrado');
     }
 
-    if (
-      usuarioLogado.tipo !== 'SUPER_ADMIN' &&
-      fornecedor.empresaId !== obterEmpresaId(usuarioLogado)
-    ) {
+    if (fornecedor.empresaId !== empresaId) {
       throw new ForbiddenException(
         'Acesso negado a fornecedor de outra empresa',
       );
@@ -366,11 +356,12 @@ export class FornecedoresService {
   }
 
   async atualizar(
+    empresaId: string,
     id: string,
     dados: AtualizarFornecedorDto,
     usuarioLogado: AuthenticatedUser,
   ) {
-    const fornecedorAnterior = await this.buscarPorId(id, usuarioLogado);
+    const fornecedorAnterior = await this.buscarPorId(empresaId, id);
 
     try {
       const fornecedorAtualizado = await this.prisma.fornecedor.update({
@@ -415,8 +406,12 @@ export class FornecedoresService {
     }
   }
 
-  async ativar(id: string, usuarioLogado: AuthenticatedUser) {
-    const fornecedor = await this.buscarPorId(id, usuarioLogado);
+  async ativar(
+    empresaId: string,
+    id: string,
+    usuarioLogado: AuthenticatedUser,
+  ) {
+    const fornecedor = await this.buscarPorId(empresaId, id);
 
     if (fornecedor.ativo) {
       return fornecedor;
@@ -436,8 +431,12 @@ export class FornecedoresService {
     return fornecedorAtualizado;
   }
 
-  async desativar(id: string, usuarioLogado: AuthenticatedUser) {
-    const fornecedor = await this.buscarPorId(id, usuarioLogado);
+  async desativar(
+    empresaId: string,
+    id: string,
+    usuarioLogado: AuthenticatedUser,
+  ) {
+    const fornecedor = await this.buscarPorId(empresaId, id);
 
     if (!fornecedor.ativo) {
       return fornecedor;
@@ -458,11 +457,12 @@ export class FornecedoresService {
   }
 
   async adicionarHistorico(
+    empresaId: string,
     fornecedorId: string,
     dados: CriarFornecedorHistoricoDto,
     usuarioLogado: AuthenticatedUser,
   ) {
-    await this.buscarPorId(fornecedorId, usuarioLogado);
+    await this.buscarPorId(empresaId, fornecedorId);
 
     return this.prisma.fornecedorHistorico.create({
       data: {
@@ -478,11 +478,8 @@ export class FornecedoresService {
     });
   }
 
-  async listarHistorico(
-    fornecedorId: string,
-    usuarioLogado: AuthenticatedUser,
-  ) {
-    await this.buscarPorId(fornecedorId, usuarioLogado);
+  async listarHistorico(empresaId: string, fornecedorId: string) {
+    await this.buscarPorId(empresaId, fornecedorId);
 
     return this.prisma.fornecedorHistorico.findMany({
       where: {
