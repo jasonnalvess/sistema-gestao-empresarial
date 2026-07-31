@@ -15,12 +15,15 @@ import {
 } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudLoading } from "@/components/crud/CrudLoading";
 import { CrudEmpty } from "@/components/crud/CrudEmpty";
 import { AgendaStatusBadge } from "@/components/agenda/AgendaStatusBadge";
 import { StatsCard } from "@/components/common/StatsCard";
+import { useAuth } from "@/contexts/AuthContext";
+import { PERMISSAO_CLIENTES_VISUALIZAR } from "@/lib/auth";
 
 import { buscarClientePorId } from "@/services/clientes.service";
 import { ClienteTimeline } from "@/components/clientes/ClienteTimeline";
@@ -31,12 +34,24 @@ import { ClienteOrdensServicoCard } from "@/components/clientes/ClienteOrdensSer
 export default function ClienteDetalhesPage() {
   const params = useParams();
   const clienteId = params.id as string;
+  const { temPermissao } = useAuth();
+  const podeVisualizarClientes = temPermissao(
+    PERMISSAO_CLIENTES_VISUALIZAR
+  );
 
   const { data: cliente, isLoading, error } = useQuery({
     queryKey: ["cliente", clienteId],
     queryFn: () => buscarClientePorId(clienteId),
-    enabled: !!clienteId,
+    enabled: podeVisualizarClientes && Boolean(clienteId),
   });
+
+  if (!podeVisualizarClientes) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
 
   if (isLoading) {
     return (

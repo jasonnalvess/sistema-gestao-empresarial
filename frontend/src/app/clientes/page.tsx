@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAuth } from "@/contexts/AuthContext";
+import { PERMISSAO_CLIENTES_VISUALIZAR } from "@/lib/auth";
 
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
@@ -32,6 +35,10 @@ import { AlterarStatusClienteButton } from "@/components/clientes/AlterarStatusC
 import { ClientesSummaryCards } from "@/components/clientes/ClientesSummaryCards";
 
 export default function ClientesPage() {
+  const { temPermissao } = useAuth();
+  const podeVisualizarClientes = temPermissao(
+    PERMISSAO_CLIENTES_VISUALIZAR
+  );
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [tipoFiltro, setTipoFiltro] = useState("");
@@ -48,6 +55,7 @@ export default function ClientesPage() {
         page,
         limit: 10,
       }),
+    enabled: podeVisualizarClientes,
   });
 
   function pesquisar() {
@@ -57,6 +65,14 @@ export default function ClientesPage() {
 
   const clientes = data?.data ?? [];
   const totalPages = data?.meta?.totalPages ?? 1;
+
+  if (!podeVisualizarClientes) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>

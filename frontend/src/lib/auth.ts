@@ -1,5 +1,7 @@
 import { permissoes } from "./permissoes";
 
+export const PERMISSAO_CLIENTES_VISUALIZAR = "clientes.visualizar";
+
 export type Usuario = {
   id: string;
   nome: string;
