@@ -10,23 +10,26 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 
-import { EVENTO_SESSAO_EXPIRADA } from "@/services/api";
-
-type Usuario = {
-  id: string;
-  nome: string;
-  email: string;
-  tipo: string;
-  empresaId: string | null;
-};
+import { EMPRESA_SELECIONADA_STORAGE_KEY } from "@/lib/empresa-contexto";
+import {
+  normalizarUsuario,
+  temPermissao as verificarPermissao,
+  Usuario,
+  UsuarioComPermissoesOpcionais,
+} from "@/lib/auth";
+import {
+  EVENTO_SESSAO_EXPIRADA,
+  limparEmpresaOperacional,
+} from "@/services/api";
 
 type AuthContextData = {
   usuario: Usuario | null;
   token: string | null;
   autenticado: boolean;
   carregando: boolean;
-  login: (token: string, usuario: Usuario) => void;
+  login: (token: string, usuario: UsuarioComPermissoesOpcionais) => void;
   logout: () => void;
+  temPermissao: (permissao: string) => boolean;
 };
 
 const AuthContext = createContext<AuthContextData | undefined>(undefined);
@@ -41,6 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const limparSessao = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("usuario");
+    localStorage.removeItem(EMPRESA_SELECIONADA_STORAGE_KEY);
+    limparEmpresaOperacional();
 
     setToken(null);
     setUsuario(null);
@@ -52,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const usuarioSalvo = localStorage.getItem("usuario");
 
       if (tokenSalvo && usuarioSalvo) {
-        const usuarioConvertido = JSON.parse(usuarioSalvo) as Usuario;
+        const usuarioConvertido = normalizarUsuario(JSON.parse(usuarioSalvo));
 
         setToken(tokenSalvo);
         setUsuario(usuarioConvertido);
@@ -79,32 +84,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    window.addEventListener(
-      EVENTO_SESSAO_EXPIRADA,
-      tratarSessaoExpirada
-    );
+    window.addEventListener(EVENTO_SESSAO_EXPIRADA, tratarSessaoExpirada);
 
     window.addEventListener("storage", sincronizarSessaoEntreAbas);
 
     return () => {
-      window.removeEventListener(
-        EVENTO_SESSAO_EXPIRADA,
-        tratarSessaoExpirada
-      );
+      window.removeEventListener(EVENTO_SESSAO_EXPIRADA, tratarSessaoExpirada);
 
-      window.removeEventListener(
-        "storage",
-        sincronizarSessaoEntreAbas
-      );
+      window.removeEventListener("storage", sincronizarSessaoEntreAbas);
     };
   }, [limparSessao, router]);
 
-  function login(novoToken: string, novoUsuario: Usuario) {
+  function login(
+    novoToken: string,
+    novoUsuario: UsuarioComPermissoesOpcionais,
+  ) {
+    const usuarioNormalizado = normalizarUsuario(novoUsuario);
+
+    localStorage.removeItem(EMPRESA_SELECIONADA_STORAGE_KEY);
+    limparEmpresaOperacional();
+
     localStorage.setItem("token", novoToken);
-    localStorage.setItem("usuario", JSON.stringify(novoUsuario));
+    localStorage.setItem("usuario", JSON.stringify(usuarioNormalizado));
 
     setToken(novoToken);
-    setUsuario(novoUsuario);
+    setUsuario(usuarioNormalizado);
 
     router.replace("/dashboard");
   }
@@ -123,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         carregando,
         login,
         logout,
+        temPermissao: (permissao) => verificarPermissao(usuario, permissao),
       }}
     >
       {children}
@@ -134,9 +139,7 @@ export function useAuth() {
   const contexto = useContext(AuthContext);
 
   if (!contexto) {
-    throw new Error(
-      "useAuth deve ser utilizado dentro de um AuthProvider"
-    );
+    throw new Error("useAuth deve ser utilizado dentro de um AuthProvider");
   }
 
   return contexto;

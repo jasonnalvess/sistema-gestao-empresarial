@@ -4,7 +4,16 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import {
+  PERMISSAO_CLIENTES_CRIAR,
+  PERMISSAO_CLIENTES_EDITAR,
+  PERMISSAO_CLIENTES_VISUALIZAR,
+} from "@/lib/auth";
 
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
@@ -32,6 +41,13 @@ import { AlterarStatusClienteButton } from "@/components/clientes/AlterarStatusC
 import { ClientesSummaryCards } from "@/components/clientes/ClientesSummaryCards";
 
 export default function ClientesPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarClientes = temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
+  const podeCriarCliente = temPermissao(PERMISSAO_CLIENTES_CRIAR);
+  const podeEditarCliente = temPermissao(PERMISSAO_CLIENTES_EDITAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [tipoFiltro, setTipoFiltro] = useState("");
@@ -39,7 +55,14 @@ export default function ClientesPage() {
   const [page, setPage] = useState(1);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["clientes", searchAplicado, tipoFiltro, ativoFiltro, page],
+    queryKey: [
+      "clientes",
+      empresaEfetivaId,
+      searchAplicado,
+      tipoFiltro,
+      ativoFiltro,
+      page,
+    ],
     queryFn: () =>
       listarClientes({
         search: searchAplicado,
@@ -48,6 +71,7 @@ export default function ClientesPage() {
         page,
         limit: 10,
       }),
+    enabled: podeVisualizarClientes && possuiEmpresaEfetiva && !carregando,
   });
 
   function pesquisar() {
@@ -58,13 +82,35 @@ export default function ClientesPage() {
   const clientes = data?.data ?? [];
   const totalPages = data?.meta?.totalPages ?? 1;
 
+  if (!podeVisualizarClientes) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+
+  if (!possuiEmpresaEfetiva)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <PageHeader
           title="Clientes"
           description="Gerencie clientes, contatos e informações comerciais."
-          actions={<NovoClienteModal />}
+          actions={podeCriarCliente ? <NovoClienteModal /> : undefined}
         />
 
         <ClientesSummaryCards clientes={clientes} />
@@ -97,7 +143,9 @@ export default function ClientesPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Status</label>
+              <label className="text-sm font-medium text-slate-700">
+                Status
+              </label>
               <select
                 value={ativoFiltro}
                 onChange={(e) => {
@@ -170,8 +218,12 @@ export default function ClientesPage() {
                           <div className="flex justify-end gap-2">
                             <DetailsButton href={`/clientes/${cliente.id}`} />
                             <NewAtendimentoButton clienteId={cliente.id} />
-                            <EditarClienteModal cliente={cliente} />
-                            <AlterarStatusClienteButton cliente={cliente} />
+                            {podeEditarCliente && (
+                              <>
+                                <EditarClienteModal cliente={cliente} />
+                                <AlterarStatusClienteButton cliente={cliente} />
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

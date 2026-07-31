@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/actions/ConfirmDialog";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { PERMISSAO_CLIENTES_EDITAR } from "@/lib/auth";
 import {
   Cliente,
   ativarCliente,
@@ -19,8 +21,15 @@ type Props = {
 
 export function AlterarStatusClienteButton({ cliente }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const podeEditarCliente = temPermissao(PERMISSAO_CLIENTES_EDITAR);
 
   async function alterarStatus() {
+    if (!podeEditarCliente) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+
     try {
       if (cliente.ativo) {
         await desativarCliente(cliente.id);
@@ -38,6 +47,10 @@ export function AlterarStatusClienteButton({ cliente }: Props) {
         error.response?.data?.message || "Erro ao alterar status do cliente"
       );
     }
+  }
+
+  if (!podeEditarCliente) {
+    return null;
   }
 
   return (

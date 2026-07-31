@@ -1,6 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { PERMISSIONS_KEY } from '../auth/decorators/permissions.decorator';
+import { ROLES_KEY } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { EmpresaContextoGuard } from '../common/guards/empresa-contexto.guard';
 import { ClientesController } from './clientes.controller';
 import { ClientesService } from './clientes.service';
 import { AtualizarClienteDto } from './dto/atualizar-cliente.dto';
@@ -21,6 +27,8 @@ describe('ClientesController', () => {
     listarHistorico: jest.fn(),
   };
 
+  const empresa = { empresaId: 'empresa-1', origem: 'JWT' as const };
+
   const usuario: AuthenticatedUser = {
     id: 'usuario-1',
     email: 'usuario@empresa.com',
@@ -32,7 +40,10 @@ describe('ClientesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ClientesController],
       providers: [{ provide: ClientesService, useValue: clientesServiceMock }],
-    }).compile();
+    })
+      .overrideGuard(EmpresaContextoGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<ClientesController>(ClientesController);
     jest.clearAllMocks();
@@ -48,47 +59,59 @@ describe('ClientesController', () => {
     const filtros: FiltroClientesDto = { page: 2, limit: 20, ativo: 'true' };
 
     await Promise.all([
-      controller.criar(criarDto, usuario),
-      controller.listar(usuario, filtros),
-      controller.buscarPorId('cliente-1', usuario),
-      controller.atualizar('cliente-1', atualizarDto, usuario),
-      controller.ativar('cliente-1', usuario),
-      controller.desativar('cliente-1', usuario),
+      controller.criar(empresa, criarDto, usuario),
+      controller.listar(empresa, filtros),
+      controller.buscarPorId(empresa, 'cliente-1'),
+      controller.atualizar(empresa, 'cliente-1', atualizarDto, usuario),
+      controller.ativar(empresa, 'cliente-1', usuario),
+      controller.desativar(empresa, 'cliente-1', usuario),
       controller.adicionarHistorico(
+        empresa,
         'cliente-1',
         { descricao: 'Contato' },
         usuario,
       ),
-      controller.listarHistorico('cliente-1', usuario),
+      controller.listarHistorico(empresa, 'cliente-1'),
     ]);
 
-    expect(clientesServiceMock.criar).toHaveBeenCalledWith(criarDto, usuario);
-    expect(clientesServiceMock.listar).toHaveBeenCalledWith(usuario, filtros);
-    expect(clientesServiceMock.buscarPorId).toHaveBeenCalledWith(
-      'cliente-1',
+    expect(clientesServiceMock.criar).toHaveBeenCalledWith(
+      'empresa-1',
+      criarDto,
       usuario,
     );
+    expect(clientesServiceMock.listar).toHaveBeenCalledWith(
+      'empresa-1',
+      filtros,
+    );
+    expect(clientesServiceMock.buscarPorId).toHaveBeenCalledWith(
+      'empresa-1',
+      'cliente-1',
+    );
     expect(clientesServiceMock.atualizar).toHaveBeenCalledWith(
+      'empresa-1',
       'cliente-1',
       atualizarDto,
       usuario,
     );
     expect(clientesServiceMock.ativar).toHaveBeenCalledWith(
+      'empresa-1',
       'cliente-1',
       usuario,
     );
     expect(clientesServiceMock.desativar).toHaveBeenCalledWith(
+      'empresa-1',
       'cliente-1',
       usuario,
     );
     expect(clientesServiceMock.adicionarHistorico).toHaveBeenCalledWith(
+      'empresa-1',
       'cliente-1',
       { descricao: 'Contato' },
       usuario,
     );
     expect(clientesServiceMock.listarHistorico).toHaveBeenCalledWith(
+      'empresa-1',
       'cliente-1',
-      usuario,
     );
   });
 
@@ -108,5 +131,31 @@ describe('ClientesController', () => {
     ) as unknown;
 
     expect(metadata).toEqual([permissao]);
+  });
+  it('declara os guards na ordem JWT, papéis, permissões e empresa', () => {
+    expect(Reflect.getMetadata(GUARDS_METADATA, ClientesController)).toEqual([
+      JwtAuthGuard,
+      RolesGuard,
+      PermissionsGuard,
+      EmpresaContextoGuard,
+    ]);
+  });
+
+  it.each([
+    'criar',
+    'listar',
+    'buscarPorId',
+    'listarHistorico',
+    'atualizar',
+    'ativar',
+    'desativar',
+    'adicionarHistorico',
+  ] as const)('deve aceitar SUPER_ADMIN no papel de %s', (metodo) => {
+    const metadata = Reflect.getMetadata(
+      ROLES_KEY,
+      ClientesController.prototype[metodo],
+    ) as string[];
+
+    expect(metadata).toContain('SUPER_ADMIN');
   });
 });
