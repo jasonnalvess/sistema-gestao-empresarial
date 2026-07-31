@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
@@ -15,7 +11,7 @@ type PrismaServiceMock = {
     create: jest.Mock;
     findMany: jest.Mock;
     count: jest.Mock;
-    findUnique: jest.Mock;
+    findFirst: jest.Mock;
     update: jest.Mock;
   };
   clienteHistorico: {
@@ -33,12 +29,6 @@ describe('ClientesService', () => {
     email: 'usuario@empresa.com',
     tipo: 'ADMIN_EMPRESA',
     empresaId: 'empresa-1',
-  };
-  const superAdmin: AuthenticatedUser = {
-    id: 'super-1',
-    email: 'super@sistema.com',
-    tipo: 'SUPER_ADMIN',
-    empresaId: null,
   };
   const clienteBase = {
     id: 'cliente-1',
@@ -68,7 +58,7 @@ describe('ClientesService', () => {
         create: jest.fn(),
         findMany: jest.fn(),
         count: jest.fn(),
-        findUnique: jest.fn(),
+        findFirst: jest.fn(),
         update: jest.fn(),
       },
       clienteHistorico: {
@@ -98,6 +88,7 @@ describe('ClientesService', () => {
 
     await expect(
       service.criar(
+        'empresa-1',
         {
           nome: '  Cliente Novo  ',
           tipo: 'PJ',
@@ -144,7 +135,7 @@ describe('ClientesService', () => {
     prisma.cliente.create.mockResolvedValue(clienteBase);
     prisma.clienteHistorico.create.mockResolvedValue({});
 
-    await service.criar({ nome: ' Cliente ' }, usuario);
+    await service.criar('empresa-1', { nome: ' Cliente ' }, usuario);
 
     expect(prisma.cliente.create).toHaveBeenCalledWith({
       data: {
@@ -177,6 +168,7 @@ describe('ClientesService', () => {
 
     await expect(
       service.criar(
+        'empresa-1',
         { nome: 'Duplicado', documento: '123.456.789-01' },
         usuario,
       ),
@@ -214,10 +206,12 @@ describe('ClientesService', () => {
     prisma.clienteHistorico.create.mockResolvedValue({});
 
     await service.criar(
+      'empresa-1',
       { nome: 'Cliente Empresa 1', documento: '123.456.789-01' },
       usuario,
     );
     await service.criar(
+      'empresa-2',
       { nome: 'Cliente Empresa 2', documento: '123.456.789-01' },
       usuarioOutraEmpresa,
     );
@@ -248,7 +242,11 @@ describe('ClientesService', () => {
     prisma.clienteHistorico.create.mockResolvedValue({});
 
     await expect(
-      service.criar({ nome: 'Sem documento', documento: undefined }, usuario),
+      service.criar(
+        'empresa-1',
+        { nome: 'Sem documento', documento: undefined },
+        usuario,
+      ),
     ).resolves.toEqual(criadoSemDocumento);
 
     expect(prisma.cliente.create).toHaveBeenCalledWith({
@@ -268,7 +266,11 @@ describe('ClientesService', () => {
     prisma.cliente.create.mockRejectedValue(erro);
 
     await expect(
-      service.criar({ nome: 'Cliente', documento: '12345678901' }, usuario),
+      service.criar(
+        'empresa-1',
+        { nome: 'Cliente', documento: '12345678901' },
+        usuario,
+      ),
     ).rejects.toBe(erro);
   });
 
@@ -284,7 +286,11 @@ describe('ClientesService', () => {
     prisma.cliente.create.mockRejectedValue(erro);
 
     await expect(
-      service.criar({ nome: 'Cliente', documento: '12345678901' }, usuario),
+      service.criar(
+        'empresa-1',
+        { nome: 'Cliente', documento: '12345678901' },
+        usuario,
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
@@ -341,7 +347,11 @@ describe('ClientesService', () => {
     prisma.cliente.create.mockRejectedValue(erro);
 
     await expect(
-      service.criar({ nome: 'Cliente', documento: '12345678901' }, usuario),
+      service.criar(
+        'empresa-1',
+        { nome: 'Cliente', documento: '12345678901' },
+        usuario,
+      ),
     ).rejects.toBe(erro);
   });
 
@@ -358,7 +368,11 @@ describe('ClientesService', () => {
     prisma.clienteHistorico.create.mockRejectedValue(erroHistorico);
 
     await expect(
-      service.criar({ nome: 'Cliente', documento: '12345678901' }, usuario),
+      service.criar(
+        'empresa-1',
+        { nome: 'Cliente', documento: '12345678901' },
+        usuario,
+      ),
     ).rejects.toBe(erroHistorico);
   });
 
@@ -371,11 +385,16 @@ describe('ClientesService', () => {
         meta: { target: ['empresaId', 'documento'] },
       },
     );
-    prisma.cliente.findUnique.mockResolvedValue(clienteBase);
+    prisma.cliente.findFirst.mockResolvedValue(clienteBase);
     prisma.cliente.update.mockRejectedValue(erro);
 
     await expect(
-      service.atualizar('cliente-1', { documento: '987.654.321-00' }, usuario),
+      service.atualizar(
+        'empresa-1',
+        'cliente-1',
+        { documento: '987.654.321-00' },
+        usuario,
+      ),
     ).rejects.toThrow('Já existe um cliente com este CPF/CNPJ nesta empresa.');
 
     expect(prisma.cliente.update).toHaveBeenCalledWith({
@@ -385,11 +404,16 @@ describe('ClientesService', () => {
   });
 
   it('deve permitir atualização mantendo o próprio documento', async () => {
-    prisma.cliente.findUnique.mockResolvedValue(clienteBase);
+    prisma.cliente.findFirst.mockResolvedValue(clienteBase);
     prisma.cliente.update.mockResolvedValue(clienteBase);
 
     await expect(
-      service.atualizar('cliente-1', { documento: '123.456.789-01' }, usuario),
+      service.atualizar(
+        'empresa-1',
+        'cliente-1',
+        { documento: '123.456.789-01' },
+        usuario,
+      ),
     ).resolves.toEqual(clienteBase);
 
     expect(prisma.cliente.update).toHaveBeenCalledWith({
@@ -407,11 +431,12 @@ describe('ClientesService', () => {
       estado: 'SP',
       cep: '01001000',
     };
-    prisma.cliente.findUnique.mockResolvedValue(clienteBase);
+    prisma.cliente.findFirst.mockResolvedValue(clienteBase);
     prisma.cliente.update.mockResolvedValue(atualizado);
     prisma.clienteHistorico.create.mockResolvedValue({});
 
     await service.atualizar(
+      'empresa-1',
       'cliente-1',
       {
         nome: '  Cliente Novo  ',
@@ -449,31 +474,36 @@ describe('ClientesService', () => {
   });
 
   it('não deve registrar histórico quando a atualização não mudar valores', async () => {
-    prisma.cliente.findUnique.mockResolvedValue(clienteBase);
+    prisma.cliente.findFirst.mockResolvedValue(clienteBase);
     prisma.cliente.update.mockResolvedValue(clienteBase);
 
-    await service.atualizar('cliente-1', { nome: ' Cliente Antigo ' }, usuario);
+    await service.atualizar(
+      'empresa-1',
+      'cliente-1',
+      { nome: ' Cliente Antigo ' },
+      usuario,
+    );
 
     expect(prisma.clienteHistorico.create).not.toHaveBeenCalled();
   });
 
   it('deve retornar sem atualizar nem registrar histórico ao ativar cliente ativo', async () => {
-    prisma.cliente.findUnique.mockResolvedValue(clienteBase);
+    prisma.cliente.findFirst.mockResolvedValue(clienteBase);
 
-    await expect(service.ativar('cliente-1', usuario)).resolves.toEqual(
-      clienteBase,
-    );
+    await expect(
+      service.ativar('empresa-1', 'cliente-1', usuario),
+    ).resolves.toEqual(clienteBase);
     expect(prisma.cliente.update).not.toHaveBeenCalled();
     expect(prisma.clienteHistorico.create).not.toHaveBeenCalled();
   });
 
   it('deve ativar cliente inativo e registrar histórico', async () => {
     const inativo = { ...clienteBase, ativo: false };
-    prisma.cliente.findUnique.mockResolvedValue(inativo);
+    prisma.cliente.findFirst.mockResolvedValue(inativo);
     prisma.cliente.update.mockResolvedValue(clienteBase);
     prisma.clienteHistorico.create.mockResolvedValue({});
 
-    await service.ativar('cliente-1', usuario);
+    await service.ativar('empresa-1', 'cliente-1', usuario);
 
     expect(prisma.cliente.update).toHaveBeenCalledWith({
       where: { id: 'cliente-1' },
@@ -490,22 +520,22 @@ describe('ClientesService', () => {
 
   it('deve retornar sem atualizar nem registrar histórico ao desativar cliente inativo', async () => {
     const inativo = { ...clienteBase, ativo: false };
-    prisma.cliente.findUnique.mockResolvedValue(inativo);
+    prisma.cliente.findFirst.mockResolvedValue(inativo);
 
-    await expect(service.desativar('cliente-1', usuario)).resolves.toEqual(
-      inativo,
-    );
+    await expect(
+      service.desativar('empresa-1', 'cliente-1', usuario),
+    ).resolves.toEqual(inativo);
     expect(prisma.cliente.update).not.toHaveBeenCalled();
     expect(prisma.clienteHistorico.create).not.toHaveBeenCalled();
   });
 
   it('deve desativar cliente ativo e registrar histórico', async () => {
     const inativo = { ...clienteBase, ativo: false };
-    prisma.cliente.findUnique.mockResolvedValue(clienteBase);
+    prisma.cliente.findFirst.mockResolvedValue(clienteBase);
     prisma.cliente.update.mockResolvedValue(inativo);
     prisma.clienteHistorico.create.mockResolvedValue({});
 
-    await service.desativar('cliente-1', usuario);
+    await service.desativar('empresa-1', 'cliente-1', usuario);
 
     expect(prisma.cliente.update).toHaveBeenCalledWith({
       where: { id: 'cliente-1' },
@@ -521,10 +551,11 @@ describe('ClientesService', () => {
   });
 
   it('deve normalizar histórico manual e preservar usuário', async () => {
-    prisma.cliente.findUnique.mockResolvedValue(clienteBase);
+    prisma.cliente.findFirst.mockResolvedValue(clienteBase);
     prisma.clienteHistorico.create.mockResolvedValue({ id: 'historico-1' });
 
     await service.adicionarHistorico(
+      'empresa-1',
       'cliente-1',
       { descricao: '  Cliente contatado.  ' },
       usuario,
@@ -547,7 +578,7 @@ describe('ClientesService', () => {
   it('deve listar com tenant, paginação, filtro ativo e documento normalizado', async () => {
     prisma.$transaction.mockResolvedValue([[clienteBase], 1]);
 
-    const resultado = await service.listar(usuario, {
+    const resultado = await service.listar('empresa-1', {
       page: 2,
       limit: 5,
       search: '123.456.789-01',
@@ -574,41 +605,24 @@ describe('ClientesService', () => {
     expect(resultado).toMatchObject({ data: [clienteBase] });
   });
 
-  it('deve permitir consulta global para SUPER_ADMIN sem filtro de empresa', async () => {
-    prisma.$transaction.mockResolvedValue([[], 0]);
-
-    await service.listar(superAdmin, { page: 1, limit: 10 });
-
-    expect(prisma.cliente.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: {} }),
-    );
-  });
-
   it('deve lançar NotFoundException quando cliente não existir', async () => {
-    prisma.cliente.findUnique.mockResolvedValue(null);
+    prisma.cliente.findFirst.mockResolvedValue(null);
 
     await expect(
-      service.buscarPorId('inexistente', usuario),
+      service.buscarPorId('empresa-1', 'inexistente'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
-
-  it('deve impedir acesso a cliente de outra empresa', async () => {
-    prisma.cliente.findUnique.mockResolvedValue({
-      ...clienteBase,
-      empresaId: 'empresa-2',
-    });
+  it('busca detalhe somente por id e empresa e não expõe outro tenant', async () => {
+    prisma.cliente.findFirst.mockResolvedValue(null);
 
     await expect(
-      service.buscarPorId('cliente-1', usuario),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
+      service.buscarPorId('empresa-1', 'cliente-outra-empresa'),
+    ).rejects.toBeInstanceOf(NotFoundException);
 
-  it('deve permitir que SUPER_ADMIN consulte cliente de qualquer empresa', async () => {
-    const clienteOutraEmpresa = { ...clienteBase, empresaId: 'empresa-2' };
-    prisma.cliente.findUnique.mockResolvedValue(clienteOutraEmpresa);
-
-    await expect(service.buscarPorId('cliente-1', superAdmin)).resolves.toEqual(
-      clienteOutraEmpresa,
+    expect(prisma.cliente.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'cliente-outra-empresa', empresaId: 'empresa-1' },
+      }),
     );
   });
 });

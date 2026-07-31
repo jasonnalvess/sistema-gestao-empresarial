@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { Button } from "@/components/ui/button";
 import { LogOut, Menu } from "lucide-react";
 
@@ -11,6 +12,13 @@ interface HeaderProps {
 
 export function Header({ menuAberto, aoAbrirMenu }: HeaderProps) {
   const { usuario, logout } = useAuth();
+  const {
+    empresas,
+    empresaSelecionadaId,
+    selecionarEmpresa,
+    limparEmpresa,
+    carregando: carregandoEmpresas,
+  } = useEmpresaSelecionada();
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-white px-6">
@@ -36,6 +44,29 @@ export function Header({ menuAberto, aoAbrirMenu }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
+        {usuario?.tipo === "SUPER_ADMIN" && (
+          <label className="hidden items-center gap-2 text-sm md:flex">
+            <span className="text-slate-600">Empresa</span>
+            <select
+              aria-label="Empresa selecionada"
+              value={empresaSelecionadaId ?? ""}
+              disabled={carregandoEmpresas}
+              onChange={(event) =>
+                event.target.value
+                  ? selecionarEmpresa(event.target.value)
+                  : limparEmpresa()
+              }
+              className="max-w-56 rounded-md border border-slate-300 bg-white px-2 py-1.5"
+            >
+              <option value="">Selecione...</option>
+              {empresas.map((empresa) => (
+                <option key={empresa.id} value={empresa.id}>
+                  {empresa.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="hidden text-right sm:block">
           <p className="text-sm font-medium text-slate-900">
             {usuario?.nome ?? "Usuário"}

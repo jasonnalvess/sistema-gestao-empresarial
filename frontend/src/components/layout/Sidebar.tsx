@@ -5,7 +5,10 @@ import { usePathname } from "next/navigation";
 import { menu } from "@/lib/menu";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
-import { possuiPermissao } from "@/lib/auth";
+import {
+  PERMISSAO_CLIENTES_VISUALIZAR,
+  possuiPermissao,
+} from "@/lib/auth";
 import { X } from "lucide-react";
 
 interface SidebarProps {
@@ -15,11 +18,15 @@ interface SidebarProps {
 
 export function Sidebar({ aberto, aoFechar }: SidebarProps) {
   const pathname = usePathname();
-  const { usuario } = useAuth();
+  const { usuario, temPermissao } = useAuth();
 
-  const menuPermitido = menu.filter((item) =>
-    usuario ? possuiPermissao(usuario.tipo, item.href) : false
-  );
+  const menuPermitido = menu.filter((item) => {
+    if (item.href === "/clientes") {
+      return temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
+    }
+
+    return usuario ? possuiPermissao(usuario.tipo, item.href) : false;
+  });
 
   return (
     <>

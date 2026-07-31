@@ -1,12 +1,10 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
-import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
 import { PrismaService } from '../prisma/prisma.service';
@@ -144,8 +142,11 @@ export class ClientesService {
     });
   }
 
-  async criar(dados: CriarClienteDto, usuarioLogado: AuthenticatedUser) {
-    const empresaId = obterEmpresaId(usuarioLogado);
+  async criar(
+    empresaId: string,
+    dados: CriarClienteDto,
+    usuarioLogado: AuthenticatedUser,
+  ) {
     const cliente = await this.prisma.cliente
       .create({
         data: {
@@ -175,14 +176,11 @@ export class ClientesService {
     return cliente;
   }
 
-  async listar(usuarioLogado: AuthenticatedUser, paginacao: FiltroClientesDto) {
+  async listar(empresaId: string, paginacao: FiltroClientesDto) {
     const page = paginacao.page ?? 1;
     const limit = paginacao.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
-    const where: Prisma.ClienteWhereInput =
-      usuarioLogado.tipo === 'SUPER_ADMIN'
-        ? {}
-        : { empresaId: obterEmpresaId(usuarioLogado) };
+    const where: Prisma.ClienteWhereInput = { empresaId };
 
     if (paginacao.search) {
       where.OR = [
@@ -212,30 +210,25 @@ export class ClientesService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
-    const cliente = await this.prisma.cliente.findUnique({
-      where: { id },
+  async buscarPorId(empresaId: string, id: string) {
+    const cliente = await this.prisma.cliente.findFirst({
+      where: { id, empresaId },
       include: {
         agendaEventos: { orderBy: { dataInicio: 'desc' }, take: 10 },
         ordensServico: { orderBy: { createdAt: 'desc' }, take: 10 },
       },
     });
     if (!cliente) throw new NotFoundException('Cliente não encontrado');
-    if (
-      usuarioLogado.tipo !== 'SUPER_ADMIN' &&
-      cliente.empresaId !== obterEmpresaId(usuarioLogado)
-    ) {
-      throw new ForbiddenException('Acesso negado a cliente de outra empresa');
-    }
     return cliente;
   }
 
   async atualizar(
+    empresaId: string,
     id: string,
     dados: AtualizarClienteDto,
     usuarioLogado: AuthenticatedUser,
   ) {
-    const clienteAnterior = await this.buscarPorId(id, usuarioLogado);
+    const clienteAnterior = await this.buscarPorId(empresaId, id);
     const clienteAtualizado = await this.prisma.cliente
       .update({
         where: { id },
@@ -264,8 +257,12 @@ export class ClientesService {
     return clienteAtualizado;
   }
 
-  async ativar(id: string, usuarioLogado: AuthenticatedUser) {
-    const cliente = await this.buscarPorId(id, usuarioLogado);
+  async ativar(
+    empresaId: string,
+    id: string,
+    usuarioLogado: AuthenticatedUser,
+  ) {
+    const cliente = await this.buscarPorId(empresaId, id);
     if (cliente.ativo) return cliente;
     const atualizado = await this.prisma.cliente.update({
       where: { id },
@@ -275,8 +272,12 @@ export class ClientesService {
     return atualizado;
   }
 
-  async desativar(id: string, usuarioLogado: AuthenticatedUser) {
-    const cliente = await this.buscarPorId(id, usuarioLogado);
+  async desativar(
+    empresaId: string,
+    id: string,
+    usuarioLogado: AuthenticatedUser,
+  ) {
+    const cliente = await this.buscarPorId(empresaId, id);
     if (!cliente.ativo) return cliente;
     const atualizado = await this.prisma.cliente.update({
       where: { id },
@@ -287,11 +288,12 @@ export class ClientesService {
   }
 
   async adicionarHistorico(
+    empresaId: string,
     clienteId: string,
     dados: CriarClienteHistoricoDto,
     usuarioLogado: AuthenticatedUser,
   ) {
-    await this.buscarPorId(clienteId, usuarioLogado);
+    await this.buscarPorId(empresaId, clienteId);
     return this.prisma.clienteHistorico.create({
       data: {
         clienteId,
@@ -302,8 +304,8 @@ export class ClientesService {
     });
   }
 
-  async listarHistorico(clienteId: string, usuarioLogado: AuthenticatedUser) {
-    await this.buscarPorId(clienteId, usuarioLogado);
+  async listarHistorico(empresaId: string, clienteId: string) {
+    await this.buscarPorId(empresaId, clienteId);
     return this.prisma.clienteHistorico.findMany({
       where: { clienteId },
       include: { usuario: { select: this.usuarioSelect } },
