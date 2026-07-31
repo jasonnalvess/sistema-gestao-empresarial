@@ -1,9 +1,10 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 import { calcularPaginacao } from '../common/utils/paginacao';
@@ -27,6 +28,29 @@ export class ClientesService {
 
   private limparDocumento(documento: string) {
     return documento.replace(/\D/g, '');
+  }
+
+  private tratarErroPrisma(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.map(String)
+        : [];
+
+      if (
+        target.length === 2 &&
+        target.includes('empresaId') &&
+        target.includes('documento')
+      ) {
+        throw new ConflictException(
+          'Já existe um cliente com este CPF/CNPJ nesta empresa.',
+        );
+      }
+    }
+
+    throw error;
   }
 
   private valorComparavel(
@@ -122,24 +146,26 @@ export class ClientesService {
 
   async criar(dados: CriarClienteDto, usuarioLogado: AuthenticatedUser) {
     const empresaId = obterEmpresaId(usuarioLogado);
-    const cliente = await this.prisma.cliente.create({
-      data: {
-        nome: dados.nome.trim(),
-        tipo: (dados.tipo ?? 'PF').trim().toUpperCase(),
-        documento: dados.documento
-          ? this.limparDocumento(dados.documento)
-          : undefined,
-        email: dados.email?.trim().toLowerCase(),
-        telefone: dados.telefone?.trim(),
-        celular: dados.celular?.trim(),
-        endereco: dados.endereco?.trim(),
-        cidade: dados.cidade?.trim(),
-        estado: dados.estado?.trim().toUpperCase(),
-        cep: dados.cep ? dados.cep.replace(/\D/g, '') : undefined,
-        observacao: dados.observacao?.trim(),
-        empresaId,
-      },
-    });
+    const cliente = await this.prisma.cliente
+      .create({
+        data: {
+          nome: dados.nome.trim(),
+          tipo: (dados.tipo ?? 'PF').trim().toUpperCase(),
+          documento: dados.documento
+            ? this.limparDocumento(dados.documento)
+            : undefined,
+          email: dados.email?.trim().toLowerCase(),
+          telefone: dados.telefone?.trim(),
+          celular: dados.celular?.trim(),
+          endereco: dados.endereco?.trim(),
+          cidade: dados.cidade?.trim(),
+          estado: dados.estado?.trim().toUpperCase(),
+          cep: dados.cep ? dados.cep.replace(/\D/g, '') : undefined,
+          observacao: dados.observacao?.trim(),
+          empresaId,
+        },
+      })
+      .catch((error: unknown) => this.tratarErroPrisma(error));
 
     await this.registrarHistorico(
       cliente.id,
@@ -210,24 +236,26 @@ export class ClientesService {
     usuarioLogado: AuthenticatedUser,
   ) {
     const clienteAnterior = await this.buscarPorId(id, usuarioLogado);
-    const clienteAtualizado = await this.prisma.cliente.update({
-      where: { id },
-      data: {
-        nome: dados.nome?.trim(),
-        tipo: dados.tipo?.trim().toUpperCase(),
-        documento: dados.documento
-          ? this.limparDocumento(dados.documento)
-          : undefined,
-        email: dados.email?.trim().toLowerCase(),
-        telefone: dados.telefone?.trim(),
-        celular: dados.celular?.trim(),
-        endereco: dados.endereco?.trim(),
-        cidade: dados.cidade?.trim(),
-        estado: dados.estado?.trim().toUpperCase(),
-        cep: dados.cep ? dados.cep.replace(/\D/g, '') : undefined,
-        observacao: dados.observacao?.trim(),
-      },
-    });
+    const clienteAtualizado = await this.prisma.cliente
+      .update({
+        where: { id },
+        data: {
+          nome: dados.nome?.trim(),
+          tipo: dados.tipo?.trim().toUpperCase(),
+          documento: dados.documento
+            ? this.limparDocumento(dados.documento)
+            : undefined,
+          email: dados.email?.trim().toLowerCase(),
+          telefone: dados.telefone?.trim(),
+          celular: dados.celular?.trim(),
+          endereco: dados.endereco?.trim(),
+          cidade: dados.cidade?.trim(),
+          estado: dados.estado?.trim().toUpperCase(),
+          cep: dados.cep ? dados.cep.replace(/\D/g, '') : undefined,
+          observacao: dados.observacao?.trim(),
+        },
+      })
+      .catch((error: unknown) => this.tratarErroPrisma(error));
     const descricao = this.montarDescricaoAlteracoes(
       clienteAnterior,
       clienteAtualizado,

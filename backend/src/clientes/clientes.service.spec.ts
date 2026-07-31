@@ -1,5 +1,10 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Prisma } from '@prisma/client';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClientesService } from './clientes.service';
@@ -157,6 +162,241 @@ describe('ClientesService', () => {
         empresaId: 'empresa-1',
       },
     });
+  });
+
+  it('deve rejeitar criação duplicada na mesma empresa com mensagem amigável', async () => {
+    const erro = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { target: ['empresaId', 'documento'] },
+      },
+    );
+    prisma.cliente.create.mockRejectedValue(erro);
+
+    await expect(
+      service.criar(
+        { nome: 'Duplicado', documento: '123.456.789-01' },
+        usuario,
+      ),
+    ).rejects.toThrow(
+      new ConflictException(
+        'Já existe um cliente com este CPF/CNPJ nesta empresa.',
+      ),
+    );
+
+    expect(prisma.cliente.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        documento: '12345678901',
+        empresaId: 'empresa-1',
+      }) as unknown,
+    });
+    expect(prisma.clienteHistorico.create).not.toHaveBeenCalled();
+  });
+
+  it('deve permitir o mesmo documento em empresas diferentes', async () => {
+    const usuarioOutraEmpresa: AuthenticatedUser = {
+      ...usuario,
+      id: 'usuario-2',
+      email: 'usuario@outra-empresa.com',
+      empresaId: 'empresa-2',
+    };
+    const clienteEmpresaUm = { ...clienteBase, empresaId: 'empresa-1' };
+    const clienteEmpresaDois = {
+      ...clienteBase,
+      id: 'cliente-2',
+      empresaId: 'empresa-2',
+    };
+    prisma.cliente.create
+      .mockResolvedValueOnce(clienteEmpresaUm)
+      .mockResolvedValueOnce(clienteEmpresaDois);
+    prisma.clienteHistorico.create.mockResolvedValue({});
+
+    await service.criar(
+      { nome: 'Cliente Empresa 1', documento: '123.456.789-01' },
+      usuario,
+    );
+    await service.criar(
+      { nome: 'Cliente Empresa 2', documento: '123.456.789-01' },
+      usuarioOutraEmpresa,
+    );
+
+    expect(prisma.cliente.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          documento: '12345678901',
+          empresaId: 'empresa-1',
+        }) as unknown,
+      }),
+    );
+    expect(prisma.cliente.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          documento: '12345678901',
+          empresaId: 'empresa-2',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('deve permitir criação de clientes com documento não informado', async () => {
+    const criadoSemDocumento = { ...clienteBase, documento: null };
+    prisma.cliente.create.mockResolvedValue(criadoSemDocumento);
+    prisma.clienteHistorico.create.mockResolvedValue({});
+
+    await expect(
+      service.criar({ nome: 'Sem documento', documento: undefined }, usuario),
+    ).resolves.toEqual(criadoSemDocumento);
+
+    expect(prisma.cliente.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ documento: undefined }) as unknown,
+    });
+  });
+
+  it('não deve converter P2002 não relacionado ao documento', async () => {
+    const erro = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { target: ['email'] },
+      },
+    );
+    prisma.cliente.create.mockRejectedValue(erro);
+
+    await expect(
+      service.criar({ nome: 'Cliente', documento: '12345678901' }, usuario),
+    ).rejects.toBe(erro);
+  });
+
+  it('deve reconhecer a constraint composta mesmo com target em ordem diferente', async () => {
+    const erro = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { target: ['documento', 'empresaId'] },
+      },
+    );
+    prisma.cliente.create.mockRejectedValue(erro);
+
+    await expect(
+      service.criar({ nome: 'Cliente', documento: '12345678901' }, usuario),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it.each([
+    {
+      descricao: 'meta ausente',
+      erro: new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        { code: 'P2002', clientVersion: '6.19.3' },
+      ),
+    },
+    {
+      descricao: 'target ausente',
+      erro: new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        {
+          code: 'P2002',
+          clientVersion: '6.19.3',
+          meta: {},
+        },
+      ),
+    },
+    {
+      descricao: 'target como nome da constraint',
+      erro: new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        {
+          code: 'P2002',
+          clientVersion: '6.19.3',
+          meta: { target: 'Cliente_empresaId_documento_key' },
+        },
+      ),
+    },
+    {
+      descricao: 'target com campo adicional',
+      erro: new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        {
+          code: 'P2002',
+          clientVersion: '6.19.3',
+          meta: { target: ['empresaId', 'documento', 'outro'] },
+        },
+      ),
+    },
+    {
+      descricao: 'código Prisma diferente de P2002',
+      erro: new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: '6.19.3',
+      }),
+    },
+    { descricao: 'erro não Prisma', erro: new Error('Erro original') },
+  ])('deve relançar o erro original quando $descricao', async ({ erro }) => {
+    prisma.cliente.create.mockRejectedValue(erro);
+
+    await expect(
+      service.criar({ nome: 'Cliente', documento: '12345678901' }, usuario),
+    ).rejects.toBe(erro);
+  });
+
+  it('não deve tratar erro do histórico como conflito de criação do cliente', async () => {
+    const erroHistorico = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { target: ['empresaId', 'documento'] },
+      },
+    );
+    prisma.cliente.create.mockResolvedValue(clienteBase);
+    prisma.clienteHistorico.create.mockRejectedValue(erroHistorico);
+
+    await expect(
+      service.criar({ nome: 'Cliente', documento: '12345678901' }, usuario),
+    ).rejects.toBe(erroHistorico);
+  });
+
+  it('deve rejeitar atualização para documento usado por outro cliente da empresa', async () => {
+    const erro = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { target: ['empresaId', 'documento'] },
+      },
+    );
+    prisma.cliente.findUnique.mockResolvedValue(clienteBase);
+    prisma.cliente.update.mockRejectedValue(erro);
+
+    await expect(
+      service.atualizar('cliente-1', { documento: '987.654.321-00' }, usuario),
+    ).rejects.toThrow('Já existe um cliente com este CPF/CNPJ nesta empresa.');
+
+    expect(prisma.cliente.update).toHaveBeenCalledWith({
+      where: { id: 'cliente-1' },
+      data: expect.objectContaining({ documento: '98765432100' }) as unknown,
+    });
+  });
+
+  it('deve permitir atualização mantendo o próprio documento', async () => {
+    prisma.cliente.findUnique.mockResolvedValue(clienteBase);
+    prisma.cliente.update.mockResolvedValue(clienteBase);
+
+    await expect(
+      service.atualizar('cliente-1', { documento: '123.456.789-01' }, usuario),
+    ).resolves.toEqual(clienteBase);
+
+    expect(prisma.cliente.update).toHaveBeenCalledWith({
+      where: { id: 'cliente-1' },
+      data: expect.objectContaining({ documento: '12345678901' }) as unknown,
+    });
+    expect(prisma.clienteHistorico.create).not.toHaveBeenCalled();
   });
 
   it('deve normalizar atualização e registrar somente alterações efetivas detalhadas', async () => {
