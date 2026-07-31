@@ -7,7 +7,11 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
-import { PERMISSAO_CLIENTES_VISUALIZAR } from "@/lib/auth";
+import {
+  PERMISSAO_CLIENTES_CRIAR,
+  PERMISSAO_CLIENTES_EDITAR,
+  PERMISSAO_CLIENTES_VISUALIZAR,
+} from "@/lib/auth";
 
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
@@ -39,6 +43,8 @@ export default function ClientesPage() {
   const podeVisualizarClientes = temPermissao(
     PERMISSAO_CLIENTES_VISUALIZAR
   );
+  const podeCriarCliente = temPermissao(PERMISSAO_CLIENTES_CRIAR);
+  const podeEditarCliente = temPermissao(PERMISSAO_CLIENTES_EDITAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [tipoFiltro, setTipoFiltro] = useState("");
@@ -80,7 +86,7 @@ export default function ClientesPage() {
         <PageHeader
           title="Clientes"
           description="Gerencie clientes, contatos e informações comerciais."
-          actions={<NovoClienteModal />}
+          actions={podeCriarCliente ? <NovoClienteModal /> : undefined}
         />
 
         <ClientesSummaryCards clientes={clientes} />
@@ -186,8 +192,12 @@ export default function ClientesPage() {
                           <div className="flex justify-end gap-2">
                             <DetailsButton href={`/clientes/${cliente.id}`} />
                             <NewAtendimentoButton clienteId={cliente.id} />
-                            <EditarClienteModal cliente={cliente} />
-                            <AlterarStatusClienteButton cliente={cliente} />
+                            {podeEditarCliente && (
+                              <>
+                                <EditarClienteModal cliente={cliente} />
+                                <AlterarStatusClienteButton cliente={cliente} />
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

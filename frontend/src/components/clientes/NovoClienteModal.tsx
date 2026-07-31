@@ -10,10 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { PERMISSAO_CLIENTES_CRIAR } from "@/lib/auth";
 import { criarCliente } from "@/services/clientes.service";
 
 export function NovoClienteModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const podeCriarCliente = temPermissao(PERMISSAO_CLIENTES_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -31,6 +35,11 @@ export function NovoClienteModal() {
   const [observacao, setObservacao] = useState("");
 
   async function salvar() {
+    if (!podeCriarCliente) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+
     try {
       setSalvando(true);
 
@@ -71,6 +80,10 @@ export function NovoClienteModal() {
     } finally {
       setSalvando(false);
     }
+  }
+
+  if (!podeCriarCliente) {
+    return null;
   }
 
   return (
