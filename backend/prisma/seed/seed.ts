@@ -247,6 +247,26 @@ async function main() {
       modulo: 'clientes',
     },
 
+    // Fornecedores
+    {
+      nome: 'Visualizar fornecedores',
+      chave: 'fornecedores.visualizar',
+      descricao: 'Permite consultar fornecedores',
+      modulo: 'fornecedores',
+    },
+    {
+      nome: 'Criar fornecedores',
+      chave: 'fornecedores.criar',
+      descricao: 'Permite cadastrar fornecedores',
+      modulo: 'fornecedores',
+    },
+    {
+      nome: 'Editar fornecedores',
+      chave: 'fornecedores.editar',
+      descricao: 'Permite alterar fornecedores',
+      modulo: 'fornecedores',
+    },
+
     // Agenda
     {
       nome: 'Visualizar agenda',
@@ -532,6 +552,7 @@ async function main() {
       'usuarios',
       'perfis',
       'clientes',
+      'fornecedores',
       'agenda',
       'funcionarios',
       'estoque',
@@ -547,7 +568,7 @@ async function main() {
   });
 
   const permissoesSupervisor = selecionarPermissoes({
-    modulos: ['clientes', 'agenda', 'estoque', 'caixa'],
+    modulos: ['clientes', 'fornecedores', 'agenda', 'estoque', 'caixa'],
     chavesAdicionais: ['funcionarios.visualizar'],
     chavesExcluidas: [
       'clientes.excluir',
@@ -567,6 +588,7 @@ async function main() {
   const permissoesColaborador = selecionarPermissoes({
     chavesAdicionais: [
       'clientes.visualizar',
+      'fornecedores.visualizar',
       'agenda.visualizar',
       'agenda.criar',
       'agenda.editar',
