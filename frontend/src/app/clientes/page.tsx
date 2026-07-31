@@ -7,6 +7,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import {
   PERMISSAO_CLIENTES_CRIAR,
   PERMISSAO_CLIENTES_EDITAR,
@@ -40,9 +42,10 @@ import { ClientesSummaryCards } from "@/components/clientes/ClientesSummaryCards
 
 export default function ClientesPage() {
   const { temPermissao } = useAuth();
-  const podeVisualizarClientes = temPermissao(
-    PERMISSAO_CLIENTES_VISUALIZAR
-  );
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarClientes = temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
   const podeCriarCliente = temPermissao(PERMISSAO_CLIENTES_CRIAR);
   const podeEditarCliente = temPermissao(PERMISSAO_CLIENTES_EDITAR);
   const [search, setSearch] = useState("");
@@ -52,7 +55,14 @@ export default function ClientesPage() {
   const [page, setPage] = useState(1);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["clientes", searchAplicado, tipoFiltro, ativoFiltro, page],
+    queryKey: [
+      "clientes",
+      empresaEfetivaId,
+      searchAplicado,
+      tipoFiltro,
+      ativoFiltro,
+      page,
+    ],
     queryFn: () =>
       listarClientes({
         search: searchAplicado,
@@ -61,7 +71,7 @@ export default function ClientesPage() {
         page,
         limit: 10,
       }),
-    enabled: podeVisualizarClientes,
+    enabled: podeVisualizarClientes && possuiEmpresaEfetiva && !carregando,
   });
 
   function pesquisar() {
@@ -79,6 +89,20 @@ export default function ClientesPage() {
       </AppLayout>
     );
   }
+
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+
+  if (!possuiEmpresaEfetiva)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
 
   return (
     <AppLayout>
@@ -119,7 +143,9 @@ export default function ClientesPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Status</label>
+              <label className="text-sm font-medium text-slate-700">
+                Status
+              </label>
               <select
                 value={ativoFiltro}
                 onChange={(e) => {

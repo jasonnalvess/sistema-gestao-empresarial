@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { PERMISSAO_CLIENTES_EDITAR } from "@/lib/auth";
 import {
   adicionarClienteHistorico,
@@ -22,14 +23,16 @@ type Props = {
 export function ClienteHistoricoCard({ clienteId }: Props) {
   const queryClient = useQueryClient();
   const { temPermissao } = useAuth();
+  const { empresaEfetivaId } = useEmpresaSelecionada();
   const podeEditarCliente = temPermissao(PERMISSAO_CLIENTES_EDITAR);
 
   const [descricao, setDescricao] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   const { data: historicos = [], isLoading } = useQuery({
-    queryKey: ["cliente-historico", clienteId],
+    queryKey: ["cliente-historico", empresaEfetivaId, clienteId],
     queryFn: () => listarClienteHistorico(clienteId),
+    enabled: Boolean(empresaEfetivaId),
   });
 
   async function salvarHistorico() {
@@ -47,11 +50,11 @@ export function ClienteHistoricoCard({ clienteId }: Props) {
       setDescricao("");
 
       queryClient.invalidateQueries({
-        queryKey: ["cliente-historico", clienteId],
+        queryKey: ["cliente-historico", empresaEfetivaId, clienteId],
       });
     } catch (error: any) {
       toast.error(
-        error.response?.data?.message || "Erro ao adicionar histórico"
+        error.response?.data?.message || "Erro ao adicionar histórico",
       );
     } finally {
       setSalvando(false);
@@ -98,9 +101,7 @@ export function ClienteHistoricoCard({ clienteId }: Props) {
                 key={historico.id}
                 className="rounded-lg border border-slate-200 bg-slate-50 p-3"
               >
-                <p className="text-sm text-slate-700">
-                  {historico.descricao}
-                </p>
+                <p className="text-sm text-slate-700">{historico.descricao}</p>
 
                 <p className="mt-2 text-xs text-slate-500">
                   {historico.usuario?.nome || "Usuário"} •{" "}

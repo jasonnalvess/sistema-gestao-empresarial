@@ -1,8 +1,22 @@
 import axios from "axios";
+import { normalizarUsuario } from "@/lib/auth";
+import { EMPRESA_ID_HEADER } from "@/lib/empresa-contexto";
 
 const EVENTO_SESSAO_EXPIRADA = "auth:sessao-expirada";
 
 let tratandoSessaoExpirada = false;
+let empresaOperacional: { usuarioId: string; empresaId: string } | null = null;
+
+export function definirEmpresaOperacional(
+  usuarioId: string,
+  empresaId: string,
+) {
+  empresaOperacional = { usuarioId, empresaId };
+}
+
+export function limparEmpresaOperacional() {
+  empresaOperacional = null;
+}
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -14,6 +28,23 @@ api.interceptors.request.use((config) => {
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    delete config.headers[EMPRESA_ID_HEADER];
+
+    const usuarioSalvo = localStorage.getItem("usuario");
+    if (usuarioSalvo) {
+      try {
+        const usuario = normalizarUsuario(JSON.parse(usuarioSalvo));
+        if (
+          usuario.tipo === "SUPER_ADMIN" &&
+          empresaOperacional?.usuarioId === usuario.id
+        ) {
+          config.headers[EMPRESA_ID_HEADER] = empresaOperacional.empresaId;
+        }
+      } catch {
+        limparEmpresaOperacional();
+      }
     }
   }
 
@@ -45,6 +76,7 @@ api.interceptors.response.use(
 
       localStorage.removeItem("token");
       localStorage.removeItem("usuario");
+      limparEmpresaOperacional();
 
       window.dispatchEvent(new Event(EVENTO_SESSAO_EXPIRADA));
 
@@ -54,7 +86,7 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export { EVENTO_SESSAO_EXPIRADA };

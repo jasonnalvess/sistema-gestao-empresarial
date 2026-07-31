@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { PERMISSAO_CLIENTES_EDITAR } from "@/lib/auth";
 import { Cliente, atualizarCliente } from "@/services/clientes.service";
 
@@ -21,6 +22,7 @@ type Props = {
 export function EditarClienteModal({ cliente }: Props) {
   const queryClient = useQueryClient();
   const { temPermissao } = useAuth();
+  const { empresaEfetivaId } = useEmpresaSelecionada();
   const podeEditarCliente = temPermissao(PERMISSAO_CLIENTES_EDITAR);
 
   const [aberto, setAberto] = useState(false);
@@ -64,8 +66,9 @@ export function EditarClienteModal({ cliente }: Props) {
       toast.success("Cliente atualizado com sucesso!");
       setAberto(false);
 
+      queryClient.invalidateQueries({ queryKey: ["clientes"] });
       queryClient.invalidateQueries({
-        queryKey: ["clientes"],
+        queryKey: ["cliente", empresaEfetivaId, cliente.id],
       });
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Erro ao atualizar cliente");
