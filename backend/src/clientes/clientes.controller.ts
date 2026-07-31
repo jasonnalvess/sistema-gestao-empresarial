@@ -9,8 +9,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Permissoes } from '../auth/decorators/permissions.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { ClientesService } from './clientes.service';
@@ -20,12 +22,13 @@ import { CriarClienteDto } from './dto/criar-cliente.dto';
 import { FiltroClientesDto } from './dto/filtro-clientes.dto';
 
 @Controller('clientes')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 export class ClientesController {
   constructor(private readonly clientesService: ClientesService) {}
 
   @Post()
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('clientes.criar')
   criar(
     @Body() body: CriarClienteDto,
     @CurrentUser() usuario: AuthenticatedUser,
@@ -35,6 +38,7 @@ export class ClientesController {
 
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('clientes.visualizar')
   listar(
     @CurrentUser() usuario: AuthenticatedUser,
     @Query() paginacao: FiltroClientesDto,
@@ -44,6 +48,7 @@ export class ClientesController {
 
   @Post(':id/historico')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('clientes.editar')
   adicionarHistorico(
     @Param('id') id: string,
     @Body() body: CriarClienteHistoricoDto,
@@ -54,6 +59,7 @@ export class ClientesController {
 
   @Get(':id/historico')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('clientes.visualizar')
   listarHistorico(
     @Param('id') id: string,
     @CurrentUser() usuario: AuthenticatedUser,
@@ -63,6 +69,7 @@ export class ClientesController {
 
   @Get(':id')
   @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('clientes.visualizar')
   buscarPorId(
     @Param('id') id: string,
     @CurrentUser() usuario: AuthenticatedUser,
@@ -72,6 +79,7 @@ export class ClientesController {
 
   @Patch(':id')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('clientes.editar')
   atualizar(
     @Param('id') id: string,
     @Body() body: AtualizarClienteDto,
@@ -82,12 +90,14 @@ export class ClientesController {
 
   @Patch(':id/ativar')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('clientes.editar')
   ativar(@Param('id') id: string, @CurrentUser() usuario: AuthenticatedUser) {
     return this.clientesService.ativar(id, usuario);
   }
 
   @Patch(':id/desativar')
   @Roles('ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('clientes.editar')
   desativar(
     @Param('id') id: string,
     @CurrentUser() usuario: AuthenticatedUser,
