@@ -10,23 +10,25 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 
+import {
+  normalizarUsuario,
+  temPermissao as verificarPermissao,
+  Usuario,
+  UsuarioComPermissoesOpcionais,
+} from "@/lib/auth";
 import { EVENTO_SESSAO_EXPIRADA } from "@/services/api";
-
-type Usuario = {
-  id: string;
-  nome: string;
-  email: string;
-  tipo: string;
-  empresaId: string | null;
-};
 
 type AuthContextData = {
   usuario: Usuario | null;
   token: string | null;
   autenticado: boolean;
   carregando: boolean;
-  login: (token: string, usuario: Usuario) => void;
+  login: (
+    token: string,
+    usuario: UsuarioComPermissoesOpcionais
+  ) => void;
   logout: () => void;
+  temPermissao: (permissao: string) => boolean;
 };
 
 const AuthContext = createContext<AuthContextData | undefined>(undefined);
@@ -52,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const usuarioSalvo = localStorage.getItem("usuario");
 
       if (tokenSalvo && usuarioSalvo) {
-        const usuarioConvertido = JSON.parse(usuarioSalvo) as Usuario;
+        const usuarioConvertido = normalizarUsuario(JSON.parse(usuarioSalvo));
 
         setToken(tokenSalvo);
         setUsuario(usuarioConvertido);
@@ -99,12 +101,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [limparSessao, router]);
 
-  function login(novoToken: string, novoUsuario: Usuario) {
+  function login(
+    novoToken: string,
+    novoUsuario: UsuarioComPermissoesOpcionais
+  ) {
+    const usuarioNormalizado = normalizarUsuario(novoUsuario);
+
     localStorage.setItem("token", novoToken);
-    localStorage.setItem("usuario", JSON.stringify(novoUsuario));
+    localStorage.setItem("usuario", JSON.stringify(usuarioNormalizado));
 
     setToken(novoToken);
-    setUsuario(novoUsuario);
+    setUsuario(usuarioNormalizado);
 
     router.replace("/dashboard");
   }
@@ -123,6 +130,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         carregando,
         login,
         logout,
+        temPermissao: (permissao) =>
+          verificarPermissao(usuario, permissao),
       }}
     >
       {children}

@@ -6,18 +6,13 @@ import axios from "axios";
 import { Eye, EyeOff } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { Usuario } from "@/lib/auth";
 import { api } from "@/services/api";
 
 type LoginResponse = {
   data: {
     access_token: string;
-    usuario: {
-      id: string;
-      nome: string;
-      email: string;
-      tipo: string;
-      empresaId: string | null;
-    };
+    usuario: Usuario;
   };
 };
 
