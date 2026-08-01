@@ -1,4 +1,4 @@
-import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { GUARDS_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { FormaRecebimento } from '@prisma/client';
 
 import { PERMISSIONS_KEY } from '../auth/decorators/permissions.decorator';
@@ -32,6 +32,7 @@ describe('ContasReceberController', () => {
       cancelar: jest.fn(),
       gerarAPartirOrdemServico: jest.fn(),
       listar: jest.fn(),
+      obterResumo: jest.fn(),
       buscarPorId: jest.fn(),
       adicionarHistorico: jest.fn(),
       listarHistorico: jest.fn(),
@@ -62,11 +63,16 @@ describe('ContasReceberController', () => {
       valorOriginal: 100,
     };
     const filtros = { page: 1 };
+    const filtrosResumo = {
+      vencimentoInicio: '2026-08-01',
+      vencimentoFim: '2026-08-31',
+    };
     const historico = { descricao: 'Observação' };
 
     await Promise.all([
       controller.criar(empresa, criacao, usuario),
       controller.listar(empresa, filtros),
+      controller.obterResumo(empresa, filtrosResumo),
       controller.buscarPorId(empresa, 'conta-1'),
       controller.atualizar(empresa, 'conta-1', atualizacao, usuario),
       controller.registrarRecebimento(empresa, 'conta-1', recebimento, usuario),
@@ -78,6 +84,10 @@ describe('ContasReceberController', () => {
 
     expect(service.criar).toHaveBeenCalledWith('empresa-1', criacao, usuario);
     expect(service.listar).toHaveBeenCalledWith('empresa-1', filtros);
+    expect(service.obterResumo).toHaveBeenCalledWith(
+      'empresa-1',
+      filtrosResumo,
+    );
     expect(service.buscarPorId).toHaveBeenCalledWith('empresa-1', 'conta-1');
     expect(service.atualizar).toHaveBeenCalledWith(
       'empresa-1',
@@ -114,6 +124,20 @@ describe('ContasReceberController', () => {
     );
   });
 
+  it('declara resumo como rota estática distinta de :id', () => {
+    const resumo = Object.getOwnPropertyDescriptor(
+      ContasReceberController.prototype,
+      'obterResumo',
+    )?.value as unknown as object;
+    const detalhe = Object.getOwnPropertyDescriptor(
+      ContasReceberController.prototype,
+      'buscarPorId',
+    )?.value as unknown as object;
+
+    expect(Reflect.getMetadata(PATH_METADATA, resumo)).toBe('resumo');
+    expect(Reflect.getMetadata(PATH_METADATA, detalhe)).toBe(':id');
+  });
+
   it('declara os guards na ordem JWT, papéis, permissões e empresa', () => {
     expect(
       Reflect.getMetadata(GUARDS_METADATA, ContasReceberController),
@@ -129,6 +153,7 @@ describe('ContasReceberController', () => {
     ['criar', 'financeiro.contas_receber.criar'],
     ['gerarAPartirOrdemServico', 'financeiro.contas_receber.criar'],
     ['listar', 'financeiro.contas_receber.visualizar'],
+    ['obterResumo', 'financeiro.contas_receber.visualizar'],
     ['buscarPorId', 'financeiro.contas_receber.visualizar'],
     ['listarHistorico', 'financeiro.contas_receber.visualizar'],
     ['atualizar', 'financeiro.contas_receber.editar'],
@@ -148,6 +173,7 @@ describe('ContasReceberController', () => {
     'criar',
     'gerarAPartirOrdemServico',
     'listar',
+    'obterResumo',
     'buscarPorId',
     'listarHistorico',
     'atualizar',
