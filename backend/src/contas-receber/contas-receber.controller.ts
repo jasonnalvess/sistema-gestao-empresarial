@@ -26,6 +26,7 @@ import { AtualizarContaReceberDto } from './dto/atualizar-conta-receber.dto';
 import { CriarContaReceberDto } from './dto/criar-conta-receber.dto';
 import { CriarContaReceberHistoricoDto } from './dto/criar-conta-receber-historico.dto';
 import { FiltroContasReceberDto } from './dto/filtro-contas-receber.dto';
+import { FiltroResumoContasReceberDto } from './dto/filtro-resumo-contas-receber.dto';
 import { GerarContaOrdemServicoDto } from './dto/gerar-conta-ordem-servico.dto';
 import { RegistrarRecebimentoContaReceberDto } from './dto/registrar-recebimento-conta-receber.dto';
 
@@ -53,6 +54,16 @@ export class ContasReceberController {
     @Query() filtros: FiltroContasReceberDto,
   ) {
     return this.contasReceberService.listar(empresa.empresaId, filtros);
+  }
+
+  @Get('resumo')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('financeiro.contas_receber.visualizar')
+  obterResumo(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @Query() filtros: FiltroResumoContasReceberDto,
+  ) {
+    return this.contasReceberService.obterResumo(empresa.empresaId, filtros);
   }
 
   @Post(':id/historico')

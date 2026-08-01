@@ -26,6 +26,7 @@ function criarPrismaMock() {
       create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
+      aggregate: jest.fn(),
     },
     recebimentoContaReceber: { create: jest.fn() },
     contaReceberHistorico: { create: jest.fn(), findMany: jest.fn() },
@@ -1024,5 +1025,110 @@ describe('ContasReceberService', () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.contaReceberHistorico.create).not.toHaveBeenCalled();
+  });
+  it('resume valores exclusivamente no tenant e preserva o período', async () => {
+    prisma.contaReceber.aggregate
+      .mockResolvedValueOnce({
+        _sum: {
+          valorOriginal: new Prisma.Decimal('300.30'),
+          valorRecebido: new Prisma.Decimal('100.10'),
+          valorAberto: new Prisma.Decimal('200.20'),
+        },
+      })
+      .mockResolvedValueOnce({
+        _sum: {
+          valorAberto: new Prisma.Decimal('50.05'),
+        },
+      });
+
+    const resultado = await service.obterResumo('empresa-1', {
+      vencimentoInicio: '2026-08-01',
+      vencimentoFim: '2026-08-31',
+    });
+
+    expect(prisma.contaReceber.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ empresaId: 'empresa-1' }) as unknown,
+      }),
+    );
+
+    const aggregateCalls = prisma.contaReceber.aggregate.mock.calls as Array<
+      [Prisma.ContaReceberAggregateArgs]
+    >;
+    const whereTotais = aggregateCalls[0][0].where;
+    const whereVencidas = aggregateCalls[1][0].where;
+
+    expect(whereTotais).toEqual({
+      empresaId: 'empresa-1',
+      status: { not: StatusContaReceber.CANCELADA },
+      dataVencimento: {
+        gte: new Date('2026-08-01'),
+        lte: new Date('2026-08-31T23:59:59.999Z'),
+      },
+    });
+    expect(whereVencidas).toEqual({
+      ...whereTotais,
+      status: StatusContaReceber.VENCIDA,
+    });
+    expect(resultado).toEqual({
+      receber: {
+        valorOriginal: 300.3,
+        valorRecebido: 100.1,
+        valorAberto: 200.2,
+        valorVencido: 50.05,
+      },
+    });
+  });
+
+  it('retorna zeros quando o tenant não possui contas', async () => {
+    prisma.contaReceber.aggregate
+      .mockResolvedValueOnce({ _sum: {} })
+      .mockResolvedValueOnce({ _sum: {} });
+
+    await expect(service.obterResumo('empresa-1', {})).resolves.toEqual({
+      receber: {
+        valorOriginal: 0,
+        valorRecebido: 0,
+        valorAberto: 0,
+        valorVencido: 0,
+      },
+    });
+  });
+
+  it('mantém resumos de empresas diferentes independentes e sem modo global', async () => {
+    prisma.contaReceber.aggregate
+      .mockResolvedValueOnce({
+        _sum: {
+          valorOriginal: new Prisma.Decimal(10),
+          valorRecebido: new Prisma.Decimal(1),
+          valorAberto: new Prisma.Decimal(9),
+        },
+      })
+      .mockResolvedValueOnce({
+        _sum: { valorAberto: new Prisma.Decimal(2) },
+      })
+      .mockResolvedValueOnce({
+        _sum: {
+          valorOriginal: new Prisma.Decimal(20),
+          valorRecebido: new Prisma.Decimal(4),
+          valorAberto: new Prisma.Decimal(16),
+        },
+      })
+      .mockResolvedValueOnce({
+        _sum: { valorAberto: new Prisma.Decimal(3) },
+      });
+
+    const resumoA = await service.obterResumo('empresa-a', {});
+    const resumoB = await service.obterResumo('empresa-b', {});
+
+    const aggregateCalls = prisma.contaReceber.aggregate.mock.calls as Array<
+      [Prisma.ContaReceberAggregateArgs]
+    >;
+    expect(aggregateCalls[0][0].where?.empresaId).toBe('empresa-a');
+    expect(aggregateCalls[1][0].where?.empresaId).toBe('empresa-a');
+    expect(aggregateCalls[2][0].where?.empresaId).toBe('empresa-b');
+    expect(aggregateCalls[3][0].where?.empresaId).toBe('empresa-b');
+    expect(resumoA.receber.valorOriginal).toBe(10);
+    expect(resumoB.receber.valorOriginal).toBe(20);
   });
 });
