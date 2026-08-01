@@ -25,6 +25,7 @@ import { AtualizarContaPagarDto } from './dto/atualizar-conta-pagar.dto';
 import { CriarContaPagarDto } from './dto/criar-conta-pagar.dto';
 import { CriarContaPagarHistoricoDto } from './dto/criar-conta-pagar-historico.dto';
 import { FiltroContasPagarDto } from './dto/filtro-contas-pagar.dto';
+import { FiltroResumoContasPagarDto } from './dto/filtro-resumo-contas-pagar.dto';
 import { GerarContaPedidoCompraDto } from './dto/gerar-conta-pedido-compra.dto';
 import { RegistrarPagamentoContaPagarDto } from './dto/registrar-pagamento-conta-pagar.dto';
 
@@ -52,6 +53,16 @@ export class ContasPagarController {
     @Query() filtros: FiltroContasPagarDto,
   ) {
     return this.contasPagarService.listar(empresa.empresaId, filtros);
+  }
+
+  @Get('resumo')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA', 'USUARIO_EMPRESA')
+  @Permissoes('financeiro.contas_pagar.visualizar')
+  obterResumo(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @Query() filtros: FiltroResumoContasPagarDto,
+  ) {
+    return this.contasPagarService.obterResumo(empresa.empresaId, filtros);
   }
 
   @Post(':id/historico')
