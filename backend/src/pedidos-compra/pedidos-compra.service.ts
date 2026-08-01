@@ -177,7 +177,7 @@ export class PedidosCompraService {
     depositoId: string,
   ) {
     const chave = `${empresaId}:${produtoId}:${depositoId}`;
-    await tx.$queryRaw(
+    await tx.$executeRaw(
       Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))`,
     );
   }
