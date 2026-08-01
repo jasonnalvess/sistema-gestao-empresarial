@@ -12,9 +12,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CONTAS_RECEBER_RECEBER } from "@/lib/auth";
 
 import {
   ContaReceberDetalhada,
+  contasReceberQueryKeys,
+  obterMensagemErroContasReceber,
   FormaRecebimento,
   registrarRecebimentoContaReceber,
 } from "@/services/contas-receber.service";
@@ -28,6 +33,9 @@ export function RegistrarRecebimentoModal({
   conta,
 }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeReceber = temPermissao(PERMISSAO_CONTAS_RECEBER_RECEBER);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -53,9 +61,10 @@ export function RegistrarRecebimentoModal({
   const [caixaId, setCaixaId] = useState("");
 
   const { data: caixasResponse } = useQuery({
-    queryKey: ["caixas-abertos-recebimento"],
+    queryKey: ["caixas-abertos-recebimento", empresaEfetivaId],
     queryFn: listarCaixasAbertos,
-    enabled: aberto,
+    enabled:
+      aberto && podeReceber && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const caixasAbertos =
@@ -74,6 +83,10 @@ export function RegistrarRecebimentoModal({
   }
 
   async function salvar() {
+    if (!podeReceber || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     const valorNumero = Number(valor);
 
     if (valorNumero <= 0) {
@@ -132,33 +145,46 @@ export function RegistrarRecebimentoModal({
       setAberto(false);
 
       await queryClient.invalidateQueries({
-        queryKey: ["conta-receber", conta.id],
+        queryKey: contasReceberQueryKeys.detalhe(empresaEfetivaId, conta.id),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["contas-receber"],
+        queryKey: contasReceberQueryKeys.listas(empresaEfetivaId),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["caixas"],
+        queryKey: contasReceberQueryKeys.resumo(empresaEfetivaId),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["caixa"],
+        queryKey: contasReceberQueryKeys.historico(empresaEfetivaId, conta.id),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["movimentacoes-caixa"],
+        queryKey: ["caixas-abertos-recebimento", empresaEfetivaId],
       });
-    } catch (error: any) {
+
+      await queryClient.invalidateQueries({
+        queryKey: ["caixas", empresaEfetivaId],
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: ["caixa", empresaEfetivaId],
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: ["movimentacoes-caixa", empresaEfetivaId],
+      });
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao registrar recebimento"
+        obterMensagemErroContasReceber(error, "Erro ao registrar recebimento"),
       );
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeReceber || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog

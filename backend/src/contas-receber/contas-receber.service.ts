@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   Inject,
@@ -25,11 +24,27 @@ import { respostaPaginada } from '../common/utils/resposta-paginada';
 import { CriarContaReceberDto } from './dto/criar-conta-receber.dto';
 import { AtualizarContaReceberDto } from './dto/atualizar-conta-receber.dto';
 import { FiltroContasReceberDto } from './dto/filtro-contas-receber.dto';
+import { FiltroResumoContasReceberDto } from './dto/filtro-resumo-contas-receber.dto';
 import { RegistrarRecebimentoContaReceberDto } from './dto/registrar-recebimento-conta-receber.dto';
 import { CriarContaReceberHistoricoDto } from './dto/criar-conta-receber-historico.dto';
 import { GerarContaOrdemServicoDto } from './dto/gerar-conta-ordem-servico.dto';
 import { paraDecimalMonetario } from '../contas-pagar/valor-monetario';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+
+const CAMPOS_ORDENACAO_CONTA_RECEBER = [
+  'numero',
+  'descricao',
+  'status',
+  'origem',
+  'dataEmissao',
+  'dataVencimento',
+  'valorOriginal',
+  'valorAberto',
+  'createdAt',
+  'updatedAt',
+] as const satisfies readonly (keyof Prisma.ContaReceberOrderByWithRelationInput)[];
+type CampoOrdenacaoContaReceber =
+  (typeof CAMPOS_ORDENACAO_CONTA_RECEBER)[number];
 
 @Injectable()
 export class ContasReceberService {
@@ -135,14 +150,6 @@ export class ContasReceberService {
     },
   };
 
-  private obterEmpresaId(usuario: AuthenticatedUser): string {
-    if (!usuario.empresaId) {
-      throw new BadRequestException('O usuário não possui empresa vinculada');
-    }
-
-    return usuario.empresaId;
-  }
-
   private obterUsuarioId(usuario: AuthenticatedUser): string {
     return usuario.id;
   }
@@ -176,7 +183,11 @@ export class ContasReceberService {
     return StatusContaReceber.PENDENTE;
   }
 
-  private alvoP2002(error: unknown, campos: string[], indice: string): boolean {
+  private alvoP2002(
+    error: unknown,
+    campos: readonly string[],
+    indice?: string,
+  ): boolean {
     if (
       !(error instanceof Prisma.PrismaClientKnownRequestError) ||
       error.code !== 'P2002'
@@ -185,33 +196,20 @@ export class ContasReceberService {
     }
 
     const target = error.meta?.target;
-    return Array.isArray(target)
-      ? campos.every((campo) => target.includes(campo))
-      : typeof target === 'string' && target.includes(indice);
-  }
-
-  private tratarErroPrisma(error: unknown): never {
-    if (
-      this.alvoP2002(
-        error,
-        ['empresaId', 'numero'],
-        'ContaReceber_empresaId_numero_key',
-      )
-    ) {
-      throw new ConflictException(
-        'Conflito ao gerar a numeração da conta a receber',
+    if (Array.isArray(target)) {
+      return (
+        target.length === campos.length &&
+        campos.every((campo) => target.includes(campo))
       );
     }
 
-    if (
-      this.alvoP2002(
-        error,
-        ['ordemServicoId'],
-        'ContaReceber_ordemServicoId_ativa_key',
-      )
-    ) {
+    return indice !== undefined && target === indice;
+  }
+
+  private tratarErroPrisma(error: unknown): never {
+    if (this.alvoP2002(error, ['empresaId', 'numero'])) {
       throw new ConflictException(
-        'Esta ordem de serviço já possui uma conta a receber ativa',
+        'Conflito ao gerar a numeração da conta a receber',
       );
     }
 
@@ -227,6 +225,10 @@ export class ContasReceberService {
       );
     }
 
+    throw error;
+  }
+
+  private tratarErroRecebimento(error: unknown): never {
     if (
       this.alvoP2002(
         error,
@@ -242,9 +244,37 @@ export class ContasReceberService {
     throw error;
   }
 
-  private async bloquearConta(tx: Prisma.TransactionClient, id: string) {
+  private tratarErroGeracaoOrdemServico(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002' &&
+      error.meta?.target === 'ContaReceber_ordemServicoId_ativa_key'
+    ) {
+      throw new ConflictException(
+        'Já existe uma conta a receber ativa para esta Ordem de Serviço.',
+      );
+    }
+
+    throw error;
+  }
+
+  private async bloquearNumeracao(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+  ) {
+    const chave = `conta-receber-numero:${empresaId}`;
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))`,
+    );
+  }
+
+  private async bloquearConta(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    id: string,
+  ) {
     await tx.$queryRaw(
-      Prisma.sql`SELECT "id" FROM "ContaReceber" WHERE "id" = ${id} FOR UPDATE`,
+      Prisma.sql`SELECT "id" FROM "ContaReceber" WHERE "id" = ${id} AND "empresaId" = ${empresaId} FOR UPDATE`,
     );
   }
 
@@ -260,37 +290,26 @@ export class ContasReceberService {
 
   private async prepararContaParaAlteracao(
     tx: Prisma.TransactionClient,
+    empresaId: string,
     id: string,
-    usuario: AuthenticatedUser,
   ) {
-    const referencia = await tx.contaReceber.findUnique({
-      where: { id },
-      select: { id: true, empresaId: true, vendaId: true },
+    const referencia = await tx.contaReceber.findFirst({
+      where: { id, empresaId },
+      select: { id: true, vendaId: true },
     });
 
     if (!referencia) {
       throw new NotFoundException('Conta a receber não encontrada');
     }
 
-    if (
-      usuario.tipo !== 'SUPER_ADMIN' &&
-      referencia.empresaId !== usuario.empresaId
-    ) {
-      throw new ForbiddenException('Acesso negado a conta de outra empresa');
-    }
-
     if (referencia.vendaId) {
-      await this.bloquearVendaVinculada(
-        tx,
-        referencia.vendaId,
-        referencia.empresaId,
-      );
+      await this.bloquearVendaVinculada(tx, referencia.vendaId, empresaId);
     }
 
-    await this.bloquearConta(tx, id);
+    await this.bloquearConta(tx, empresaId, id);
 
-    const conta = await tx.contaReceber.findUnique({
-      where: { id },
+    const conta = await tx.contaReceber.findFirst({
+      where: { id, empresaId },
       include: this.includeConta,
     });
 
@@ -298,17 +317,12 @@ export class ContasReceberService {
       throw new NotFoundException('Conta a receber não encontrada');
     }
 
-    if (conta.empresaId !== referencia.empresaId) {
-      throw new ConflictException(
-        'A conta a receber foi alterada durante a operação',
-      );
-    }
-
     return conta;
   }
 
-  private async atualizarContasVencidas(empresaId?: string) {
+  private async atualizarContasVencidas(empresaId: string) {
     const where: Prisma.ContaReceberWhereInput = {
+      empresaId,
       dataVencimento: {
         lt: this.inicioHoje(),
       },
@@ -325,10 +339,6 @@ export class ContasReceberService {
       },
     };
 
-    if (empresaId) {
-      where.empresaId = empresaId;
-    }
-
     await this.prisma.contaReceber.updateMany({
       where,
 
@@ -343,18 +353,12 @@ export class ContasReceberService {
     empresaId: string,
     clientePrisma: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
-    const cliente = await clientePrisma.cliente.findUnique({
-      where: {
-        id: clienteId,
-      },
+    const cliente = await clientePrisma.cliente.findFirst({
+      where: { id: clienteId, empresaId },
     });
 
     if (!cliente) {
       throw new NotFoundException('Cliente não encontrado');
-    }
-
-    if (cliente.empresaId !== empresaId) {
-      throw new ForbiddenException('Cliente pertence a outra empresa');
     }
 
     if (!cliente.ativo) {
@@ -371,10 +375,8 @@ export class ContasReceberService {
     empresaId: string,
     clientePrisma: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
-    const ordem = await clientePrisma.ordemServico.findUnique({
-      where: {
-        id: ordemServicoId,
-      },
+    const ordem = await clientePrisma.ordemServico.findFirst({
+      where: { id: ordemServicoId, empresaId },
 
       include: {
         cliente: true,
@@ -383,10 +385,6 @@ export class ContasReceberService {
 
     if (!ordem) {
       throw new NotFoundException('Ordem de serviço não encontrada');
-    }
-
-    if (ordem.empresaId !== empresaId) {
-      throw new ForbiddenException('Ordem de serviço pertence a outra empresa');
     }
 
     return ordem;
@@ -410,8 +408,11 @@ export class ContasReceberService {
     });
   }
 
-  async criar(dados: CriarContaReceberDto, usuario: AuthenticatedUser) {
-    const empresaId = this.obterEmpresaId(usuario);
+  async criar(
+    empresaId: string,
+    dados: CriarContaReceberDto,
+    usuario: AuthenticatedUser,
+  ) {
     const parcelaAtual = dados.parcelaAtual ?? 1;
     const totalParcelas = dados.totalParcelas ?? 1;
 
@@ -471,6 +472,8 @@ export class ContasReceberService {
           await this.validarCliente(clienteId, empresaId, tx);
         }
 
+        await this.bloquearNumeracao(tx, empresaId);
+
         const ultimaConta = await tx.contaReceber.findFirst({
           where: { empresaId },
           orderBy: { numero: 'desc' },
@@ -527,10 +530,7 @@ export class ContasReceberService {
     }
   }
 
-  async listar(usuario: AuthenticatedUser, filtros: FiltroContasReceberDto) {
-    const empresaId =
-      usuario.tipo === 'SUPER_ADMIN' ? undefined : this.obterEmpresaId(usuario);
-
+  async listar(empresaId: string, filtros: FiltroContasReceberDto) {
     await this.atualizarContasVencidas(empresaId);
 
     const page = filtros.page ?? 1;
@@ -538,12 +538,7 @@ export class ContasReceberService {
 
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: Prisma.ContaReceberWhereInput =
-      usuario.tipo === 'SUPER_ADMIN'
-        ? {}
-        : {
-            empresaId: this.obterEmpresaId(usuario),
-          };
+    const where: Prisma.ContaReceberWhereInput = { empresaId };
 
     if (filtros.status) {
       where.status = filtros.status;
@@ -628,22 +623,10 @@ export class ContasReceberService {
       }
     }
 
-    const camposOrdenacao = [
-      'numero',
-      'descricao',
-      'status',
-      'origem',
-      'dataEmissao',
-      'dataVencimento',
-      'valorOriginal',
-      'valorAberto',
-      'createdAt',
-      'updatedAt',
-    ];
-
-    const sortBy = camposOrdenacao.includes(filtros.sortBy ?? '')
-      ? filtros.sortBy
-      : 'dataVencimento';
+    const sortBy: CampoOrdenacaoContaReceber =
+      CAMPOS_ORDENACAO_CONTA_RECEBER.find(
+        (campo) => campo === filtros.sortBy,
+      ) ?? 'dataVencimento';
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.contaReceber.findMany({
@@ -682,7 +665,7 @@ export class ContasReceberService {
         },
 
         orderBy: {
-          [sortBy!]: filtros.order ?? 'asc',
+          [sortBy]: filtros.order ?? 'asc',
         },
 
         skip,
@@ -697,15 +680,65 @@ export class ContasReceberService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuario: AuthenticatedUser) {
-    await this.atualizarContasVencidas(
-      usuario.tipo === 'SUPER_ADMIN' ? undefined : this.obterEmpresaId(usuario),
-    );
+  async obterResumo(empresaId: string, filtros: FiltroResumoContasReceberDto) {
+    await this.atualizarContasVencidas(empresaId);
 
-    const conta = await this.prisma.contaReceber.findUnique({
-      where: {
-        id,
+    const where: Prisma.ContaReceberWhereInput = {
+      empresaId,
+      status: {
+        not: StatusContaReceber.CANCELADA,
       },
+    };
+
+    if (filtros.vencimentoInicio || filtros.vencimentoFim) {
+      where.dataVencimento = {};
+
+      if (filtros.vencimentoInicio) {
+        where.dataVencimento.gte = new Date(filtros.vencimentoInicio);
+      }
+
+      if (filtros.vencimentoFim) {
+        const dataFim = new Date(filtros.vencimentoFim);
+        dataFim.setUTCHours(23, 59, 59, 999);
+        where.dataVencimento.lte = dataFim;
+      }
+    }
+
+    const [totais, vencidas] = await this.prisma.$transaction([
+      this.prisma.contaReceber.aggregate({
+        where,
+        _sum: {
+          valorOriginal: true,
+          valorRecebido: true,
+          valorAberto: true,
+        },
+      }),
+      this.prisma.contaReceber.aggregate({
+        where: {
+          ...where,
+          status: StatusContaReceber.VENCIDA,
+        },
+        _sum: {
+          valorAberto: true,
+        },
+      }),
+    ]);
+
+    return {
+      receber: {
+        valorOriginal: Number(totais._sum.valorOriginal ?? 0),
+        valorRecebido: Number(totais._sum.valorRecebido ?? 0),
+        valorAberto: Number(totais._sum.valorAberto ?? 0),
+        valorVencido: Number(vencidas._sum.valorAberto ?? 0),
+      },
+    };
+  }
+
+  async buscarPorId(empresaId: string, id: string) {
+    await this.atualizarContasVencidas(empresaId);
+
+    const conta = await this.prisma.contaReceber.findFirst({
+      where: { id, empresaId },
 
       include: this.includeConta,
     });
@@ -714,24 +747,18 @@ export class ContasReceberService {
       throw new NotFoundException('Conta a receber não encontrada');
     }
 
-    if (
-      usuario.tipo !== 'SUPER_ADMIN' &&
-      conta.empresaId !== usuario.empresaId
-    ) {
-      throw new ForbiddenException('Acesso negado a conta de outra empresa');
-    }
-
     return conta;
   }
 
   async atualizar(
+    empresaId: string,
     id: string,
     dados: AtualizarContaReceberDto,
     usuario: AuthenticatedUser,
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const conta = await this.prepararContaParaAlteracao(tx, id, usuario);
+        const conta = await this.prepararContaParaAlteracao(tx, empresaId, id);
 
         if (
           conta.status === StatusContaReceber.RECEBIDA ||
@@ -818,7 +845,7 @@ export class ContasReceberService {
           : conta.dataVencimento;
 
         const atualizada = await tx.contaReceber.update({
-          where: { id: conta.id, empresaId: conta.empresaId },
+          where: { id: conta.id, empresaId },
           data: {
             descricao: dados.descricao?.trim(),
             documento: dados.documento?.trim(),
@@ -859,13 +886,14 @@ export class ContasReceberService {
   }
 
   async registrarRecebimento(
+    empresaId: string,
     id: string,
     dados: RegistrarRecebimentoContaReceberDto,
     usuario: AuthenticatedUser,
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const conta = await this.prepararContaParaAlteracao(tx, id, usuario);
+        const conta = await this.prepararContaParaAlteracao(tx, empresaId, id);
 
         if (conta.status === StatusContaReceber.RECEBIDA) {
           throw new BadRequestException('Esta conta já foi recebida');
@@ -941,7 +969,7 @@ export class ContasReceberService {
             dataRecebimento,
             documento: dados.documento?.trim(),
             observacao: dados.observacao?.trim(),
-            empresaId: conta.empresaId,
+            empresaId,
             contaReceberId: conta.id,
             usuarioId: this.obterUsuarioId(usuario),
           },
@@ -950,14 +978,14 @@ export class ContasReceberService {
           },
         });
 
-        let movimentacaoCaixa: Prisma.MovimentacaoCaixaGetPayload<{}> | null =
+        let movimentacaoCaixa: Prisma.MovimentacaoCaixaGetPayload<object> | null =
           null;
 
         if (dados.caixaId) {
           const resultadoCaixa =
             await this.caixasService.registrarMovimentacaoFinanceira(
               tx,
-              conta.empresaId,
+              empresaId,
               {
                 caixaId: dados.caixaId,
                 tipo: TipoMovimentacaoCaixa.ENTRADA,
@@ -980,7 +1008,7 @@ export class ContasReceberService {
         }
 
         const contaAtualizada = await tx.contaReceber.update({
-          where: { id: conta.id, empresaId: conta.empresaId },
+          where: { id: conta.id, empresaId },
           data: {
             valorRecebido: novoValorRecebido,
             valorDesconto: novoValorDesconto,
@@ -1015,13 +1043,13 @@ export class ContasReceberService {
         return { recebimento, movimentacaoCaixa, conta: contaAtualizada };
       });
     } catch (error) {
-      this.tratarErroPrisma(error);
+      this.tratarErroRecebimento(error);
     }
   }
 
-  async cancelar(id: string, usuario: AuthenticatedUser) {
+  async cancelar(empresaId: string, id: string, usuario: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
-      const conta = await this.prepararContaParaAlteracao(tx, id, usuario);
+      const conta = await this.prepararContaParaAlteracao(tx, empresaId, id);
 
       if (conta.status === StatusContaReceber.CANCELADA) {
         return conta;
@@ -1073,152 +1101,170 @@ export class ContasReceberService {
       );
 
       return tx.contaReceber.findUniqueOrThrow({
-        where: { id: conta.id, empresaId: conta.empresaId },
+        where: { id: conta.id, empresaId },
         include: this.includeConta,
       });
     });
   }
 
   async gerarAPartirOrdemServico(
+    empresaId: string,
     ordemServicoId: string,
     dados: GerarContaOrdemServicoDto,
     usuario: AuthenticatedUser,
   ) {
-    const empresaId = this.obterEmpresaId(usuario);
     const valorOriginal = paraDecimalMonetario(
       dados.valorOriginal,
       'O valor original',
     );
     const dataVencimento = new Date(dados.dataVencimento);
 
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const ordem = await this.validarOrdemServico(
-          ordemServicoId,
+    return this.prisma.$transaction(async (tx) => {
+      const ordem = await this.validarOrdemServico(
+        ordemServicoId,
+        empresaId,
+        tx,
+      );
+      const statusPermitido = [
+        'CONCLUIDA',
+        'CONCLUÍDA',
+        'FINALIZADA',
+        'FINALIZADO',
+      ].includes(ordem.status.toUpperCase());
+
+      if (!statusPermitido) {
+        throw new BadRequestException(
+          'Somente ordens de serviço concluídas podem gerar conta a receber',
+        );
+      }
+
+      await this.bloquearNumeracao(tx, empresaId);
+
+      const contaExistente = await tx.contaReceber.findFirst({
+        where: {
           empresaId,
-          tx,
-        );
-        const statusPermitido = [
-          'CONCLUIDA',
-          'CONCLUÍDA',
-          'FINALIZADA',
-          'FINALIZADO',
-        ].includes(ordem.status.toUpperCase());
-
-        if (!statusPermitido) {
-          throw new BadRequestException(
-            'Somente ordens de serviço concluídas podem gerar conta a receber',
-          );
-        }
-
-        const contaExistente = await tx.contaReceber.findFirst({
-          where: {
-            empresaId,
-            ordemServicoId,
-            status: { not: StatusContaReceber.CANCELADA },
-          },
-          select: { numero: true },
-        });
-
-        if (contaExistente) {
-          throw new ConflictException(
-            'A ordem de serviço já possui a conta a receber nº ' +
-              contaExistente.numero,
-          );
-        }
-
-        await this.validarCliente(ordem.clienteId, empresaId, tx);
-
-        const ultimaConta = await tx.contaReceber.findFirst({
-          where: { empresaId },
-          orderBy: { numero: 'desc' },
-          select: { numero: true },
-        });
-        const numero = (ultimaConta?.numero ?? 0) + 1;
-
-        const conta = await tx.contaReceber.create({
-          data: {
-            numero,
-            descricao:
-              'Ordem de serviço nº ' + ordem.numero + ' - ' + ordem.titulo,
-            documento:
-              dados.documento?.trim() || 'ORDEM-SERVICO-' + ordem.numero,
-            observacao:
-              dados.observacao?.trim() ||
-              'Conta gerada a partir da ordem de serviço nº ' +
-                ordem.numero +
-                '.',
-            origem: OrigemContaReceber.ORDEM_SERVICO,
-            status: this.determinarStatusInicial(dataVencimento),
-            dataEmissao: new Date(),
-            dataCompetencia: dados.dataCompetencia
-              ? new Date(dados.dataCompetencia)
-              : undefined,
-            dataVencimento,
-            parcelaAtual: 1,
-            totalParcelas: 1,
-            valorOriginal,
-            valorDesconto: 0,
-            valorJuros: 0,
-            valorMulta: 0,
-            valorRecebido: 0,
-            valorAberto: valorOriginal,
-            empresaId,
-            clienteId: ordem.clienteId,
-            ordemServicoId: ordem.id,
-            usuarioCriacaoId: this.obterUsuarioId(usuario),
-          },
-          include: this.includeConta,
-        });
-
-        await this.registrarHistorico(
-          conta.id,
-          'Conta a receber nº ' +
-            numero +
-            ' gerada a partir da ordem de serviço nº ' +
-            ordem.numero +
-            '.',
-          usuario,
-          tx,
-        );
-
-        return conta;
+          ordemServicoId,
+          status: { not: StatusContaReceber.CANCELADA },
+        },
+        select: { numero: true },
       });
-    } catch (error) {
-      this.tratarErroPrisma(error);
-    }
+
+      if (contaExistente) {
+        throw new ConflictException(
+          'A ordem de serviço já possui a conta a receber nº ' +
+            contaExistente.numero,
+        );
+      }
+
+      await this.validarCliente(ordem.clienteId, empresaId, tx);
+
+      const ultimaConta = await tx.contaReceber.findFirst({
+        where: { empresaId },
+        orderBy: { numero: 'desc' },
+        select: { numero: true },
+      });
+      const numero = (ultimaConta?.numero ?? 0) + 1;
+
+      const conta = await (async () => {
+        try {
+          return await tx.contaReceber.create({
+            data: {
+              numero,
+              descricao:
+                'Ordem de serviço nº ' + ordem.numero + ' - ' + ordem.titulo,
+              documento:
+                dados.documento?.trim() || 'ORDEM-SERVICO-' + ordem.numero,
+              observacao:
+                dados.observacao?.trim() ||
+                'Conta gerada a partir da ordem de serviço nº ' +
+                  ordem.numero +
+                  '.',
+              origem: OrigemContaReceber.ORDEM_SERVICO,
+              status: this.determinarStatusInicial(dataVencimento),
+              dataEmissao: new Date(),
+              dataCompetencia: dados.dataCompetencia
+                ? new Date(dados.dataCompetencia)
+                : undefined,
+              dataVencimento,
+              parcelaAtual: 1,
+              totalParcelas: 1,
+              valorOriginal,
+              valorDesconto: 0,
+              valorJuros: 0,
+              valorMulta: 0,
+              valorRecebido: 0,
+              valorAberto: valorOriginal,
+              empresaId,
+              clienteId: ordem.clienteId,
+              ordemServicoId: ordem.id,
+              usuarioCriacaoId: this.obterUsuarioId(usuario),
+            },
+            include: this.includeConta,
+          });
+        } catch (error) {
+          this.tratarErroGeracaoOrdemServico(error);
+        }
+      })();
+
+      await this.registrarHistorico(
+        conta.id,
+        'Conta a receber nº ' +
+          numero +
+          ' gerada a partir da ordem de serviço nº ' +
+          ordem.numero +
+          '.',
+        usuario,
+        tx,
+      );
+
+      return conta;
+    });
   }
 
   async adicionarHistorico(
+    empresaId: string,
     contaReceberId: string,
     dados: CriarContaReceberHistoricoDto,
     usuario: AuthenticatedUser,
   ) {
-    await this.buscarPorId(contaReceberId, usuario);
+    return this.prisma.$transaction(async (tx) => {
+      const conta = await tx.contaReceber.findFirst({
+        where: { id: contaReceberId, empresaId },
+        select: { id: true },
+      });
 
-    return this.prisma.contaReceberHistorico.create({
-      data: {
-        contaReceberId,
+      if (!conta) {
+        throw new NotFoundException('Conta a receber não encontrada');
+      }
 
-        descricao: dados.descricao.trim(),
-
-        usuarioId: this.obterUsuarioId(usuario),
-      },
-
-      include: {
-        usuario: {
-          select: this.usuarioSelect,
+      return tx.contaReceberHistorico.create({
+        data: {
+          contaReceberId: conta.id,
+          descricao: dados.descricao.trim(),
+          usuarioId: this.obterUsuarioId(usuario),
         },
-      },
+        include: {
+          usuario: {
+            select: this.usuarioSelect,
+          },
+        },
+      });
     });
   }
 
-  async listarHistorico(contaReceberId: string, usuario: AuthenticatedUser) {
-    await this.buscarPorId(contaReceberId, usuario);
+  async listarHistorico(empresaId: string, contaReceberId: string) {
+    const conta = await this.prisma.contaReceber.findFirst({
+      where: { id: contaReceberId, empresaId },
+      select: { id: true },
+    });
+
+    if (!conta) {
+      throw new NotFoundException('Conta a receber não encontrada');
+    }
 
     return this.prisma.contaReceberHistorico.findMany({
       where: {
-        contaReceberId,
+        contaReceberId: conta.id,
       },
 
       include: {

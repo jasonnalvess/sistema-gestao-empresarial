@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   PERMISSAO_CLIENTES_VISUALIZAR,
   PERMISSAO_CONTAS_PAGAR_VISUALIZAR,
+  PERMISSAO_CONTAS_RECEBER_VISUALIZAR,
   PERMISSAO_FORNECEDORES_VISUALIZAR,
   PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,
   possuiPermissao,
@@ -38,6 +39,10 @@ export function Sidebar({ aberto, aoFechar }: SidebarProps) {
 
     if (item.href === "/contas-pagar") {
       return temPermissao(PERMISSAO_CONTAS_PAGAR_VISUALIZAR);
+    }
+
+    if (item.href === "/contas-receber") {
+      return temPermissao(PERMISSAO_CONTAS_RECEBER_VISUALIZAR);
     }
 
     return usuario ? possuiPermissao(usuario.tipo, item.href) : false;
