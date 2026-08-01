@@ -16,6 +16,16 @@ export const PERMISSAO_CONTAS_PAGAR_EDITAR = "financeiro.contas_pagar.editar";
 export const PERMISSAO_CONTAS_PAGAR_PAGAR = "financeiro.contas_pagar.pagar";
 export const PERMISSAO_CONTAS_PAGAR_CANCELAR =
   "financeiro.contas_pagar.cancelar";
+export const PERMISSAO_CONTAS_RECEBER_VISUALIZAR =
+  "financeiro.contas_receber.visualizar";
+export const PERMISSAO_CONTAS_RECEBER_CRIAR =
+  "financeiro.contas_receber.criar";
+export const PERMISSAO_CONTAS_RECEBER_EDITAR =
+  "financeiro.contas_receber.editar";
+export const PERMISSAO_CONTAS_RECEBER_RECEBER =
+  "financeiro.contas_receber.receber";
+export const PERMISSAO_CONTAS_RECEBER_CANCELAR =
+  "financeiro.contas_receber.cancelar";
 
 export type Usuario = {
   id: string;

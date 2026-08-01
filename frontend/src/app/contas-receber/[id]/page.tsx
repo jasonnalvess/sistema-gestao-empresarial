@@ -7,14 +7,20 @@ import { ArrowLeft } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudLoading } from "@/components/crud/CrudLoading";
 import { Button } from "@/components/ui/button";
 
 import { ContaReceberAcoes } from "@/components/contas-receber/ContaReceberAcoes";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CONTAS_RECEBER_VISUALIZAR } from "@/lib/auth";
 
 import {
   buscarContaReceber,
+  contasReceberQueryKeys,
   FormaRecebimento,
   OrigemContaReceber,
   StatusContaReceber,
@@ -23,16 +29,50 @@ import {
 export default function ContaReceberDetalhesPage() {
   const params = useParams();
   const id = String(params.id);
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_CONTAS_RECEBER_VISUALIZAR);
 
   const {
     data: conta,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["conta-receber", id],
+    queryKey: contasReceberQueryKeys.detalhe(empresaEfetivaId ?? "", id),
     queryFn: () => buscarContaReceber(id),
-    enabled: Boolean(id),
+    enabled:
+      podeVisualizar &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando &&
+      Boolean(id),
   });
+
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+
+  if (!podeVisualizar) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+
+  if (!possuiEmpresaEfetiva || !empresaEfetivaId) {
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+  }
 
   if (isLoading) {
     return (
