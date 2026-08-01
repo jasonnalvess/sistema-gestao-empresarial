@@ -423,9 +423,22 @@ async function main() {
       modulo: 'financeiro',
     },
     {
+      nome: 'Visualizar contas a pagar',
+      chave: 'financeiro.contas_pagar.visualizar',
+      descricao: 'Permite consultar contas a pagar e seus históricos',
+      modulo: 'financeiro',
+    },
+    {
       nome: 'Criar contas a pagar',
       chave: 'financeiro.contas_pagar.criar',
       descricao: 'Permite cadastrar contas a pagar',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Editar contas a pagar',
+      chave: 'financeiro.contas_pagar.editar',
+      descricao:
+        'Permite alterar contas a pagar e adicionar históricos manuais',
       modulo: 'financeiro',
     },
     {
@@ -435,9 +448,9 @@ async function main() {
       modulo: 'financeiro',
     },
     {
-      nome: 'Cancelar pagamentos',
+      nome: 'Cancelar contas a pagar',
       chave: 'financeiro.contas_pagar.cancelar',
-      descricao: 'Permite cancelar pagamentos registrados',
+      descricao: 'Permite cancelar contas a pagar sem pagamentos registrados',
       modulo: 'financeiro',
     },
     {
@@ -597,7 +610,14 @@ async function main() {
       'estoque',
       'caixa',
     ],
-    chavesAdicionais: ['funcionarios.visualizar'],
+    chavesAdicionais: [
+      'funcionarios.visualizar',
+      'financeiro.contas_pagar.visualizar',
+      'financeiro.contas_pagar.criar',
+      'financeiro.contas_pagar.editar',
+      'financeiro.contas_pagar.pagar',
+      'financeiro.contas_pagar.cancelar',
+    ],
     chavesExcluidas: [
       'clientes.excluir',
       'agenda.excluir',
@@ -618,6 +638,7 @@ async function main() {
       'clientes.visualizar',
       'fornecedores.visualizar',
       'pedidos_compra.visualizar',
+      'financeiro.contas_pagar.visualizar',
       'agenda.visualizar',
       'agenda.criar',
       'agenda.editar',

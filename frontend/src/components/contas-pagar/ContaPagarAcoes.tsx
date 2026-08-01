@@ -6,9 +6,17 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/actions/ConfirmDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_CONTAS_PAGAR_CANCELAR,
+  PERMISSAO_CONTAS_PAGAR_PAGAR,
+} from "@/lib/auth";
 
 import {
   cancelarContaPagar,
+  contasPagarQueryKeys,
+  obterMensagemErroContasPagar,
   ContaPagarDetalhada,
 } from "@/services/contas-pagar.service";
 
@@ -18,43 +26,53 @@ type Props = {
   conta: ContaPagarDetalhada;
 };
 
-export function ContaPagarAcoes({
-  conta,
-}: Props) {
+export function ContaPagarAcoes({ conta }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podePagar = temPermissao(PERMISSAO_CONTAS_PAGAR_PAGAR);
+  const podeCancelar = temPermissao(PERMISSAO_CONTAS_PAGAR_CANCELAR);
 
   async function atualizarConsultas() {
     await queryClient.invalidateQueries({
-      queryKey: ["conta-pagar", conta.id],
+      queryKey: contasPagarQueryKeys.detalhe(empresaEfetivaId ?? "", conta.id),
     });
 
     await queryClient.invalidateQueries({
-      queryKey: ["contas-pagar"],
+      queryKey: contasPagarQueryKeys.listas(empresaEfetivaId ?? ""),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: contasPagarQueryKeys.resumo(empresaEfetivaId ?? ""),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: contasPagarQueryKeys.historico(
+        empresaEfetivaId ?? "",
+        conta.id,
+      ),
     });
   }
 
   async function cancelar() {
+    if (!podeCancelar || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     try {
       await cancelarContaPagar(conta.id);
 
-      toast.success(
-        "Conta cancelada com sucesso!"
-      );
+      toast.success("Conta cancelada com sucesso!");
 
       await atualizarConsultas();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao cancelar conta"
+        obterMensagemErroContasPagar(error, "Erro ao cancelar conta"),
       );
     }
   }
 
-  const aceitaPagamento = [
-    "PENDENTE",
-    "PARCIALMENTE_PAGA",
-    "VENCIDA",
-  ].includes(conta.status);
+  const aceitaPagamento = ["PENDENTE", "PARCIALMENTE_PAGA", "VENCIDA"].includes(
+    conta.status,
+  );
 
   const aceitaCancelamento =
     conta.status !== "PAGA" &&
@@ -63,28 +81,26 @@ export function ContaPagarAcoes({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {aceitaPagamento && (
-        <RegistrarPagamentoModal
-          conta={conta}
-        />
+      {podePagar && aceitaPagamento && empresaEfetivaId && !carregando && (
+        <RegistrarPagamentoModal conta={conta} />
       )}
 
-      {aceitaCancelamento && (
-        <ConfirmDialog
-          title="Cancelar conta a pagar?"
-          description="A conta ficará indisponível para pagamentos."
-          onConfirm={cancelar}
-          trigger={
-            <Button variant="destructive">
-              <XCircle
-                size={16}
-                className="mr-2"
-              />
-              Cancelar conta
-            </Button>
-          }
-        />
-      )}
+      {podeCancelar &&
+        aceitaCancelamento &&
+        empresaEfetivaId &&
+        !carregando && (
+          <ConfirmDialog
+            title="Cancelar conta a pagar?"
+            description="A conta ficará indisponível para pagamentos."
+            onConfirm={cancelar}
+            trigger={
+              <Button variant="destructive">
+                <XCircle size={16} className="mr-2" />
+                Cancelar conta
+              </Button>
+            }
+          />
+        )}
     </div>
   );
 }

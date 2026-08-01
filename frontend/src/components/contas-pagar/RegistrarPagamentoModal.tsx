@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { HandCoins } from "lucide-react";
 import { toast } from "sonner";
 
@@ -12,9 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CONTAS_PAGAR_PAGAR } from "@/lib/auth";
 
 import {
   ContaPagarDetalhada,
+  contasPagarQueryKeys,
+  obterMensagemErroContasPagar,
   FormaPagamento,
   registrarPagamentoContaPagar,
 } from "@/services/contas-pagar.service";
@@ -24,42 +26,38 @@ type Props = {
   conta: ContaPagarDetalhada;
 };
 
-export function RegistrarPagamentoModal({
-  conta,
-}: Props) {
+export function RegistrarPagamentoModal({ conta }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podePagar = temPermissao(PERMISSAO_CONTAS_PAGAR_PAGAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  const [valor, setValor] = useState(
-    Number(conta.valorAberto).toFixed(2)
-  );
+  const [valor, setValor] = useState(Number(conta.valorAberto).toFixed(2));
 
   const [desconto, setDesconto] = useState("");
   const [juros, setJuros] = useState("");
   const [multa, setMulta] = useState("");
 
-  const [formaPagamento, setFormaPagamento] =
-    useState<FormaPagamento>("PIX");
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("PIX");
 
-  const [dataPagamento, setDataPagamento] =
-    useState(
-      new Date().toISOString().slice(0, 10)
-    );
+  const [dataPagamento, setDataPagamento] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
 
   const [documento, setDocumento] = useState("");
   const [observacao, setObservacao] = useState("");
   const [caixaId, setCaixaId] = useState("");
 
   const { data: caixasResponse } = useQuery({
-    queryKey: ["caixas-abertos-pagamento"],
+    queryKey: ["caixas-abertos-pagamento", empresaEfetivaId],
     queryFn: listarCaixasAbertos,
-    enabled: aberto,
+    enabled: aberto && podePagar && Boolean(empresaEfetivaId) && !carregando,
   });
 
-  const caixasAbertos =
-    caixasResponse?.data ?? [];
+  const caixasAbertos = caixasResponse?.data ?? [];
 
   const saldoAjustado =
     Number(conta.valorAberto) +
@@ -68,33 +66,31 @@ export function RegistrarPagamentoModal({
     Number(desconto || 0);
 
   function quitarSaldo() {
-    setValor(
-      Math.max(saldoAjustado, 0).toFixed(2)
-    );
+    setValor(Math.max(saldoAjustado, 0).toFixed(2));
   }
 
   async function salvar() {
+    if (!podePagar || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     const valorNumero = Number(valor);
 
     if (valorNumero <= 0) {
-      toast.error(
-        "Informe um valor de pagamento válido."
-      );
+      toast.error("Informe um valor de pagamento válido.");
       return;
     }
 
     if (saldoAjustado <= 0) {
-      toast.error(
-        "Os descontos não podem eliminar ou ultrapassar o saldo."
-      );
+      toast.error("Os descontos não podem eliminar ou ultrapassar o saldo.");
       return;
     }
 
     if (valorNumero > saldoAjustado) {
       toast.error(
         `O pagamento não pode superar o saldo de ${formatarMoeda(
-          saldoAjustado
-        )}.`
+          saldoAjustado,
+        )}.`,
       );
       return;
     }
@@ -102,37 +98,36 @@ export function RegistrarPagamentoModal({
     try {
       setSalvando(true);
 
-      await registrarPagamentoContaPagar(
-        conta.id,
-        {
-          valor: valorNumero,
-          desconto: Number(desconto || 0),
-          juros: Number(juros || 0),
-          multa: Number(multa || 0),
-          formaPagamento,
-          dataPagamento:
-            dataPagamento || undefined,
-          caixaId:
-            caixaId || undefined,
-          documento:
-            documento.trim() || undefined,
-          observacao:
-            observacao.trim() || undefined,
-        }
-      );
+      await registrarPagamentoContaPagar(conta.id, {
+        valor: valorNumero,
+        desconto: Number(desconto || 0),
+        juros: Number(juros || 0),
+        multa: Number(multa || 0),
+        formaPagamento,
+        dataPagamento: dataPagamento || undefined,
+        caixaId: caixaId || undefined,
+        documento: documento.trim() || undefined,
+        observacao: observacao.trim() || undefined,
+      });
 
-      toast.success(
-        "Pagamento registrado com sucesso!"
-      );
+      toast.success("Pagamento registrado com sucesso!");
 
       setAberto(false);
 
       await queryClient.invalidateQueries({
-        queryKey: ["conta-pagar", conta.id],
+        queryKey: contasPagarQueryKeys.detalhe(empresaEfetivaId, conta.id),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["contas-pagar"],
+        queryKey: contasPagarQueryKeys.listas(empresaEfetivaId),
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: contasPagarQueryKeys.resumo(empresaEfetivaId),
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: ["caixas-abertos-pagamento", empresaEfetivaId],
       });
 
       await queryClient.invalidateQueries({
@@ -146,45 +141,37 @@ export function RegistrarPagamentoModal({
       await queryClient.invalidateQueries({
         queryKey: ["movimentacoes-caixa"],
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao registrar pagamento"
+        obterMensagemErroContasPagar(error, "Erro ao registrar pagamento"),
       );
     } finally {
       setSalvando(false);
     }
   }
 
+  if (!podePagar || !empresaEfetivaId || carregando) return null;
+
   return (
     <FormDialog
       open={aberto}
       onOpenChange={setAberto}
-      title={`Registrar pagamento da conta #${String(
-        conta.numero
-      ).padStart(5, "0")}`}
+      title={`Registrar pagamento da conta #${String(conta.numero).padStart(
+        5,
+        "0",
+      )}`}
       trigger={
         <Button>
-          <HandCoins
-            size={16}
-            className="mr-2"
-          />
+          <HandCoins size={16} className="mr-2" />
           Registrar pagamento
         </Button>
       }
     >
       <div className="space-y-5">
         <div className="grid gap-4 rounded-lg bg-slate-50 p-4 md:grid-cols-2">
-          <Resumo
-            label="Saldo atual"
-            valor={Number(conta.valorAberto)}
-          />
+          <Resumo label="Saldo atual" valor={Number(conta.valorAberto)} />
 
-          <Resumo
-            label="Saldo ajustado"
-            valor={saldoAjustado}
-            destaque
-          />
+          <Resumo label="Saldo ajustado" valor={saldoAjustado} destaque />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -194,17 +181,9 @@ export function RegistrarPagamentoModal({
             onChange={setDesconto}
           />
 
-          <CampoNumero
-            label="Juros"
-            value={juros}
-            onChange={setJuros}
-          />
+          <CampoNumero label="Juros" value={juros} onChange={setJuros} />
 
-          <CampoNumero
-            label="Multa"
-            value={multa}
-            onChange={setMulta}
-          />
+          <CampoNumero label="Multa" value={multa} onChange={setMulta} />
 
           <div>
             <label className="text-sm font-medium text-slate-700">
@@ -217,16 +196,10 @@ export function RegistrarPagamentoModal({
                 min="0.01"
                 step="0.01"
                 value={valor}
-                onChange={(event) =>
-                  setValor(event.target.value)
-                }
+                onChange={(event) => setValor(event.target.value)}
               />
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={quitarSaldo}
-              >
+              <Button type="button" variant="outline" onClick={quitarSaldo}>
                 Quitar
               </Button>
             </div>
@@ -240,35 +213,18 @@ export function RegistrarPagamentoModal({
             <select
               value={formaPagamento}
               onChange={(event) =>
-                setFormaPagamento(
-                  event.target
-                    .value as FormaPagamento
-                )
+                setFormaPagamento(event.target.value as FormaPagamento)
               }
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="DINHEIRO">
-                Dinheiro
-              </option>
+              <option value="DINHEIRO">Dinheiro</option>
               <option value="PIX">PIX</option>
-              <option value="BOLETO">
-                Boleto
-              </option>
-              <option value="TRANSFERENCIA">
-                Transferência
-              </option>
-              <option value="CARTAO_CREDITO">
-                Cartão de crédito
-              </option>
-              <option value="CARTAO_DEBITO">
-                Cartão de débito
-              </option>
-              <option value="CHEQUE">
-                Cheque
-              </option>
-              <option value="OUTRA">
-                Outra
-              </option>
+              <option value="BOLETO">Boleto</option>
+              <option value="TRANSFERENCIA">Transferência</option>
+              <option value="CARTAO_CREDITO">Cartão de crédito</option>
+              <option value="CARTAO_DEBITO">Cartão de débito</option>
+              <option value="CHEQUE">Cheque</option>
+              <option value="OUTRA">Outra</option>
             </select>
           </div>
 
@@ -280,11 +236,7 @@ export function RegistrarPagamentoModal({
             <Input
               type="date"
               value={dataPagamento}
-              onChange={(event) =>
-                setDataPagamento(
-                  event.target.value
-                )
-              }
+              onChange={(event) => setDataPagamento(event.target.value)}
             />
           </div>
 
@@ -295,33 +247,23 @@ export function RegistrarPagamentoModal({
 
             <select
               value={caixaId}
-              onChange={(event) =>
-                setCaixaId(event.target.value)
-              }
+              onChange={(event) => setCaixaId(event.target.value)}
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="">
-                Não movimentar caixa
-              </option>
+              <option value="">Não movimentar caixa</option>
 
               {caixasAbertos.map((caixa) => (
-                <option
-                  key={caixa.id}
-                  value={caixa.id}
-                >
+                <option key={caixa.id} value={caixa.id}>
                   {caixa.nome} — {caixa.codigo} —{" "}
-                  {formatarMoeda(
-                    Number(caixa.saldoAtual)
-                  )}
+                  {formatarMoeda(Number(caixa.saldoAtual))}
                 </option>
               ))}
             </select>
 
             {caixasAbertos.length === 0 && (
               <p className="mt-1 text-xs text-amber-600">
-                Não existe caixa aberto disponível.
-                O pagamento poderá ser registrado sem
-                movimentação no caixa.
+                Não existe caixa aberto disponível. O pagamento poderá ser
+                registrado sem movimentação no caixa.
               </p>
             )}
           </div>
@@ -333,9 +275,7 @@ export function RegistrarPagamentoModal({
 
             <Input
               value={documento}
-              onChange={(event) =>
-                setDocumento(event.target.value)
-              }
+              onChange={(event) => setDocumento(event.target.value)}
               placeholder="Ex.: comprovante, PIX ou boleto"
             />
           </div>
@@ -348,9 +288,7 @@ export function RegistrarPagamentoModal({
 
           <Textarea
             value={observacao}
-            onChange={(event) =>
-              setObservacao(event.target.value)
-            }
+            onChange={(event) => setObservacao(event.target.value)}
           />
         </div>
 
@@ -363,13 +301,8 @@ export function RegistrarPagamentoModal({
             Cancelar
           </Button>
 
-          <Button
-            onClick={salvar}
-            disabled={salvando}
-          >
-            {salvando
-              ? "Registrando..."
-              : "Confirmar pagamento"}
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? "Registrando..." : "Confirmar pagamento"}
           </Button>
         </div>
       </div>
@@ -388,18 +321,14 @@ function CampoNumero({
 }) {
   return (
     <div>
-      <label className="text-sm font-medium text-slate-700">
-        {label}
-      </label>
+      <label className="text-sm font-medium text-slate-700">{label}</label>
 
       <Input
         type="number"
         min="0"
         step="0.01"
         value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(event) => onChange(event.target.value)}
       />
     </div>
   );
