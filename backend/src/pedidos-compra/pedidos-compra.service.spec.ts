@@ -1,7 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   Prisma,
@@ -102,9 +102,8 @@ function criarContexto() {
     },
     pedidoCompraHistorico: { findMany: jest.fn() },
   };
-  tx.pedidoCompra.findUnique.mockResolvedValue(pedido());
+  tx.pedidoCompra.findFirst.mockResolvedValue(pedido());
   tx.pedidoCompra.findUniqueOrThrow.mockResolvedValue(pedido());
-  tx.pedidoCompra.findFirst.mockResolvedValue(null);
   tx.pedidoCompra.create.mockResolvedValue(pedido(StatusPedidoCompra.RASCUNHO));
   tx.pedidoCompra.updateMany.mockResolvedValue({ count: 1 });
   tx.pedidoCompraItem.findMany.mockResolvedValue([
@@ -154,7 +153,7 @@ const dtoCriacao = {
 describe('PedidosCompraService hardening', () => {
   it('criar usa uma transação e todas as consultas críticas usam o mesmo tx', async () => {
     const { service, prisma, tx } = criarContexto();
-    await service.criar(dtoCriacao, usuario);
+    await service.criar('e1', dtoCriacao, usuario);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.fornecedor.findUnique).toHaveBeenCalled();
     expect(tx.deposito.findUnique).toHaveBeenCalled();
@@ -172,16 +171,16 @@ describe('PedidosCompraService hardening', () => {
     '%s usa transação, bloqueia antes de reler e grava pelo tx',
     async (metodo, status) => {
       const { service, prisma, tx } = criarContexto();
-      tx.pedidoCompra.findUnique.mockResolvedValue(pedido(status));
+      tx.pedidoCompra.findFirst.mockResolvedValue(pedido(status));
       tx.pedidoCompra.findUniqueOrThrow.mockResolvedValue(pedido(status));
       if (metodo === 'atualizar') {
-        await service.atualizar('p1', { observacao: 'ok' }, usuario);
+        await service.atualizar('e1', 'p1', { observacao: 'ok' }, usuario);
       } else {
-        await service[metodo]('p1', usuario);
+        await service[metodo]('e1', 'p1', usuario);
       }
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-        tx.pedidoCompra.findUnique.mock.invocationCallOrder[0],
+        tx.pedidoCompra.findFirst.mock.invocationCallOrder[0],
       );
       expect(tx.pedidoCompra.updateMany).toHaveBeenCalled();
       expect(tx.pedidoCompraHistorico.create).toHaveBeenCalled();
@@ -190,10 +189,15 @@ describe('PedidosCompraService hardening', () => {
 
   it('adicionarHistorico usa transação, lock, releitura de tenant e o mesmo tx', async () => {
     const { service, prisma, tx } = criarContexto();
-    await service.adicionarHistorico('p1', { descricao: 'Nota' }, usuario);
+    await service.adicionarHistorico(
+      'e1',
+      'p1',
+      { descricao: 'Nota' },
+      usuario,
+    );
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-      tx.pedidoCompra.findUnique.mock.invocationCallOrder[0],
+      tx.pedidoCompra.findFirst.mock.invocationCallOrder[0],
     );
     expect(tx.pedidoCompraHistorico.create).toHaveBeenCalled();
   });
@@ -204,6 +208,7 @@ describe('PedidosCompraService hardening', () => {
       pedido(StatusPedidoCompra.PARCIALMENTE_RECEBIDO),
     );
     const resultado = await service.receber(
+      'e1',
       'p1',
       { itens: [{ itemId: 'item1', quantidadeRecebida: 5 }] },
       usuario,
@@ -231,7 +236,7 @@ describe('PedidosCompraService hardening', () => {
 
   it('recebimento total preserva saldo decimal residual exato', async () => {
     const { service, tx } = criarContexto();
-    tx.pedidoCompra.findUnique.mockResolvedValue(
+    tx.pedidoCompra.findFirst.mockResolvedValue(
       pedido(StatusPedidoCompra.APROVADO, [
         item('item1', 'prod1', '1.10', '0.30'),
       ]),
@@ -243,6 +248,7 @@ describe('PedidosCompraService hardening', () => {
       pedido(StatusPedidoCompra.RECEBIDO),
     );
     await service.receber(
+      'e1',
       'p1',
       { itens: [{ itemId: 'item1', quantidadeRecebida: 0.8 }] },
       usuario,
@@ -263,13 +269,14 @@ describe('PedidosCompraService hardening', () => {
 
   it('rejeita recebimento superior ao saldo sem efeitos', async () => {
     const { service, tx } = criarContexto();
-    tx.pedidoCompra.findUnique.mockResolvedValue(
+    tx.pedidoCompra.findFirst.mockResolvedValue(
       pedido(StatusPedidoCompra.APROVADO, [
         item('item1', 'prod1', '1.10', '0.30'),
       ]),
     );
     await expect(
       service.receber(
+        'e1',
         'p1',
         { itens: [{ itemId: 'item1', quantidadeRecebida: 0.81 }] },
         usuario,
@@ -287,6 +294,7 @@ describe('PedidosCompraService hardening', () => {
       custoMedio: new Prisma.Decimal(10),
     });
     await service.receber(
+      'e1',
       'p1',
       {
         itens: [
@@ -307,7 +315,7 @@ describe('PedidosCompraService hardening', () => {
     const executar = async (ordem: string[]) => {
       const { service, tx } = criarContexto();
       const itens = [item('ia', 'prod-a'), item('ib', 'prod-b')];
-      tx.pedidoCompra.findUnique.mockResolvedValue(
+      tx.pedidoCompra.findFirst.mockResolvedValue(
         pedido(StatusPedidoCompra.APROVADO, itens),
       );
       tx.pedidoCompraItem.findMany.mockResolvedValue([
@@ -332,6 +340,7 @@ describe('PedidosCompraService hardening', () => {
         custoMedio: new Prisma.Decimal(0),
       });
       await service.receber(
+        'e1',
         'p1',
         {
           itens: ordem.map((id) => ({ itemId: id, quantidadeRecebida: 1 })),
@@ -354,7 +363,7 @@ describe('PedidosCompraService hardening', () => {
 
   it('adquire todos os advisory locks antes de consultar estoque', async () => {
     const { service, tx } = criarContexto();
-    tx.pedidoCompra.findUnique.mockResolvedValue(
+    tx.pedidoCompra.findFirst.mockResolvedValue(
       pedido(StatusPedidoCompra.APROVADO, [
         item('ia', 'prod-a'),
         item('ib', 'prod-b'),
@@ -365,6 +374,7 @@ describe('PedidosCompraService hardening', () => {
       item('ib', 'prod-b', 10, 1, StatusItemPedidoCompra.PARCIALMENTE_RECEBIDO),
     ]);
     await service.receber(
+      'e1',
       'p1',
       {
         itens: [
@@ -383,6 +393,7 @@ describe('PedidosCompraService hardening', () => {
     const { service, prisma } = criarContexto();
     await expect(
       service.receber(
+        'e1',
         'p1',
         {
           itens: [
@@ -398,7 +409,7 @@ describe('PedidosCompraService hardening', () => {
 
   it('rejeita produto duplicado após lock e antes de efeitos de estoque', async () => {
     const { service, tx } = criarContexto();
-    tx.pedidoCompra.findUnique.mockResolvedValue(
+    tx.pedidoCompra.findFirst.mockResolvedValue(
       pedido(StatusPedidoCompra.APROVADO, [
         item('ia', 'prod-a'),
         item('ib', 'prod-a'),
@@ -406,6 +417,7 @@ describe('PedidosCompraService hardening', () => {
     );
     await expect(
       service.receber(
+        'e1',
         'p1',
         {
           itens: [
@@ -431,17 +443,18 @@ describe('PedidosCompraService hardening', () => {
     '%s: perdedor relê status confirmado e não cria histórico',
     async (_nome, metodo, status) => {
       const { service, tx } = criarContexto();
-      tx.pedidoCompra.findUnique.mockResolvedValue(pedido(status));
+      tx.pedidoCompra.findFirst.mockResolvedValue(pedido(status));
       const acao =
         metodo === 'receber'
           ? service.receber(
+              'e1',
               'p1',
               { itens: [{ itemId: 'item1', quantidadeRecebida: 1 }] },
               usuario,
             )
           : metodo === 'atualizar'
-            ? service.atualizar('p1', { observacao: 'x' }, usuario)
-            : service.aprovar('p1', usuario);
+            ? service.atualizar('e1', 'p1', { observacao: 'x' }, usuario)
+            : service.aprovar('e1', 'p1', usuario);
       await expect(acao).rejects.toBeInstanceOf(BadRequestException);
       expect(tx.pedidoCompraHistorico.create).not.toHaveBeenCalled();
     },
@@ -449,11 +462,11 @@ describe('PedidosCompraService hardening', () => {
 
   it('updateMany com count zero derrota transição sem histórico', async () => {
     const { service, tx } = criarContexto();
-    tx.pedidoCompra.findUnique.mockResolvedValue(
+    tx.pedidoCompra.findFirst.mockResolvedValue(
       pedido(StatusPedidoCompra.PENDENTE_APROVACAO),
     );
     tx.pedidoCompra.updateMany.mockResolvedValue({ count: 0 });
-    await expect(service.aprovar('p1', usuario)).rejects.toBeInstanceOf(
+    await expect(service.aprovar('e1', 'p1', usuario)).rejects.toBeInstanceOf(
       ConflictException,
     );
     expect(tx.pedidoCompraHistorico.create).not.toHaveBeenCalled();
@@ -461,12 +474,13 @@ describe('PedidosCompraService hardening', () => {
 
   it('atualização condicional com count zero não recria itens nem histórico', async () => {
     const { service, tx } = criarContexto();
-    tx.pedidoCompra.findUnique.mockResolvedValue(
+    tx.pedidoCompra.findFirst.mockResolvedValue(
       pedido(StatusPedidoCompra.RASCUNHO),
     );
     tx.pedidoCompra.updateMany.mockResolvedValue({ count: 0 });
     await expect(
       service.atualizar(
+        'e1',
         'p1',
         {
           itens: [
@@ -481,13 +495,14 @@ describe('PedidosCompraService hardening', () => {
   });
   it('segundo recebimento relê saldo/status atualizado sob lock', async () => {
     const { service, tx } = criarContexto();
-    tx.pedidoCompra.findUnique.mockResolvedValue(
+    tx.pedidoCompra.findFirst.mockResolvedValue(
       pedido(StatusPedidoCompra.RECEBIDO, [
         item('item1', 'prod1', 10, 10, StatusItemPedidoCompra.RECEBIDO),
       ]),
     );
     await expect(
       service.receber(
+        'e1',
         'p1',
         { itens: [{ itemId: 'item1', quantidadeRecebida: 1 }] },
         usuario,
@@ -496,14 +511,16 @@ describe('PedidosCompraService hardening', () => {
     expect(tx.estoqueProduto.findFirst).not.toHaveBeenCalled();
   });
 
-  it('impede efeitos para pedido de outro tenant', async () => {
+  it('trata pedido de outro tenant como não encontrado e impede efeitos', async () => {
     const { service, tx } = criarContexto();
-    tx.pedidoCompra.findUnique.mockResolvedValue({
-      ...pedido(),
-      empresaId: 'e2',
-    });
-    await expect(service.cancelar('p1', usuario)).rejects.toBeInstanceOf(
-      ForbiddenException,
+    tx.pedidoCompra.findFirst.mockResolvedValue(null);
+    await expect(service.cancelar('e1', 'p1', usuario)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(tx.pedidoCompra.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'p1', empresaId: 'e1' },
+      }),
     );
     expect(tx.pedidoCompra.updateMany).not.toHaveBeenCalled();
     expect(tx.pedidoCompraHistorico.create).not.toHaveBeenCalled();
@@ -527,6 +544,7 @@ describe('PedidosCompraService hardening', () => {
       }
       await expect(
         service.receber(
+          'e1',
           'p1',
           { itens: [{ itemId: 'item1', quantidadeRecebida: 1 }] },
           usuario,
@@ -547,6 +565,7 @@ describe('PedidosCompraService hardening', () => {
     const { service, tx } = criarContexto();
     tx.estoqueProduto.findFirst.mockResolvedValue(null);
     await service.receber(
+      'e1',
       'p1',
       { itens: [{ itemId: 'item1', quantidadeRecebida: 1 }] },
       usuario,
@@ -569,6 +588,7 @@ describe('PedidosCompraService hardening', () => {
     const { service, tx } = criarContexto();
     await expect(
       service.criar(
+        'e1',
         {
           ...dtoCriacao,
           itens: [
@@ -600,7 +620,7 @@ describe('PedidosCompraService hardening', () => {
         meta: { target },
       });
       tx.pedidoCompra.create.mockRejectedValue(erro);
-      const promessa = service.criar(dtoCriacao, usuario);
+      const promessa = service.criar('e1', dtoCriacao, usuario);
       if (conhecido) {
         await expect(promessa).rejects.toBeInstanceOf(ConflictException);
       } else {
