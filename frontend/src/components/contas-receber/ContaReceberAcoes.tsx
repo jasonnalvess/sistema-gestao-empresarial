@@ -6,9 +6,17 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/actions/ConfirmDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_CONTAS_RECEBER_CANCELAR,
+  PERMISSAO_CONTAS_RECEBER_RECEBER,
+} from "@/lib/auth";
 
 import {
   cancelarContaReceber,
+  contasReceberQueryKeys,
+  obterMensagemErroContasReceber,
   ContaReceberDetalhada,
 } from "@/services/contas-receber.service";
 
@@ -22,18 +30,37 @@ export function ContaReceberAcoes({
   conta,
 }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeReceber = temPermissao(PERMISSAO_CONTAS_RECEBER_RECEBER);
+  const podeCancelar = temPermissao(PERMISSAO_CONTAS_RECEBER_CANCELAR);
 
   async function atualizarConsultas() {
     await queryClient.invalidateQueries({
-      queryKey: ["conta-receber", conta.id],
+      queryKey: contasReceberQueryKeys.detalhe(empresaEfetivaId ?? "", conta.id),
     });
 
     await queryClient.invalidateQueries({
-      queryKey: ["contas-receber"],
+      queryKey: contasReceberQueryKeys.listas(empresaEfetivaId ?? ""),
+    });
+
+    await queryClient.invalidateQueries({
+      queryKey: contasReceberQueryKeys.resumo(empresaEfetivaId ?? ""),
+    });
+
+    await queryClient.invalidateQueries({
+      queryKey: contasReceberQueryKeys.historico(
+        empresaEfetivaId ?? "",
+        conta.id,
+      ),
     });
   }
 
   async function cancelar() {
+    if (!podeCancelar || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     try {
       await cancelarContaReceber(conta.id);
 
@@ -42,10 +69,9 @@ export function ContaReceberAcoes({
       );
 
       await atualizarConsultas();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao cancelar conta"
+        obterMensagemErroContasReceber(error, "Erro ao cancelar conta"),
       );
     }
   }
@@ -63,13 +89,13 @@ export function ContaReceberAcoes({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {aceitaRecebimento && (
+      {podeReceber && aceitaRecebimento && empresaEfetivaId && !carregando && (
         <RegistrarRecebimentoModal
           conta={conta}
         />
       )}
 
-      {aceitaCancelamento && (
+      {podeCancelar && aceitaCancelamento && empresaEfetivaId && !carregando && (
         <ConfirmDialog
           title="Cancelar conta a receber?"
           description="A conta ficará indisponível para novos recebimentos."

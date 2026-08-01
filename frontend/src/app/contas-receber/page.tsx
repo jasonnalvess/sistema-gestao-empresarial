@@ -13,6 +13,8 @@ import {
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
 import { CrudSearch } from "@/components/crud/CrudSearch";
@@ -32,15 +34,32 @@ import {
 } from "@/components/ui/table";
 
 import {
+  contasReceberQueryKeys,
+  buscarResumoContasReceber,
   listarContasReceber,
   OrigemContaReceber,
   StatusContaReceber,
 } from "@/services/contas-receber.service";
 
 import { listarClientes } from "@/services/clientes.service";
-import { buscarResumoFinanceiro } from "@/services/financeiro.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_CLIENTES_VISUALIZAR,
+  PERMISSAO_CONTAS_RECEBER_CRIAR,
+  PERMISSAO_CONTAS_RECEBER_VISUALIZAR,
+} from "@/lib/auth";
 
 export default function ContasReceberPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarContas = temPermissao(
+    PERMISSAO_CONTAS_RECEBER_VISUALIZAR,
+  );
+  const podeCriarConta = temPermissao(PERMISSAO_CONTAS_RECEBER_CRIAR);
+  const podeVisualizarClientes = temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] =
     useState("");
@@ -59,13 +78,19 @@ export default function ContasReceberPage() {
   const [page, setPage] = useState(1);
 
   const { data: clientesResponse } = useQuery({
-    queryKey: ["clientes-select-contas-receber"],
+    queryKey: ["clientes-select-contas-receber", empresaEfetivaId],
     queryFn: () =>
       listarClientes({
         ativo: "true",
         page: 1,
         limit: 100,
       }),
+    enabled:
+      podeVisualizarContas &&
+      podeVisualizarClientes &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const {
@@ -74,7 +99,7 @@ export default function ContasReceberPage() {
     error,
   } = useQuery({
     queryKey: [
-      "contas-receber",
+      ...contasReceberQueryKeys.listas(empresaEfetivaId ?? ""),
       searchAplicado,
       status,
       origem,
@@ -82,6 +107,9 @@ export default function ContasReceberPage() {
       vencimentoInicio,
       vencimentoFim,
       page,
+      10,
+      "dataVencimento",
+      "asc",
     ],
 
     queryFn: () =>
@@ -110,23 +138,33 @@ export default function ContasReceberPage() {
         sortBy: "dataVencimento",
         order: "asc",
       }),
+    enabled:
+      podeVisualizarContas &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
-  const { data: resumoFinanceiro } = useQuery({
+  const { data: resumoContasReceber } = useQuery({
     queryKey: [
-      "financeiro-resumo-contas-receber",
+      ...contasReceberQueryKeys.resumo(empresaEfetivaId ?? ""),
       vencimentoInicio,
       vencimentoFim,
     ],
 
     queryFn: () =>
-      buscarResumoFinanceiro({
+      buscarResumoContasReceber({
         vencimentoInicio:
           vencimentoInicio || undefined,
 
         vencimentoFim:
           vencimentoFim || undefined,
       }),
+    enabled:
+      podeVisualizarContas &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const contas = data?.data ?? [];
@@ -148,20 +186,44 @@ export default function ContasReceberPage() {
     setPage(1);
   }
 
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+
+  if (!podeVisualizarContas) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+
+  if (!possuiEmpresaEfetiva || !empresaEfetivaId) {
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <PageHeader
           title="Contas a Receber"
           description="Controle valores a receber, vencimentos e recebimentos dos clientes."
-          actions={<NovaContaReceberModal />}
+          actions={podeCriarConta ? <NovaContaReceberModal /> : undefined}
         />
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ResumoCard
             titulo="Valor lançado"
             valor={
-              resumoFinanceiro?.receber.valorOriginal ?? 0
+              resumoContasReceber?.receber.valorOriginal ?? 0
             }
             icone={<Banknote size={20} />}
           />
@@ -169,7 +231,7 @@ export default function ContasReceberPage() {
           <ResumoCard
             titulo="Valor recebido"
             valor={
-              resumoFinanceiro?.receber.valorRecebido ?? 0
+              resumoContasReceber?.receber.valorRecebido ?? 0
             }
             icone={<CheckCircle2 size={20} />}
           />
@@ -177,7 +239,7 @@ export default function ContasReceberPage() {
           <ResumoCard
             titulo="Saldo em aberto"
             valor={
-              resumoFinanceiro?.receber.valorAberto ?? 0
+              resumoContasReceber?.receber.valorAberto ?? 0
             }
             icone={<Clock3 size={20} />}
           />
@@ -185,7 +247,7 @@ export default function ContasReceberPage() {
           <ResumoCard
             titulo="Valor vencido"
             valor={
-              resumoFinanceiro?.receber.valorVencido ?? 0
+              resumoContasReceber?.receber.valorVencido ?? 0
             }
             icone={<AlertTriangle size={20} />}
           />
