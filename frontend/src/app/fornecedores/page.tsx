@@ -4,7 +4,16 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_FORNECEDORES_CRIAR,
+  PERMISSAO_FORNECEDORES_EDITAR,
+  PERMISSAO_FORNECEDORES_VISUALIZAR,
+} from "@/lib/auth";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
 import { CrudSearch } from "@/components/crud/CrudSearch";
@@ -29,6 +38,15 @@ import {
 import { listarFornecedores } from "@/services/fornecedores.service";
 
 export default function FornecedoresPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR
+  );
+  const podeCriarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_CRIAR);
+  const podeEditarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_EDITAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [ativo, setAtivo] = useState("");
@@ -38,6 +56,7 @@ export default function FornecedoresPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: [
       "fornecedores",
+      empresaEfetivaId,
       searchAplicado,
       ativo,
       estado,
@@ -53,6 +72,8 @@ export default function FornecedoresPage() {
         sortBy: "createdAt",
         order: "desc",
       }),
+    enabled:
+      podeVisualizarFornecedores && possuiEmpresaEfetiva && !carregando,
   });
 
   function pesquisar() {
@@ -81,13 +102,37 @@ export default function FornecedoresPage() {
   const fornecedores = data?.data ?? [];
   const totalPages = data?.meta.totalPages ?? 1;
 
+  if (!podeVisualizarFornecedores) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+
+  if (!possuiEmpresaEfetiva) {
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <PageHeader
           title="Fornecedores"
           description="Gerencie os fornecedores da empresa."
-          actions={<NovoFornecedorModal />}
+          actions={podeCriarFornecedor ? <NovoFornecedorModal /> : undefined}
         />
 
         <CrudCard>
@@ -202,13 +247,12 @@ export default function FornecedoresPage() {
                               href={`/fornecedores/${fornecedor.id}`}
                             />
 
-                            <EditarFornecedorModal
-                              fornecedor={fornecedor}
-                            />
-
-                            <AlterarStatusFornecedorButton
-                              fornecedor={fornecedor}
-                            />
+                            {podeEditarFornecedor && (
+                              <>
+                                <EditarFornecedorModal fornecedor={fornecedor} />
+                                <AlterarStatusFornecedorButton fornecedor={fornecedor} />
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

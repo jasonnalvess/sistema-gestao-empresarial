@@ -9,11 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_FORNECEDORES_CRIAR } from "@/lib/auth";
 
 import { criarFornecedor } from "@/services/fornecedores.service";
 
 export function NovoFornecedorModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId } = useEmpresaSelecionada();
+  const podeCriarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -57,6 +63,14 @@ export function NovoFornecedorModal() {
   }
 
   async function salvar() {
+    if (!podeCriarFornecedor) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+    if (!empresaEfetivaId) {
+      toast.error("Selecione uma empresa para realizar esta ação.");
+      return;
+    }
     if (!razaoSocial.trim()) {
       toast.error("Informe a razão social.");
       return;
@@ -103,7 +117,7 @@ export function NovoFornecedorModal() {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["fornecedores"],
+        queryKey: ["fornecedores", empresaEfetivaId],
       });
     } catch (error: any) {
       toast.error(
@@ -114,6 +128,8 @@ export function NovoFornecedorModal() {
       setSalvando(false);
     }
   }
+
+  if (!podeCriarFornecedor || !empresaEfetivaId) return null;
 
   return (
     <FormDialog

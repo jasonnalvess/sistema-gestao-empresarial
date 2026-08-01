@@ -39,8 +39,16 @@ import {
 
 import { listarFornecedores } from "@/services/fornecedores.service";
 import { buscarResumoFinanceiro } from "@/services/financeiro.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_FORNECEDORES_VISUALIZAR } from "@/lib/auth";
 
 export default function ContasPagarPage() {
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR
+  );
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] =
     useState("");
@@ -59,7 +67,7 @@ export default function ContasPagarPage() {
   const [page, setPage] = useState(1);
 
   const { data: fornecedoresResponse } = useQuery({
-    queryKey: ["fornecedores-select-contas-pagar"],
+    queryKey: ["fornecedores-select-contas-pagar", empresaEfetivaId],
     queryFn: () =>
       listarFornecedores({
         ativo: true,
@@ -68,6 +76,8 @@ export default function ContasPagarPage() {
         sortBy: "razaoSocial",
         order: "asc",
       }),
+    enabled:
+      podeVisualizarFornecedores && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const {

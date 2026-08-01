@@ -7,6 +7,12 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_FORNECEDORES_EDITAR,
+  PERMISSAO_FORNECEDORES_VISUALIZAR,
+} from "@/lib/auth";
 
 import {
   adicionarFornecedorHistorico,
@@ -21,6 +27,12 @@ export function FornecedorHistoricoCard({
   fornecedorId,
 }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId } = useEmpresaSelecionada();
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR
+  );
+  const podeEditarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_EDITAR);
 
   const [descricao, setDescricao] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -30,12 +42,21 @@ export function FornecedorHistoricoCard({
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["fornecedor-historico", fornecedorId],
+    queryKey: ["fornecedor-historico", empresaEfetivaId, fornecedorId],
     queryFn: () =>
       listarFornecedorHistorico(fornecedorId),
+    enabled: podeVisualizarFornecedores && Boolean(empresaEfetivaId),
   });
 
   async function salvar() {
+    if (!podeEditarFornecedor) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+    if (!empresaEfetivaId) {
+      toast.error("Selecione uma empresa para realizar esta ação.");
+      return;
+    }
     if (descricao.trim().length < 2) {
       toast.error("Informe uma anotação válida.");
       return;
@@ -53,11 +74,11 @@ export function FornecedorHistoricoCard({
       setDescricao("");
 
       queryClient.invalidateQueries({
-        queryKey: ["fornecedor-historico", fornecedorId],
+        queryKey: ["fornecedor-historico", empresaEfetivaId, fornecedorId],
       });
 
       queryClient.invalidateQueries({
-        queryKey: ["fornecedor", fornecedorId],
+        queryKey: ["fornecedor", empresaEfetivaId, fornecedorId],
       });
     } catch (error: any) {
       toast.error(
@@ -69,12 +90,15 @@ export function FornecedorHistoricoCard({
     }
   }
 
+  if (!podeVisualizarFornecedores || !empresaEfetivaId) return null;
+
   return (
     <div className="space-y-5">
-      <div>
-        <label className="text-sm font-medium text-slate-700">
-          Nova anotação
-        </label>
+      {podeEditarFornecedor && (
+        <div>
+          <label className="text-sm font-medium text-slate-700">
+            Nova anotação
+          </label>
 
         <Textarea
           value={descricao}
@@ -97,7 +121,8 @@ export function FornecedorHistoricoCard({
               : "Adicionar anotação"}
           </Button>
         </div>
-      </div>
+        </div>
+      )}
 
       <div className="border-t pt-4">
         {isLoading ? (

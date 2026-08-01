@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_FORNECEDORES_VISUALIZAR } from "@/lib/auth";
 
 import { listarFornecedores } from "@/services/fornecedores.service";
 import { listarDepositos } from "@/services/depositos.service";
@@ -39,6 +42,11 @@ function criarItemVazio(): ItemFormulario {
 
 export function NovoPedidoCompraModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR
+  );
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -61,7 +69,7 @@ export function NovoPedidoCompraModal() {
   ]);
 
   const { data: fornecedoresResponse } = useQuery({
-    queryKey: ["fornecedores-select-novo-pedido"],
+    queryKey: ["fornecedores-select-novo-pedido", empresaEfetivaId],
     queryFn: () =>
       listarFornecedores({
         ativo: true,
@@ -70,6 +78,8 @@ export function NovoPedidoCompraModal() {
         sortBy: "razaoSocial",
         order: "asc",
       }),
+    enabled:
+      aberto && podeVisualizarFornecedores && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: depositosResponse } = useQuery({

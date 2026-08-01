@@ -38,8 +38,16 @@ import {
 
 import { listarFornecedores } from "@/services/fornecedores.service";
 import { listarDepositos } from "@/services/depositos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_FORNECEDORES_VISUALIZAR } from "@/lib/auth";
 
 export default function PedidosCompraPage() {
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR
+  );
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [status, setStatus] = useState("");
@@ -48,7 +56,7 @@ export default function PedidosCompraPage() {
   const [page, setPage] = useState(1);
 
   const { data: fornecedoresResponse } = useQuery({
-    queryKey: ["fornecedores-select-pedidos-compra"],
+    queryKey: ["fornecedores-select-pedidos-compra", empresaEfetivaId],
     queryFn: () =>
       listarFornecedores({
         ativo: true,
@@ -57,6 +65,8 @@ export default function PedidosCompraPage() {
         sortBy: "razaoSocial",
         order: "asc",
       }),
+    enabled:
+      podeVisualizarFornecedores && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: depositosResponse } = useQuery({

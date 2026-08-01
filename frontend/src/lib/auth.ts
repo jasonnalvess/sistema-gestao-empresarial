@@ -3,6 +3,9 @@ import { permissoes } from "./permissoes";
 export const PERMISSAO_CLIENTES_VISUALIZAR = "clientes.visualizar";
 export const PERMISSAO_CLIENTES_CRIAR = "clientes.criar";
 export const PERMISSAO_CLIENTES_EDITAR = "clientes.editar";
+export const PERMISSAO_FORNECEDORES_VISUALIZAR = "fornecedores.visualizar";
+export const PERMISSAO_FORNECEDORES_CRIAR = "fornecedores.criar";
+export const PERMISSAO_FORNECEDORES_EDITAR = "fornecedores.editar";
 
 export type Usuario = {
   id: string;
