@@ -243,6 +243,20 @@ export class ContasReceberService {
     throw error;
   }
 
+  private tratarErroGeracaoOrdemServico(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002' &&
+      error.meta?.target === 'ContaReceber_ordemServicoId_ativa_key'
+    ) {
+      throw new ConflictException(
+        'Já existe uma conta a receber ativa para esta Ordem de Serviço.',
+      );
+    }
+
+    throw error;
+  }
+
   private async bloquearConta(
     tx: Prisma.TransactionClient,
     empresaId: string,
@@ -1038,102 +1052,104 @@ export class ContasReceberService {
     );
     const dataVencimento = new Date(dados.dataVencimento);
 
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const ordem = await this.validarOrdemServico(
-          ordemServicoId,
+    return this.prisma.$transaction(async (tx) => {
+      const ordem = await this.validarOrdemServico(
+        ordemServicoId,
+        empresaId,
+        tx,
+      );
+      const statusPermitido = [
+        'CONCLUIDA',
+        'CONCLUÍDA',
+        'FINALIZADA',
+        'FINALIZADO',
+      ].includes(ordem.status.toUpperCase());
+
+      if (!statusPermitido) {
+        throw new BadRequestException(
+          'Somente ordens de serviço concluídas podem gerar conta a receber',
+        );
+      }
+
+      const contaExistente = await tx.contaReceber.findFirst({
+        where: {
           empresaId,
-          tx,
-        );
-        const statusPermitido = [
-          'CONCLUIDA',
-          'CONCLUÍDA',
-          'FINALIZADA',
-          'FINALIZADO',
-        ].includes(ordem.status.toUpperCase());
-
-        if (!statusPermitido) {
-          throw new BadRequestException(
-            'Somente ordens de serviço concluídas podem gerar conta a receber',
-          );
-        }
-
-        const contaExistente = await tx.contaReceber.findFirst({
-          where: {
-            empresaId,
-            ordemServicoId,
-            status: { not: StatusContaReceber.CANCELADA },
-          },
-          select: { numero: true },
-        });
-
-        if (contaExistente) {
-          throw new ConflictException(
-            'A ordem de serviço já possui a conta a receber nº ' +
-              contaExistente.numero,
-          );
-        }
-
-        await this.validarCliente(ordem.clienteId, empresaId, tx);
-
-        const ultimaConta = await tx.contaReceber.findFirst({
-          where: { empresaId },
-          orderBy: { numero: 'desc' },
-          select: { numero: true },
-        });
-        const numero = (ultimaConta?.numero ?? 0) + 1;
-
-        const conta = await tx.contaReceber.create({
-          data: {
-            numero,
-            descricao:
-              'Ordem de serviço nº ' + ordem.numero + ' - ' + ordem.titulo,
-            documento:
-              dados.documento?.trim() || 'ORDEM-SERVICO-' + ordem.numero,
-            observacao:
-              dados.observacao?.trim() ||
-              'Conta gerada a partir da ordem de serviço nº ' +
-                ordem.numero +
-                '.',
-            origem: OrigemContaReceber.ORDEM_SERVICO,
-            status: this.determinarStatusInicial(dataVencimento),
-            dataEmissao: new Date(),
-            dataCompetencia: dados.dataCompetencia
-              ? new Date(dados.dataCompetencia)
-              : undefined,
-            dataVencimento,
-            parcelaAtual: 1,
-            totalParcelas: 1,
-            valorOriginal,
-            valorDesconto: 0,
-            valorJuros: 0,
-            valorMulta: 0,
-            valorRecebido: 0,
-            valorAberto: valorOriginal,
-            empresaId,
-            clienteId: ordem.clienteId,
-            ordemServicoId: ordem.id,
-            usuarioCriacaoId: this.obterUsuarioId(usuario),
-          },
-          include: this.includeConta,
-        });
-
-        await this.registrarHistorico(
-          conta.id,
-          'Conta a receber nº ' +
-            numero +
-            ' gerada a partir da ordem de serviço nº ' +
-            ordem.numero +
-            '.',
-          usuario,
-          tx,
-        );
-
-        return conta;
+          ordemServicoId,
+          status: { not: StatusContaReceber.CANCELADA },
+        },
+        select: { numero: true },
       });
-    } catch (error) {
-      this.tratarErroPrisma(error);
-    }
+
+      if (contaExistente) {
+        throw new ConflictException(
+          'A ordem de serviço já possui a conta a receber nº ' +
+            contaExistente.numero,
+        );
+      }
+
+      await this.validarCliente(ordem.clienteId, empresaId, tx);
+
+      const ultimaConta = await tx.contaReceber.findFirst({
+        where: { empresaId },
+        orderBy: { numero: 'desc' },
+        select: { numero: true },
+      });
+      const numero = (ultimaConta?.numero ?? 0) + 1;
+
+      const conta = await (async () => {
+        try {
+          return await tx.contaReceber.create({
+            data: {
+              numero,
+              descricao:
+                'Ordem de serviço nº ' + ordem.numero + ' - ' + ordem.titulo,
+              documento:
+                dados.documento?.trim() || 'ORDEM-SERVICO-' + ordem.numero,
+              observacao:
+                dados.observacao?.trim() ||
+                'Conta gerada a partir da ordem de serviço nº ' +
+                  ordem.numero +
+                  '.',
+              origem: OrigemContaReceber.ORDEM_SERVICO,
+              status: this.determinarStatusInicial(dataVencimento),
+              dataEmissao: new Date(),
+              dataCompetencia: dados.dataCompetencia
+                ? new Date(dados.dataCompetencia)
+                : undefined,
+              dataVencimento,
+              parcelaAtual: 1,
+              totalParcelas: 1,
+              valorOriginal,
+              valorDesconto: 0,
+              valorJuros: 0,
+              valorMulta: 0,
+              valorRecebido: 0,
+              valorAberto: valorOriginal,
+              empresaId,
+              clienteId: ordem.clienteId,
+              ordemServicoId: ordem.id,
+              usuarioCriacaoId: this.obterUsuarioId(usuario),
+            },
+            include: this.includeConta,
+          });
+        } catch (error) {
+          this.tratarErroGeracaoOrdemServico(error);
+        }
+      })();
+
+      await this.registrarHistorico(
+        conta.id,
+        'Conta a receber nº ' +
+          numero +
+          ' gerada a partir da ordem de serviço nº ' +
+          ordem.numero +
+          '.',
+        usuario,
+        tx,
+      );
+
+      return conta;
+    });
   }
 
   async adicionarHistorico(

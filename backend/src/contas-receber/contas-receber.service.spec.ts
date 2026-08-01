@@ -222,13 +222,44 @@ describe('ContasReceberService', () => {
     ).rejects.toThrow('já possui');
   });
 
-  it('propaga constraint de ordem inexistente no schema atual', async () => {
+  it('converte conflito do índice parcial de ordem em resposta amigável', async () => {
     const erro = new Prisma.PrismaClientKnownRequestError('unique', {
       code: 'P2002',
       clientVersion: '6.19.3',
       meta: { target: 'ContaReceber_ordemServicoId_ativa_key' },
     });
     prisma.contaReceber.create.mockRejectedValue(erro);
+
+    await expect(
+      service.gerarAPartirOrdemServico(
+        'empresa-1',
+        'ordem-1',
+        {
+          dataVencimento: '2026-08-10',
+          valorOriginal: 100,
+        },
+        usuario,
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        'Já existe uma conta a receber ativa para esta Ordem de Serviço.',
+    });
+    expect(prisma.contaReceberHistorico.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['target diferente', { target: 'outra_constraint' }],
+    ['target ausente', {}],
+    ['meta ausente', undefined],
+  ])('relança P2002 da ordem com %s', async (_cenario, meta) => {
+    const erro = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: '6.19.3',
+      ...(meta === undefined ? {} : { meta }),
+    });
+    prisma.contaReceber.create.mockRejectedValue(erro);
+
     await expect(
       service.gerarAPartirOrdemServico(
         'empresa-1',
@@ -240,6 +271,160 @@ describe('ContasReceberService', () => {
         usuario,
       ),
     ).rejects.toBe(erro);
+  });
+
+  it('relança outro código Prisma na geração por ordem', async () => {
+    const erro = new Prisma.PrismaClientKnownRequestError('falha', {
+      code: 'P2003',
+      clientVersion: '6.19.3',
+      meta: { target: 'ContaReceber_ordemServicoId_ativa_key' },
+    });
+    prisma.contaReceber.create.mockRejectedValue(erro);
+
+    await expect(
+      service.gerarAPartirOrdemServico(
+        'empresa-1',
+        'ordem-1',
+        {
+          dataVencimento: '2026-08-10',
+          valorOriginal: 100,
+        },
+        usuario,
+      ),
+    ).rejects.toBe(erro);
+  });
+
+  it('relança erro não Prisma na geração por ordem', async () => {
+    const erro = new Error('falha de persistência');
+    prisma.contaReceber.create.mockRejectedValue(erro);
+
+    await expect(
+      service.gerarAPartirOrdemServico(
+        'empresa-1',
+        'ordem-1',
+        {
+          dataVencimento: '2026-08-10',
+          valorOriginal: 100,
+        },
+        usuario,
+      ),
+    ).rejects.toBe(erro);
+  });
+
+  it('não converte falha posterior do histórico em conflito de ordem', async () => {
+    const erro = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: '6.19.3',
+      meta: { target: 'ContaReceber_ordemServicoId_ativa_key' },
+    });
+    prisma.contaReceberHistorico.create.mockRejectedValue(erro);
+
+    await expect(
+      service.gerarAPartirOrdemServico(
+        'empresa-1',
+        'ordem-1',
+        {
+          dataVencimento: '2026-08-10',
+          valorOriginal: 100,
+        },
+        usuario,
+      ),
+    ).rejects.toBe(erro);
+  });
+
+  it('permite nova geração quando não existe conta ativa para a ordem', async () => {
+    await service.gerarAPartirOrdemServico(
+      'empresa-1',
+      'ordem-1',
+      {
+        dataVencimento: '2026-08-10',
+        valorOriginal: 100,
+      },
+      usuario,
+    );
+
+    expect(prisma.contaReceber.findFirst).toHaveBeenCalledWith({
+      where: {
+        empresaId: 'empresa-1',
+        ordemServicoId: 'ordem-1',
+        status: { not: StatusContaReceber.CANCELADA },
+      },
+      select: { numero: true },
+    });
+    expect(prisma.contaReceber.create).toHaveBeenCalled();
+  });
+
+  it('retorna o mesmo 404 para ordem inexistente ou externa', async () => {
+    prisma.ordemServico.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.gerarAPartirOrdemServico(
+        'empresa-1',
+        'ordem-1',
+        {
+          dataVencimento: '2026-08-10',
+          valorOriginal: 100,
+        },
+        usuario,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.ordemServico.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'ordem-1', empresaId: 'empresa-1' },
+      }),
+    );
+    expect(prisma.contaReceber.create).not.toHaveBeenCalled();
+  });
+
+  it('trata estruturalmente duas gerações concorrentes sem segundo histórico', async () => {
+    const erroConcorrencia = new Prisma.PrismaClientKnownRequestError(
+      'unique',
+      {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { target: 'ContaReceber_ordemServicoId_ativa_key' },
+      },
+    );
+    prisma.contaReceber.create
+      .mockResolvedValueOnce(conta())
+      .mockRejectedValueOnce(erroConcorrencia);
+
+    const resultados = await Promise.allSettled([
+      service.gerarAPartirOrdemServico(
+        'empresa-1',
+        'ordem-1',
+        {
+          dataVencimento: '2026-08-10',
+          valorOriginal: 100,
+        },
+        usuario,
+      ),
+      service.gerarAPartirOrdemServico(
+        'empresa-1',
+        'ordem-1',
+        {
+          dataVencimento: '2026-08-10',
+          valorOriginal: 100,
+        },
+        usuario,
+      ),
+    ]);
+
+    expect(resultados.map((resultado) => resultado.status).sort()).toEqual([
+      'fulfilled',
+      'rejected',
+    ]);
+    const rejeitado = resultados.find(
+      (resultado): resultado is PromiseRejectedResult =>
+        resultado.status === 'rejected',
+    );
+    expect(rejeitado?.reason).toMatchObject({
+      status: 409,
+      message:
+        'Já existe uma conta a receber ativa para esta Ordem de Serviço.',
+    });
+    expect(prisma.contaReceber.create).toHaveBeenCalledTimes(2);
+    expect(prisma.contaReceberHistorico.create).toHaveBeenCalledTimes(1);
   });
 
   it.each([
