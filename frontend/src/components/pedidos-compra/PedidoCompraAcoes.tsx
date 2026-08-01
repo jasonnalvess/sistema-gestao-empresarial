@@ -1,12 +1,11 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  CheckCircle2,
-  Send,
-  XCircle,
-} from "lucide-react";
+import { CheckCircle2, Send, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_PEDIDOS_COMPRA_EDITAR } from "@/lib/auth";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/actions/ConfirmDialog";
@@ -19,6 +18,8 @@ import {
   cancelarPedido,
   enviarParaAprovacao,
   PedidoCompraDetalhado,
+  pedidosCompraQueryKeys,
+  obterMensagemErroPedidoCompra,
 } from "@/services/pedidos-compra.service";
 
 type Props = {
@@ -27,63 +28,87 @@ type Props = {
 
 export function PedidoCompraAcoes({ pedido }: Props) {
   const queryClient = useQueryClient();
+  const { usuario, temPermissao } = useAuth();
+  const { empresaEfetivaId } = useEmpresaSelecionada();
+  const podeEditarPedido = temPermissao(PERMISSAO_PEDIDOS_COMPRA_EDITAR);
+  const podeAprovarPedido =
+    podeEditarPedido &&
+    Boolean(usuario && ["SUPER_ADMIN", "ADMIN_EMPRESA"].includes(usuario.tipo));
 
   async function atualizarConsultas() {
+    if (!empresaEfetivaId) return;
+
     await queryClient.invalidateQueries({
-      queryKey: ["pedido-compra", pedido.id],
+      queryKey: pedidosCompraQueryKeys.detalhe(empresaEfetivaId, pedido.id),
     });
 
     await queryClient.invalidateQueries({
-      queryKey: ["pedidos-compra"],
+      queryKey: pedidosCompraQueryKeys.listas(empresaEfetivaId),
+    });
+
+    await queryClient.invalidateQueries({
+      queryKey: pedidosCompraQueryKeys.historico(empresaEfetivaId, pedido.id),
     });
   }
 
+  function podeMutar(aprovacao = false) {
+    const autorizado = aprovacao ? podeAprovarPedido : podeEditarPedido;
+    if (!autorizado || !empresaEfetivaId) {
+      toast.error("Você não possui permissão para esta ação.");
+      return false;
+    }
+    return true;
+  }
+
   async function enviar() {
+    if (!podeMutar()) return;
     try {
       await enviarParaAprovacao(pedido.id);
       toast.success("Pedido enviado para aprovação!");
       await atualizarConsultas();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao enviar pedido para aprovação"
+        obterMensagemErroPedidoCompra(
+          error,
+          "Erro ao enviar pedido para aprovação",
+        ),
       );
     }
   }
 
   async function aprovar() {
+    if (!podeMutar(true)) return;
     try {
       await aprovarPedido(pedido.id);
       toast.success("Pedido aprovado com sucesso!");
       await atualizarConsultas();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao aprovar pedido"
+        obterMensagemErroPedidoCompra(error, "Erro ao aprovar pedido"),
       );
     }
   }
 
   async function cancelar() {
+    if (!podeMutar()) return;
     try {
       await cancelarPedido(pedido.id);
       toast.success("Pedido cancelado com sucesso!");
       await atualizarConsultas();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao cancelar pedido"
+        obterMensagemErroPedidoCompra(error, "Erro ao cancelar pedido"),
       );
     }
   }
 
   return (
     <div className="flex flex-wrap gap-2">
-      {pedido.status === "RASCUNHO" && (
+      {podeEditarPedido && empresaEfetivaId && pedido.status === "RASCUNHO" && (
         <EditarPedidoCompraModal pedido={pedido} />
       )}
 
-      {pedido.status === "RASCUNHO" && (
+      {podeEditarPedido && empresaEfetivaId && pedido.status === "RASCUNHO" && (
         <ConfirmDialog
           title="Enviar pedido para aprovação?"
           description="Após o envio, o pedido não poderá mais ser editado."
@@ -97,48 +122,47 @@ export function PedidoCompraAcoes({ pedido }: Props) {
         />
       )}
 
-      {pedido.status === "PENDENTE_APROVACAO" && (
-        <ConfirmDialog
-          title="Aprovar pedido de compra?"
-          description="O pedido ficará disponível para recebimento."
-          onConfirm={aprovar}
-          trigger={
-            <Button>
-              <CheckCircle2 size={16} className="mr-2" />
-              Aprovar pedido
-            </Button>
-          }
-        />
-      )}
+      {podeAprovarPedido &&
+        empresaEfetivaId &&
+        pedido.status === "PENDENTE_APROVACAO" && (
+          <ConfirmDialog
+            title="Aprovar pedido de compra?"
+            description="O pedido ficará disponível para recebimento."
+            onConfirm={aprovar}
+            trigger={
+              <Button>
+                <CheckCircle2 size={16} className="mr-2" />
+                Aprovar pedido
+              </Button>
+            }
+          />
+        )}
 
-      {[
-        "APROVADO",
-        "PARCIALMENTE_RECEBIDO",
-      ].includes(pedido.status) && (
-        <ReceberPedidoCompraModal pedido={pedido} />
-      )}
+      {podeEditarPedido &&
+        empresaEfetivaId &&
+        ["APROVADO", "PARCIALMENTE_RECEBIDO"].includes(pedido.status) && (
+          <ReceberPedidoCompraModal pedido={pedido} />
+        )}
 
-      {pedido.status === "RECEBIDO" && (
-        <GerarContaPagarModal pedido={pedido} />
-      )}
+      {pedido.status === "RECEBIDO" && <GerarContaPagarModal pedido={pedido} />}
 
-      {[
-        "RASCUNHO",
-        "PENDENTE_APROVACAO",
-        "APROVADO",
-      ].includes(pedido.status) && (
-        <ConfirmDialog
-          title="Cancelar pedido de compra?"
-          description="Os itens do pedido também serão cancelados."
-          onConfirm={cancelar}
-          trigger={
-            <Button variant="destructive">
-              <XCircle size={16} className="mr-2" />
-              Cancelar
-            </Button>
-          }
-        />
-      )}
+      {podeEditarPedido &&
+        empresaEfetivaId &&
+        ["RASCUNHO", "PENDENTE_APROVACAO", "APROVADO"].includes(
+          pedido.status,
+        ) && (
+          <ConfirmDialog
+            title="Cancelar pedido de compra?"
+            description="Os itens do pedido também serão cancelados."
+            onConfirm={cancelar}
+            trigger={
+              <Button variant="destructive">
+                <XCircle size={16} className="mr-2" />
+                Cancelar
+              </Button>
+            }
+          />
+        )}
     </div>
   );
 }

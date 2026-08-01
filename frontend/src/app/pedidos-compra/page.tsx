@@ -13,6 +13,8 @@ import {
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
 import { CrudSearch } from "@/components/crud/CrudSearch";
@@ -34,19 +36,30 @@ import {
 import {
   listarPedidosCompra,
   PedidoCompraStatus,
+  pedidosCompraQueryKeys,
 } from "@/services/pedidos-compra.service";
 
 import { listarFornecedores } from "@/services/fornecedores.service";
 import { listarDepositos } from "@/services/depositos.service";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
-import { PERMISSAO_FORNECEDORES_VISUALIZAR } from "@/lib/auth";
+import {
+  PERMISSAO_FORNECEDORES_VISUALIZAR,
+  PERMISSAO_PEDIDOS_COMPRA_CRIAR,
+  PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,
+} from "@/lib/auth";
 
 export default function PedidosCompraPage() {
   const { temPermissao } = useAuth();
-  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarPedidos = temPermissao(
+    PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,
+  );
+  const podeCriarPedido = temPermissao(PERMISSAO_PEDIDOS_COMPRA_CRIAR);
   const podeVisualizarFornecedores = temPermissao(
-    PERMISSAO_FORNECEDORES_VISUALIZAR
+    PERMISSAO_FORNECEDORES_VISUALIZAR,
   );
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
@@ -66,11 +79,15 @@ export default function PedidosCompraPage() {
         order: "asc",
       }),
     enabled:
-      podeVisualizarFornecedores && Boolean(empresaEfetivaId) && !carregando,
+      podeVisualizarPedidos &&
+      podeVisualizarFornecedores &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-pedidos-compra"],
+    queryKey: ["depositos-select-pedidos-compra", empresaEfetivaId],
     queryFn: () =>
       listarDepositos({
         ativo: true,
@@ -79,23 +96,29 @@ export default function PedidosCompraPage() {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled:
+      podeVisualizarPedidos &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
-      "pedidos-compra",
+      ...pedidosCompraQueryKeys.listas(empresaEfetivaId ?? ""),
       searchAplicado,
       status,
       fornecedorId,
       depositoId,
       page,
+      10,
+      "createdAt",
+      "desc",
     ],
     queryFn: () =>
       listarPedidosCompra({
         search: searchAplicado || undefined,
-        status: status
-          ? (status as PedidoCompraStatus)
-          : undefined,
+        status: status ? (status as PedidoCompraStatus) : undefined,
         fornecedorId: fornecedorId || undefined,
         depositoId: depositoId || undefined,
         page,
@@ -103,6 +126,11 @@ export default function PedidosCompraPage() {
         sortBy: "createdAt",
         order: "desc",
       }),
+    enabled:
+      podeVisualizarPedidos &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   function pesquisar() {
@@ -120,6 +148,30 @@ export default function PedidosCompraPage() {
   }
 
   const pedidos = data?.data ?? [];
+
+  if (!podeVisualizarPedidos) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+
+  if (!possuiEmpresaEfetiva) {
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+  }
   const totalPages = data?.meta.totalPages ?? 1;
 
   return (
@@ -128,7 +180,7 @@ export default function PedidosCompraPage() {
         <PageHeader
           title="Pedidos de Compra"
           description="Gerencie solicitações, aprovações e recebimentos de compras."
-          actions={<NovoPedidoCompraModal />}
+          actions={podeCriarPedido ? <NovoPedidoCompraModal /> : undefined}
         />
 
         <CrudCard>
@@ -152,9 +204,7 @@ export default function PedidosCompraPage() {
             >
               <option value="">Todos os status</option>
               <option value="RASCUNHO">Rascunho</option>
-              <option value="PENDENTE_APROVACAO">
-                Pendente de aprovação
-              </option>
+              <option value="PENDENTE_APROVACAO">Pendente de aprovação</option>
               <option value="APROVADO">Aprovado</option>
               <option value="PARCIALMENTE_RECEBIDO">
                 Parcialmente recebido
@@ -174,12 +224,8 @@ export default function PedidosCompraPage() {
               <option value="">Todos os fornecedores</option>
 
               {fornecedoresResponse?.data.map((fornecedor) => (
-                <option
-                  key={fornecedor.id}
-                  value={fornecedor.id}
-                >
-                  {fornecedor.nomeFantasia ||
-                    fornecedor.razaoSocial}
+                <option key={fornecedor.id} value={fornecedor.id}>
+                  {fornecedor.nomeFantasia || fornecedor.razaoSocial}
                 </option>
               ))}
             </select>
@@ -195,10 +241,7 @@ export default function PedidosCompraPage() {
               <option value="">Todos os depósitos</option>
 
               {depositosResponse?.data.map((deposito) => (
-                <option
-                  key={deposito.id}
-                  value={deposito.id}
-                >
+                <option key={deposito.id} value={deposito.id}>
                   {deposito.codigo} - {deposito.nome}
                 </option>
               ))}
@@ -233,19 +276,14 @@ export default function PedidosCompraPage() {
                       <TableHead>Status</TableHead>
                       <TableHead>Pedido</TableHead>
                       <TableHead>Previsão</TableHead>
-                      <TableHead className="text-right">
-                        Valor total
-                      </TableHead>
-                      <TableHead className="text-right">
-                        Ações
-                      </TableHead>
+                      <TableHead className="text-right">Valor total</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
 
                   <TableBody>
                     {pedidos.map((pedido) => {
-                      const statusVisual =
-                        obterStatusVisual(pedido.status);
+                      const statusVisual = obterStatusVisual(pedido.status);
 
                       return (
                         <TableRow key={pedido.id}>
@@ -292,9 +330,7 @@ export default function PedidosCompraPage() {
 
                           <TableCell>
                             {pedido.dataPrevistaEntrega
-                              ? formatarData(
-                                  pedido.dataPrevistaEntrega
-                                )
+                              ? formatarData(pedido.dataPrevistaEntrega)
                               : "-"}
                           </TableCell>
 
