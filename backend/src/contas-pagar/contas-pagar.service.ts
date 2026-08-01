@@ -22,6 +22,7 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CriarContaPagarDto } from './dto/criar-conta-pagar.dto';
 import { AtualizarContaPagarDto } from './dto/atualizar-conta-pagar.dto';
 import { FiltroContasPagarDto } from './dto/filtro-contas-pagar.dto';
+import { FiltroResumoContasPagarDto } from './dto/filtro-resumo-contas-pagar.dto';
 import { RegistrarPagamentoContaPagarDto } from './dto/registrar-pagamento-conta-pagar.dto';
 import { CriarContaPagarHistoricoDto } from './dto/criar-conta-pagar-historico.dto';
 import { GerarContaPedidoCompraDto } from './dto/gerar-conta-pedido-compra.dto';
@@ -585,6 +586,60 @@ export class ContasPagarService {
     ]);
 
     return respostaPaginada(data, total, page, limit);
+  }
+
+  async obterResumo(empresaId: string, filtros: FiltroResumoContasPagarDto) {
+    await this.atualizarContasVencidas(empresaId);
+
+    const where: Prisma.ContaPagarWhereInput = {
+      empresaId,
+      status: {
+        not: StatusContaPagar.CANCELADA,
+      },
+    };
+
+    if (filtros.vencimentoInicio || filtros.vencimentoFim) {
+      where.dataVencimento = {};
+
+      if (filtros.vencimentoInicio) {
+        where.dataVencimento.gte = new Date(filtros.vencimentoInicio);
+      }
+
+      if (filtros.vencimentoFim) {
+        const dataFim = new Date(filtros.vencimentoFim);
+        dataFim.setUTCHours(23, 59, 59, 999);
+        where.dataVencimento.lte = dataFim;
+      }
+    }
+
+    const [totais, vencidas] = await this.prisma.$transaction([
+      this.prisma.contaPagar.aggregate({
+        where,
+        _sum: {
+          valorOriginal: true,
+          valorPago: true,
+          valorAberto: true,
+        },
+      }),
+      this.prisma.contaPagar.aggregate({
+        where: {
+          ...where,
+          status: StatusContaPagar.VENCIDA,
+        },
+        _sum: {
+          valorAberto: true,
+        },
+      }),
+    ]);
+
+    return {
+      pagar: {
+        valorOriginal: Number(totais._sum.valorOriginal ?? 0),
+        valorPago: Number(totais._sum.valorPago ?? 0),
+        valorAberto: Number(totais._sum.valorAberto ?? 0),
+        valorVencido: Number(vencidas._sum.valorAberto ?? 0),
+      },
+    };
   }
 
   async buscarPorId(empresaId: string, id: string) {
