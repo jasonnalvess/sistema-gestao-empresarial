@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PackageCheck } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_PEDIDOS_COMPRA_EDITAR } from "@/lib/auth";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +16,8 @@ import { FormDialog } from "@/components/forms/FormDialog";
 import {
   PedidoCompraDetalhado,
   receberPedido,
+  pedidosCompraQueryKeys,
+  obterMensagemErroPedidoCompra,
 } from "@/services/pedidos-compra.service";
 
 type Props = {
@@ -25,27 +30,25 @@ type ItemRecebimento = {
   custoUnitario: string;
 };
 
-export function ReceberPedidoCompraModal({
-  pedido,
-}: Props) {
+export function ReceberPedidoCompraModal({ pedido }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId } = useEmpresaSelecionada();
+  const podeEditarPedido = temPermissao(PERMISSAO_PEDIDOS_COMPRA_EDITAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  const [documentoReferencia, setDocumentoReferencia] =
-    useState("");
+  const [documentoReferencia, setDocumentoReferencia] = useState("");
 
   const [observacao, setObservacao] = useState("");
 
   const itensPendentes = useMemo(
     () =>
       pedido.itens.filter(
-        (item) =>
-          item.status !== "RECEBIDO" &&
-          item.status !== "CANCELADO"
+        (item) => item.status !== "RECEBIDO" && item.status !== "CANCELADO",
       ),
-    [pedido.itens]
+    [pedido.itens],
   );
 
   const [itens, setItens] = useState<ItemRecebimento[]>(
@@ -53,13 +56,13 @@ export function ReceberPedidoCompraModal({
       itemId: item.id,
       quantidadeRecebida: "",
       custoUnitario: item.valorUnitario,
-    }))
+    })),
   );
 
   function atualizarItem(
     itemId: string,
     campo: "quantidadeRecebida" | "custoUnitario",
-    valor: string
+    valor: string,
   ) {
     setItens((estadoAtual) =>
       estadoAtual.map((item) =>
@@ -68,8 +71,8 @@ export function ReceberPedidoCompraModal({
               ...item,
               [campo]: valor,
             }
-          : item
-      )
+          : item,
+      ),
     );
   }
 
@@ -78,11 +81,10 @@ export function ReceberPedidoCompraModal({
       itensPendentes.map((item) => ({
         itemId: item.id,
         quantidadeRecebida: String(
-          Number(item.quantidadeSolicitada) -
-            Number(item.quantidadeRecebida)
+          Number(item.quantidadeSolicitada) - Number(item.quantidadeRecebida),
         ),
         custoUnitario: item.valorUnitario,
-      }))
+      })),
     );
   }
 
@@ -91,25 +93,27 @@ export function ReceberPedidoCompraModal({
       estadoAtual.map((item) => ({
         ...item,
         quantidadeRecebida: "",
-      }))
+      })),
     );
   }
 
   async function salvar() {
+    if (!podeEditarPedido || !empresaEfetivaId) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     const itensSelecionados = itens.filter(
-      (item) => Number(item.quantidadeRecebida) > 0
+      (item) => Number(item.quantidadeRecebida) > 0,
     );
 
     if (itensSelecionados.length === 0) {
-      toast.error(
-        "Informe a quantidade recebida de pelo menos um item."
-      );
+      toast.error("Informe a quantidade recebida de pelo menos um item.");
       return;
     }
 
     for (const itemRecebimento of itensSelecionados) {
       const itemPedido = pedido.itens.find(
-        (item) => item.id === itemRecebimento.itemId
+        (item) => item.id === itemRecebimento.itemId,
       );
 
       if (!itemPedido) {
@@ -121,13 +125,11 @@ export function ReceberPedidoCompraModal({
         Number(itemPedido.quantidadeSolicitada) -
         Number(itemPedido.quantidadeRecebida);
 
-      const quantidade = Number(
-        itemRecebimento.quantidadeRecebida
-      );
+      const quantidade = Number(itemRecebimento.quantidadeRecebida);
 
       if (quantidade <= 0) {
         toast.error(
-          `Informe uma quantidade válida para ${itemPedido.produto.nome}.`
+          `Informe uma quantidade válida para ${itemPedido.produto.nome}.`,
         );
         return;
       }
@@ -135,16 +137,14 @@ export function ReceberPedidoCompraModal({
       if (quantidade > saldoPendente) {
         toast.error(
           `A quantidade de ${itemPedido.produto.nome} excede o saldo pendente de ${formatarQuantidade(
-            saldoPendente
-          )}.`
+            saldoPendente,
+          )}.`,
         );
         return;
       }
 
       if (Number(itemRecebimento.custoUnitario) < 0) {
-        toast.error(
-          `Informe um custo válido para ${itemPedido.produto.nome}.`
-        );
+        toast.error(`Informe um custo válido para ${itemPedido.produto.nome}.`);
         return;
       }
     }
@@ -153,20 +153,15 @@ export function ReceberPedidoCompraModal({
       setSalvando(true);
 
       await receberPedido(pedido.id, {
-        documentoReferencia:
-          documentoReferencia.trim() || undefined,
+        documentoReferencia: documentoReferencia.trim() || undefined,
 
         observacao: observacao.trim() || undefined,
 
         itens: itensSelecionados.map((item) => ({
           itemId: item.itemId,
-          quantidadeRecebida: Number(
-            item.quantidadeRecebida
-          ),
+          quantidadeRecebida: Number(item.quantidadeRecebida),
           custoUnitario:
-            item.custoUnitario !== ""
-              ? Number(item.custoUnitario)
-              : undefined,
+            item.custoUnitario !== "" ? Number(item.custoUnitario) : undefined,
         })),
       });
 
@@ -177,11 +172,15 @@ export function ReceberPedidoCompraModal({
       setAberto(false);
 
       await queryClient.invalidateQueries({
-        queryKey: ["pedido-compra", pedido.id],
+        queryKey: pedidosCompraQueryKeys.detalhe(empresaEfetivaId, pedido.id),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["pedidos-compra"],
+        queryKey: pedidosCompraQueryKeys.listas(empresaEfetivaId),
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: pedidosCompraQueryKeys.historico(empresaEfetivaId, pedido.id),
       });
 
       await queryClient.invalidateQueries({
@@ -195,23 +194,22 @@ export function ReceberPedidoCompraModal({
       await queryClient.invalidateQueries({
         queryKey: ["dashboard-resumo"],
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao registrar recebimento"
+        obterMensagemErroPedidoCompra(error, "Erro ao registrar recebimento"),
       );
     } finally {
       setSalvando(false);
     }
   }
 
+  if (!podeEditarPedido || !empresaEfetivaId) return null;
+
   return (
     <FormDialog
       open={aberto}
       onOpenChange={setAberto}
-      title={`Receber pedido #${String(
-        pedido.numero
-      ).padStart(5, "0")}`}
+      title={`Receber pedido #${String(pedido.numero).padStart(5, "0")}`}
       trigger={
         <Button>
           <PackageCheck size={16} className="mr-2" />
@@ -229,9 +227,7 @@ export function ReceberPedidoCompraModal({
 
               <Input
                 value={documentoReferencia}
-                onChange={(e) =>
-                  setDocumentoReferencia(e.target.value)
-                }
+                onChange={(e) => setDocumentoReferencia(e.target.value)}
                 placeholder="Ex.: NF-12345"
               />
             </div>
@@ -257,9 +253,7 @@ export function ReceberPedidoCompraModal({
         <section className="space-y-4 border-t pt-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="font-semibold text-slate-900">
-                Itens pendentes
-              </h3>
+              <h3 className="font-semibold text-slate-900">Itens pendentes</h3>
 
               <p className="text-sm text-slate-500">
                 Informe somente as quantidades recebidas agora.
@@ -290,20 +284,18 @@ export function ReceberPedidoCompraModal({
           <div className="space-y-4">
             {itensPendentes.map((itemPedido) => {
               const itemFormulario = itens.find(
-                (item) => item.itemId === itemPedido.id
+                (item) => item.itemId === itemPedido.id,
               );
 
               const quantidadeSolicitada = Number(
-                itemPedido.quantidadeSolicitada
+                itemPedido.quantidadeSolicitada,
               );
 
               const quantidadeJaRecebida = Number(
-                itemPedido.quantidadeRecebida
+                itemPedido.quantidadeRecebida,
               );
 
-              const saldoPendente =
-                quantidadeSolicitada -
-                quantidadeJaRecebida;
+              const saldoPendente = quantidadeSolicitada - quantidadeJaRecebida;
 
               return (
                 <div
@@ -323,23 +315,17 @@ export function ReceberPedidoCompraModal({
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                     <CampoResumo
                       label="Solicitado"
-                      valor={formatarQuantidade(
-                        quantidadeSolicitada
-                      )}
+                      valor={formatarQuantidade(quantidadeSolicitada)}
                     />
 
                     <CampoResumo
                       label="Já recebido"
-                      valor={formatarQuantidade(
-                        quantidadeJaRecebida
-                      )}
+                      valor={formatarQuantidade(quantidadeJaRecebida)}
                     />
 
                     <CampoResumo
                       label="Saldo pendente"
-                      valor={formatarQuantidade(
-                        saldoPendente
-                      )}
+                      valor={formatarQuantidade(saldoPendente)}
                     />
 
                     <div>
@@ -352,15 +338,12 @@ export function ReceberPedidoCompraModal({
                         min="0"
                         max={saldoPendente}
                         step="0.01"
-                        value={
-                          itemFormulario?.quantidadeRecebida ??
-                          ""
-                        }
+                        value={itemFormulario?.quantidadeRecebida ?? ""}
                         onChange={(e) =>
                           atualizarItem(
                             itemPedido.id,
                             "quantidadeRecebida",
-                            e.target.value
+                            e.target.value,
                           )
                         }
                       />
@@ -375,14 +358,12 @@ export function ReceberPedidoCompraModal({
                         type="number"
                         min="0"
                         step="0.01"
-                        value={
-                          itemFormulario?.custoUnitario ?? ""
-                        }
+                        value={itemFormulario?.custoUnitario ?? ""}
                         onChange={(e) =>
                           atualizarItem(
                             itemPedido.id,
                             "custoUnitario",
-                            e.target.value
+                            e.target.value,
                           )
                         }
                       />
@@ -423,15 +404,11 @@ export function ReceberPedidoCompraModal({
 
           <Button
             onClick={salvar}
-            disabled={
-              salvando || itensPendentes.length === 0
-            }
+            disabled={salvando || itensPendentes.length === 0}
           >
             <PackageCheck size={16} className="mr-2" />
 
-            {salvando
-              ? "Registrando..."
-              : "Confirmar recebimento"}
+            {salvando ? "Registrando..." : "Confirmar recebimento"}
           </Button>
         </div>
       </div>
@@ -439,22 +416,14 @@ export function ReceberPedidoCompraModal({
   );
 }
 
-function CampoResumo({
-  label,
-  valor,
-}: {
-  label: string;
-  valor: string;
-}) {
+function CampoResumo({ label, valor }: { label: string; valor: string }) {
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
         {label}
       </p>
 
-      <p className="mt-1 text-sm font-medium text-slate-900">
-        {valor}
-      </p>
+      <p className="mt-1 text-sm font-medium text-slate-900">{valor}</p>
     </div>
   );
 }

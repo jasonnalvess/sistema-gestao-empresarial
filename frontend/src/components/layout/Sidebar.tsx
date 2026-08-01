@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   PERMISSAO_CLIENTES_VISUALIZAR,
   PERMISSAO_FORNECEDORES_VISUALIZAR,
+  PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,
   possuiPermissao,
 } from "@/lib/auth";
 import { X } from "lucide-react";
@@ -30,6 +31,10 @@ export function Sidebar({ aberto, aoFechar }: SidebarProps) {
       return temPermissao(PERMISSAO_FORNECEDORES_VISUALIZAR);
     }
 
+    if (item.href === "/pedidos-compra") {
+      return temPermissao(PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR);
+    }
+
     return usuario ? possuiPermissao(usuario.tipo, item.href) : false;
   });
 
@@ -50,7 +55,7 @@ export function Sidebar({ aberto, aoFechar }: SidebarProps) {
           "fixed inset-y-0 left-0 z-50 flex h-screen w-64 flex-col border-r bg-white transition-transform duration-200 md:static md:z-auto md:translate-x-0",
           aberto
             ? "visible translate-x-0"
-            : "invisible -translate-x-full md:visible"
+            : "invisible -translate-x-full md:visible",
         )}
       >
         <div className="flex h-16 items-center justify-between border-b px-6">
@@ -65,28 +70,28 @@ export function Sidebar({ aberto, aoFechar }: SidebarProps) {
           </button>
         </div>
 
-      <nav className="flex-1 space-y-1 p-4">
-        {menuPermitido.map((item) => {
-          const ativo = pathname === item.href;
-          const Icon = item.icon;
+        <nav className="flex-1 space-y-1 p-4">
+          {menuPermitido.map((item) => {
+            const ativo = pathname === item.href;
+            const Icon = item.icon;
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={aoFechar}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
-                ativo
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-700 hover:bg-slate-100"
-              )}
-            >
-              <Icon size={18} />
-              {item.titulo}
-            </Link>
-          );
-        })}
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={aoFechar}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                  ativo
+                    ? "bg-blue-600 text-white"
+                    : "text-slate-700 hover:bg-slate-100",
+                )}
+              >
+                <Icon size={18} />
+                {item.titulo}
+              </Link>
+            );
+          })}
         </nav>
       </aside>
     </>

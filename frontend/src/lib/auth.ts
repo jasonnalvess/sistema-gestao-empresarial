@@ -6,6 +6,9 @@ export const PERMISSAO_CLIENTES_EDITAR = "clientes.editar";
 export const PERMISSAO_FORNECEDORES_VISUALIZAR = "fornecedores.visualizar";
 export const PERMISSAO_FORNECEDORES_CRIAR = "fornecedores.criar";
 export const PERMISSAO_FORNECEDORES_EDITAR = "fornecedores.editar";
+export const PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR = "pedidos_compra.visualizar";
+export const PERMISSAO_PEDIDOS_COMPRA_CRIAR = "pedidos_compra.criar";
+export const PERMISSAO_PEDIDOS_COMPRA_EDITAR = "pedidos_compra.editar";
 
 export type Usuario = {
   id: string;
@@ -25,8 +28,7 @@ export type UsuarioComPermissoesOpcionais = Omit<
 
 function listaDeStrings(valor: unknown): valor is string[] {
   return (
-    Array.isArray(valor) &&
-    valor.every((item) => typeof item === "string")
+    Array.isArray(valor) && valor.every((item) => typeof item === "string")
   );
 }
 
@@ -59,21 +61,16 @@ export function normalizarUsuario(usuario: unknown): Usuario {
 
 export function temPermissao(
   usuario: Usuario | null,
-  permissao: string
+  permissao: string,
 ): boolean {
   return (
-    Array.isArray(usuario?.permissoes) &&
-    usuario.permissoes.includes(permissao)
+    Array.isArray(usuario?.permissoes) && usuario.permissoes.includes(permissao)
   );
 }
 
 // Helper legado de visibilidade de rotas por tipo de usuário.
-export function possuiPermissao(
-  tipo: string,
-  rota: string
-) {
-  const lista =
-    permissoes[tipo as keyof typeof permissoes] ?? [];
+export function possuiPermissao(tipo: string, rota: string) {
+  const lista = permissoes[tipo as keyof typeof permissoes] ?? [];
 
   return lista.includes(rota);
 }
