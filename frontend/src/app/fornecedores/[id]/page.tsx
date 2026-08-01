@@ -6,11 +6,19 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudLoading } from "@/components/crud/CrudLoading";
 import { CrudStatusBadge } from "@/components/crud/CrudStatusBadge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_FORNECEDORES_EDITAR,
+  PERMISSAO_FORNECEDORES_VISUALIZAR,
+} from "@/lib/auth";
 
 import { FornecedorHistoricoCard } from "@/components/fornecedores/FornecedorHistoricoCard";
 import { EditarFornecedorModal } from "@/components/fornecedores/EditarFornecedorModal";
@@ -23,17 +31,53 @@ import {
 
 export default function FornecedorDetalhesPage() {
   const params = useParams();
-  const id = String(params.id);
+  const id = typeof params.id === "string" ? params.id : "";
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR
+  );
+  const podeEditarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_EDITAR);
 
   const {
     data: fornecedor,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["fornecedor", id],
+    queryKey: ["fornecedor", empresaEfetivaId, id],
     queryFn: () => buscarFornecedorPorId(id),
-    enabled: Boolean(id),
+    enabled:
+      podeVisualizarFornecedores &&
+      possuiEmpresaEfetiva &&
+      !carregando &&
+      Boolean(id),
   });
+
+  if (!podeVisualizarFornecedores) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+
+  if (!possuiEmpresaEfetiva) {
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -74,13 +118,12 @@ export default function FornecedorDetalhesPage() {
                 </Link>
               </Button>
 
-              <EditarFornecedorModal
-                fornecedor={fornecedor}
-              />
-
-              <AlterarStatusFornecedorButton
-                fornecedor={fornecedor}
-              />
+              {podeEditarFornecedor && (
+                <>
+                  <EditarFornecedorModal fornecedor={fornecedor} />
+                  <AlterarStatusFornecedorButton fornecedor={fornecedor} />
+                </>
+              )}
             </div>
           }
         />

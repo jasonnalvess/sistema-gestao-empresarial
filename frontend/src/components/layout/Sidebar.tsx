@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   PERMISSAO_CLIENTES_VISUALIZAR,
+  PERMISSAO_FORNECEDORES_VISUALIZAR,
   possuiPermissao,
 } from "@/lib/auth";
 import { X } from "lucide-react";
@@ -23,6 +24,10 @@ export function Sidebar({ aberto, aoFechar }: SidebarProps) {
   const menuPermitido = menu.filter((item) => {
     if (item.href === "/clientes") {
       return temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
+    }
+
+    if (item.href === "/fornecedores") {
+      return temPermissao(PERMISSAO_FORNECEDORES_VISUALIZAR);
     }
 
     return usuario ? possuiPermissao(usuario.tipo, item.href) : false;

@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_FORNECEDORES_EDITAR } from "@/lib/auth";
 
 import {
   atualizarFornecedor,
@@ -23,6 +26,9 @@ export function EditarFornecedorModal({
   fornecedor,
 }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId } = useEmpresaSelecionada();
+  const podeEditarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_EDITAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -74,6 +80,14 @@ export function EditarFornecedorModal({
   );
 
   async function salvar() {
+    if (!podeEditarFornecedor) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+    if (!empresaEfetivaId) {
+      toast.error("Selecione uma empresa para realizar esta ação.");
+      return;
+    }
     if (!razaoSocial.trim() || !documento.trim()) {
       toast.error("Razão social e documento são obrigatórios.");
       return;
@@ -108,7 +122,10 @@ export function EditarFornecedorModal({
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["fornecedores"],
+        queryKey: ["fornecedores", empresaEfetivaId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["fornecedor", empresaEfetivaId, fornecedor.id],
       });
     } catch (error: any) {
       toast.error(
@@ -119,6 +136,8 @@ export function EditarFornecedorModal({
       setSalvando(false);
     }
   }
+
+  if (!podeEditarFornecedor || !empresaEfetivaId) return null;
 
   return (
     <FormDialog
