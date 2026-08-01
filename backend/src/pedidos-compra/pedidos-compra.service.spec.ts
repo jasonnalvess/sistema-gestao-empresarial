@@ -90,6 +90,7 @@ function criarContexto() {
     deposito: { findFirst: jest.fn() },
     produto: { findMany: jest.fn() },
     $queryRaw: jest.fn(),
+    $executeRaw: jest.fn(),
   };
   const prisma = {
     $transaction: jest.fn(
@@ -349,7 +350,8 @@ describe('PedidosCompraService hardening', () => {
         },
         usuario,
       );
-      return tx.$queryRaw.mock.calls.slice(1).map((call) => call[0].values[0]);
+      const chamadas = tx.$executeRaw.mock.calls as Array<[Prisma.Sql]>;
+      return chamadas.map(([sql]) => String(sql.values[0]));
     };
     await expect(executar(['ib', 'ia'])).resolves.toEqual([
       'e1:prod-a:d1',
@@ -384,9 +386,49 @@ describe('PedidosCompraService hardening', () => {
       },
       usuario,
     );
-    expect(tx.$queryRaw.mock.invocationCallOrder[2]).toBeLessThan(
+    expect(tx.$executeRaw.mock.invocationCallOrder[1]).toBeLessThan(
       tx.estoqueProduto.findFirst.mock.invocationCallOrder[0],
     );
+  });
+
+  it('usa executeRaw parametrizado para não desserializar o retorno void do advisory lock', async () => {
+    const { service, tx } = criarContexto();
+
+    await service.receber(
+      'e1',
+      'p1',
+      { itens: [{ itemId: 'item1', quantidadeRecebida: 5 }] },
+      usuario,
+    );
+
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    const [[sql]] = tx.$executeRaw.mock.calls as Array<[Prisma.Sql]>;
+    expect(sql.sql).toContain(
+      'SELECT pg_advisory_xact_lock(hashtextextended(?, 0))',
+    );
+    expect(sql.values).toEqual(['e1:prod1:d1']);
+  });
+
+  it('interrompe a transação sem efeitos quando o advisory lock falha', async () => {
+    const { service, tx } = criarContexto();
+    const erroLock = new Error('falha ao adquirir advisory lock');
+    tx.$executeRaw.mockRejectedValueOnce(erroLock);
+
+    await expect(
+      service.receber(
+        'e1',
+        'p1',
+        { itens: [{ itemId: 'item1', quantidadeRecebida: 5 }] },
+        usuario,
+      ),
+    ).rejects.toBe(erroLock);
+
+    expect(tx.estoqueProduto.findFirst).not.toHaveBeenCalled();
+    expect(tx.estoqueProduto.update).not.toHaveBeenCalled();
+    expect(tx.movimentacaoEstoque.create).not.toHaveBeenCalled();
+    expect(tx.pedidoCompraItem.update).not.toHaveBeenCalled();
+    expect(tx.pedidoCompraHistorico.create).not.toHaveBeenCalled();
   });
 
   it('rejeita item duplicado antes de abrir transação', async () => {
@@ -579,7 +621,7 @@ describe('PedidosCompraService hardening', () => {
         }),
       }),
     );
-    expect(tx.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+    expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
       tx.estoqueProduto.findFirst.mock.invocationCallOrder[0],
     );
   });
