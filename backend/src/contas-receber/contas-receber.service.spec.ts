@@ -1,9 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- Matchers assimetricos do Jest expoem valores como any. */
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   FormaRecebimento,
   OrigemContaReceber,
@@ -19,10 +15,12 @@ import { ContasReceberService } from './contas-receber.service';
 
 function criarPrismaMock() {
   const prisma = {
-    cliente: { findUnique: jest.fn() },
-    ordemServico: { findUnique: jest.fn() },
+    cliente: { findFirst: jest.fn() },
+    ordemServico: { findFirst: jest.fn() },
     contaReceber: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
@@ -30,13 +28,14 @@ function criarPrismaMock() {
       updateMany: jest.fn(),
     },
     recebimentoContaReceber: { create: jest.fn() },
-    contaReceberHistorico: { create: jest.fn() },
+    contaReceberHistorico: { create: jest.fn(), findMany: jest.fn() },
     $queryRaw: jest.fn(),
     $transaction: jest.fn(),
   };
-  prisma.$transaction.mockImplementation(async (operacao: unknown) =>
-    (operacao as (tx: typeof prisma) => Promise<unknown>)(prisma),
-  );
+  prisma.$transaction.mockImplementation(async (operacao: unknown) => {
+    if (Array.isArray(operacao)) return Promise.all(operacao);
+    return (operacao as (tx: typeof prisma) => Promise<unknown>)(prisma);
+  });
   const prismaSemCaixa: typeof prisma & { caixa?: never } = prisma;
   return prismaSemCaixa;
 }
@@ -103,22 +102,27 @@ describe('ContasReceberService', () => {
       vendas as unknown as VendasService,
       caixas as unknown as CaixasService,
     );
-    prisma.cliente.findUnique.mockResolvedValue(cliente);
-    prisma.ordemServico.findUnique.mockResolvedValue(ordem);
-    prisma.contaReceber.findFirst.mockResolvedValue(null);
-    prisma.contaReceber.findUnique.mockResolvedValue(conta());
+    prisma.cliente.findFirst.mockResolvedValue(cliente);
+    prisma.ordemServico.findFirst.mockResolvedValue(ordem);
+    prisma.contaReceber.findFirst.mockImplementation(
+      (args: { where?: { id?: string } }) =>
+        Promise.resolve(args.where?.id ? conta() : null),
+    );
     prisma.contaReceber.findUniqueOrThrow.mockResolvedValue(
       conta(StatusContaReceber.CANCELADA),
     );
     prisma.contaReceber.create.mockResolvedValue(conta());
     prisma.contaReceber.update.mockResolvedValue(conta());
     prisma.contaReceber.updateMany.mockResolvedValue({ count: 1 });
+    prisma.contaReceber.findMany.mockResolvedValue([]);
+    prisma.contaReceber.count.mockResolvedValue(0);
     prisma.recebimentoContaReceber.create.mockResolvedValue({
       id: 'recebimento-1',
     });
     prisma.contaReceberHistorico.create.mockResolvedValue({
       id: 'historico-1',
     });
+    prisma.contaReceberHistorico.findMany.mockResolvedValue([]);
     caixas.registrarMovimentacaoFinanceira.mockResolvedValue({
       movimentacao: { id: 'movimento-1' },
       caixa: { id: 'caixa-1' },
@@ -127,6 +131,7 @@ describe('ContasReceberService', () => {
 
   it('cria conta manual com Decimal, tenant e histórico', async () => {
     await service.criar(
+      'empresa-1',
       {
         descricao: ' Conta ',
         dataVencimento: '2026-08-10',
@@ -148,12 +153,10 @@ describe('ContasReceberService', () => {
   });
 
   it('rejeita cliente de outro tenant sem criar conta', async () => {
-    prisma.cliente.findUnique.mockResolvedValue({
-      ...cliente,
-      empresaId: 'empresa-2',
-    });
+    prisma.cliente.findFirst.mockResolvedValue(null);
     await expect(
       service.criar(
+        'empresa-1',
         {
           descricao: 'Conta',
           dataVencimento: '2026-08-10',
@@ -162,12 +165,13 @@ describe('ContasReceberService', () => {
         },
         usuario,
       ),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.contaReceber.create).not.toHaveBeenCalled();
   });
 
   it('gera conta a partir de ordem concluída dentro da transação', async () => {
     await service.gerarAPartirOrdemServico(
+      'empresa-1',
       'ordem-1',
       {
         dataVencimento: '2026-08-10',
@@ -175,7 +179,7 @@ describe('ContasReceberService', () => {
       },
       usuario,
     );
-    expect(prisma.ordemServico.findUnique).toHaveBeenCalled();
+    expect(prisma.ordemServico.findFirst).toHaveBeenCalled();
     expect(prisma.contaReceber.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -188,12 +192,13 @@ describe('ContasReceberService', () => {
   });
 
   it('rejeita ordem incompatível ou já vinculada', async () => {
-    prisma.ordemServico.findUnique.mockResolvedValue({
+    prisma.ordemServico.findFirst.mockResolvedValue({
       ...ordem,
       status: 'ABERTA',
     });
     await expect(
       service.gerarAPartirOrdemServico(
+        'empresa-1',
         'ordem-1',
         {
           dataVencimento: '2026-08-10',
@@ -202,10 +207,11 @@ describe('ContasReceberService', () => {
         usuario,
       ),
     ).rejects.toThrow('concluídas');
-    prisma.ordemServico.findUnique.mockResolvedValue(ordem);
+    prisma.ordemServico.findFirst.mockResolvedValue(ordem);
     prisma.contaReceber.findFirst.mockResolvedValue({ numero: 7 });
     await expect(
       service.gerarAPartirOrdemServico(
+        'empresa-1',
         'ordem-1',
         {
           dataVencimento: '2026-08-10',
@@ -216,16 +222,16 @@ describe('ContasReceberService', () => {
     ).rejects.toThrow('já possui');
   });
 
-  it('converte concorrência da ordem pelo índice parcial', async () => {
-    prisma.contaReceber.create.mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError('unique', {
-        code: 'P2002',
-        clientVersion: '6.19.3',
-        meta: { target: 'ContaReceber_ordemServicoId_ativa_key' },
-      }),
-    );
+  it('propaga constraint de ordem inexistente no schema atual', async () => {
+    const erro = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: '6.19.3',
+      meta: { target: 'ContaReceber_ordemServicoId_ativa_key' },
+    });
+    prisma.contaReceber.create.mockRejectedValue(erro);
     await expect(
       service.gerarAPartirOrdemServico(
+        'empresa-1',
         'ordem-1',
         {
           dataVencimento: '2026-08-10',
@@ -233,7 +239,7 @@ describe('ContasReceberService', () => {
         },
         usuario,
       ),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toBe(erro);
   });
 
   it.each([
@@ -249,6 +255,7 @@ describe('ContasReceberService', () => {
       caixas.registrarMovimentacaoFinanceira.mockRejectedValue(erro);
       await expect(
         service.registrarRecebimento(
+          'empresa-1',
           'conta-1',
           {
             valor: 20,
@@ -262,6 +269,7 @@ describe('ContasReceberService', () => {
       prisma.contaReceber.create.mockRejectedValue(erro);
       await expect(
         service.criar(
+          'empresa-1',
           {
             descricao: 'Conta',
             dataVencimento: '2026-08-10',
@@ -282,6 +290,7 @@ describe('ContasReceberService', () => {
     prisma.contaReceber.create.mockRejectedValue(erro);
     await expect(
       service.criar(
+        'empresa-1',
         {
           descricao: 'Conta',
           dataVencimento: '2026-08-10',
@@ -294,6 +303,7 @@ describe('ContasReceberService', () => {
 
   it('registra recebimento parcial com Decimal e lock', async () => {
     await service.registrarRecebimento(
+      'empresa-1',
       'conta-1',
       {
         valor: 40,
@@ -315,6 +325,7 @@ describe('ContasReceberService', () => {
 
   it('recebimento total exige saldo exatamente zero', async () => {
     await service.registrarRecebimento(
+      'empresa-1',
       'conta-1',
       {
         valor: 100,
@@ -334,6 +345,7 @@ describe('ContasReceberService', () => {
 
   it('saldo de um centavo permanece parcialmente recebido', async () => {
     await service.registrarRecebimento(
+      'empresa-1',
       'conta-1',
       {
         valor: 99.99,
@@ -353,6 +365,7 @@ describe('ContasReceberService', () => {
 
   it('aplica juros, multa e desconto sem ponto flutuante', async () => {
     await service.registrarRecebimento(
+      'empresa-1',
       'conta-1',
       {
         valor: 105,
@@ -378,6 +391,7 @@ describe('ContasReceberService', () => {
   it.each([0, -1])('rejeita valor inválido %s sem efeitos', async (valor) => {
     await expect(
       service.registrarRecebimento(
+        'empresa-1',
         'conta-1',
         {
           valor,
@@ -392,6 +406,7 @@ describe('ContasReceberService', () => {
   it('rejeita recebimento maior que o saldo sem efeitos', async () => {
     await expect(
       service.registrarRecebimento(
+        'empresa-1',
         'conta-1',
         {
           valor: 100.01,
@@ -414,6 +429,7 @@ describe('ContasReceberService', () => {
     async (_campo, valores) => {
       await expect(
         service.registrarRecebimento(
+          'empresa-1',
           'conta-1',
           {
             ...valores,
@@ -429,6 +445,7 @@ describe('ContasReceberService', () => {
 
   it('usa o mesmo tx e increment do Caixa no recebimento', async () => {
     await service.registrarRecebimento(
+      'empresa-1',
       'conta-1',
       {
         valor: 20,
@@ -457,6 +474,7 @@ describe('ContasReceberService', () => {
     );
     await expect(
       service.registrarRecebimento(
+        'empresa-1',
         'conta-1',
         {
           valor: 20,
@@ -475,6 +493,7 @@ describe('ContasReceberService', () => {
     prisma.contaReceberHistorico.create.mockRejectedValue(erro);
     await expect(
       service.registrarRecebimento(
+        'empresa-1',
         'conta-1',
         {
           valor: 20,
@@ -487,11 +506,12 @@ describe('ContasReceberService', () => {
   });
 
   it('segunda tentativa após quitação não cria efeitos', async () => {
-    prisma.contaReceber.findUnique.mockResolvedValue(
+    prisma.contaReceber.findFirst.mockResolvedValue(
       conta(StatusContaReceber.RECEBIDA, 0),
     );
     await expect(
       service.registrarRecebimento(
+        'empresa-1',
         'conta-1',
         {
           valor: 1,
@@ -505,11 +525,12 @@ describe('ContasReceberService', () => {
   });
 
   it('operação concorrente derrotada observa o estado já recebido', async () => {
-    prisma.contaReceber.findUnique.mockResolvedValue(
+    prisma.contaReceber.findFirst.mockResolvedValue(
       conta(StatusContaReceber.RECEBIDA, 0),
     );
     await expect(
       service.registrarRecebimento(
+        'empresa-1',
         'conta-1',
         {
           valor: 100,
@@ -521,24 +542,24 @@ describe('ContasReceberService', () => {
     expect(prisma.recebimentoContaReceber.create).not.toHaveBeenCalled();
   });
 
-  it('protege tenant antes dos efeitos e SUPER_ADMIN usa empresa da conta', async () => {
-    prisma.contaReceber.findUnique.mockResolvedValue({
-      ...conta(),
-      empresaId: 'empresa-2',
-    });
+  it('protege tenant antes dos efeitos e SUPER_ADMIN usa o tenant explícito', async () => {
+    prisma.contaReceber.findFirst.mockResolvedValue(null);
     await expect(
       service.registrarRecebimento(
-        'conta-1',
+        'empresa-1',
+        'conta-externa',
         {
           valor: 20,
           formaRecebimento: FormaRecebimento.PIX,
         },
         usuario,
       ),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.recebimentoContaReceber.create).not.toHaveBeenCalled();
 
+    prisma.contaReceber.findFirst.mockResolvedValue(conta());
     await service.registrarRecebimento(
+      'empresa-1',
       'conta-1',
       {
         valor: 20,
@@ -547,26 +568,27 @@ describe('ContasReceberService', () => {
       },
       {
         id: 'super',
-        email: 'super@teste.com',
+        email: 'super.com',
         empresaId: null,
         tipo: 'SUPER_ADMIN',
       },
     );
     expect(caixas.registrarMovimentacaoFinanceira).toHaveBeenCalledWith(
       prisma,
-      'empresa-2',
+      'empresa-1',
       expect.any(Object),
     );
   });
 
   it('serializa conta de venda e conclui a venda no mesmo tx', async () => {
-    prisma.contaReceber.findUnique.mockResolvedValue(
+    prisma.contaReceber.findFirst.mockResolvedValue(
       conta(StatusContaReceber.PENDENTE, 100, 'venda-1'),
     );
     prisma.contaReceber.update.mockResolvedValue(
       conta(StatusContaReceber.RECEBIDA, 0, 'venda-1'),
     );
     await service.registrarRecebimento(
+      'empresa-1',
       'conta-1',
       {
         valor: 100,
@@ -583,7 +605,7 @@ describe('ContasReceberService', () => {
   });
 
   it('cancela condicionalmente com histórico', async () => {
-    await service.cancelar('conta-1', usuario);
+    await service.cancelar('empresa-1', 'conta-1', usuario);
     expect(prisma.contaReceber.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -596,34 +618,37 @@ describe('ContasReceberService', () => {
   });
 
   it('bloqueia cancelamento com recebimentos', async () => {
-    prisma.contaReceber.findUnique.mockResolvedValue({
+    prisma.contaReceber.findFirst.mockResolvedValue({
       ...conta(),
       recebimentos: [{ id: 'recebimento-1' }],
     });
-    await expect(service.cancelar('conta-1', usuario)).rejects.toThrow(
-      'com recebimentos',
-    );
+    await expect(
+      service.cancelar('empresa-1', 'conta-1', usuario),
+    ).rejects.toThrow('com recebimentos');
     expect(prisma.contaReceber.updateMany).not.toHaveBeenCalled();
   });
 
   it('cancelamento concorrente derrotado não cria histórico', async () => {
     prisma.contaReceber.updateMany.mockResolvedValue({ count: 0 });
-    await expect(service.cancelar('conta-1', usuario)).rejects.toThrow(
-      'foi alterada',
-    );
+    await expect(
+      service.cancelar('empresa-1', 'conta-1', usuario),
+    ).rejects.toThrow('foi alterada');
     expect(prisma.contaReceberHistorico.create).not.toHaveBeenCalled();
   });
 
   it('cancelamento repetido é idempotente', async () => {
     const cancelada = conta(StatusContaReceber.CANCELADA);
-    prisma.contaReceber.findUnique.mockResolvedValue(cancelada);
-    await expect(service.cancelar('conta-1', usuario)).resolves.toBe(cancelada);
+    prisma.contaReceber.findFirst.mockResolvedValue(cancelada);
+    await expect(
+      service.cancelar('empresa-1', 'conta-1', usuario),
+    ).resolves.toBe(cancelada);
     expect(prisma.contaReceber.updateMany).not.toHaveBeenCalled();
   });
 
   it('edição bloqueia e rejeita precisão inválida sem persistir', async () => {
     await expect(
       service.atualizar(
+        'empresa-1',
         'conta-1',
         {
           valorOriginal: 10.001,
@@ -632,5 +657,187 @@ describe('ContasReceberService', () => {
       ),
     ).rejects.toThrow('duas casas decimais');
     expect(prisma.contaReceber.update).not.toHaveBeenCalled();
+  });
+
+  it('lista e atualiza vencimentos sempre no mesmo tenant', async () => {
+    await service.listar('empresa-1', {
+      search: 'Cliente',
+      sortBy: 'campo-arbitrario',
+      order: 'desc',
+    });
+
+    const findManyMock = prisma.contaReceber.findMany as jest.Mock<
+      Promise<unknown[]>,
+      [Prisma.ContaReceberFindManyArgs]
+    >;
+    const countMock = prisma.contaReceber.count as jest.Mock<
+      Promise<number>,
+      [Prisma.ContaReceberCountArgs]
+    >;
+    const findManyArgs = findManyMock.mock.calls[0][0];
+    const countArgs = countMock.mock.calls[0][0];
+
+    expect(findManyArgs.where).toEqual(countArgs.where);
+    expect(findManyArgs.where).toEqual(
+      expect.objectContaining({ empresaId: 'empresa-1' }),
+    );
+    expect(findManyArgs.orderBy).toEqual({ dataVencimento: 'desc' });
+    expect(prisma.contaReceber.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ empresaId: 'empresa-1' }),
+      }),
+    );
+  });
+
+  it.each([
+    'numero',
+    'descricao',
+    'status',
+    'origem',
+    'dataEmissao',
+    'dataVencimento',
+    'valorOriginal',
+    'valorAberto',
+    'createdAt',
+    'updatedAt',
+  ] as const)('aceita sortBy tipado %s', async (sortBy) => {
+    await service.listar('empresa-1', { sortBy, order: 'asc' });
+    expect(prisma.contaReceber.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ orderBy: { [sortBy]: 'asc' } }),
+    );
+  });
+
+  it('busca detalhe por id e empresaId e oculta outro tenant', async () => {
+    await service.buscarPorId('empresa-1', 'conta-1');
+    expect(prisma.contaReceber.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'conta-1', empresaId: 'empresa-1' },
+      }),
+    );
+
+    prisma.contaReceber.findFirst.mockResolvedValue(null);
+    await expect(
+      service.buscarPorId('empresa-2', 'conta-1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('usa id e empresaId no SQL do lock da conta', async () => {
+    await service.registrarRecebimento(
+      'empresa-1',
+      'conta-1',
+      { valor: 20, formaRecebimento: FormaRecebimento.PIX },
+      usuario,
+    );
+
+    const queryRawMock = prisma.$queryRaw as jest.Mock<
+      Promise<unknown>,
+      [Prisma.Sql]
+    >;
+    const sql = queryRawMock.mock.calls[0][0];
+    expect(sql.strings.join('')).toContain('"id" = ');
+    expect(sql.strings.join('')).toContain('"empresaId" = ');
+    expect(sql.strings.join('')).toContain('FOR UPDATE');
+    expect(sql.values).toEqual(['conta-1', 'empresa-1']);
+  });
+
+  it('consulta Cliente e Ordem de Serviço diretamente pelo tenant', async () => {
+    await service.criar(
+      'empresa-1',
+      {
+        descricao: 'Conta',
+        dataVencimento: '2026-08-10',
+        valorOriginal: 100,
+        clienteId: 'cliente-1',
+        ordemServicoId: 'ordem-1',
+      },
+      usuario,
+    );
+
+    expect(prisma.cliente.findFirst).toHaveBeenCalledWith({
+      where: { id: 'cliente-1', empresaId: 'empresa-1' },
+    });
+    expect(prisma.ordemServico.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'ordem-1', empresaId: 'empresa-1' },
+      }),
+    );
+  });
+
+  it('Ordem de Serviço externa é indistinguível de inexistente', async () => {
+    prisma.ordemServico.findFirst.mockResolvedValue(null);
+    await expect(
+      service.gerarAPartirOrdemServico(
+        'empresa-1',
+        'ordem-externa',
+        { dataVencimento: '2026-08-10', valorOriginal: 100 },
+        usuario,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.contaReceber.create).not.toHaveBeenCalled();
+  });
+
+  it('aceita P2002 composto em ordem invertida', async () => {
+    const erro = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: '6.19.3',
+      meta: { target: ['numero', 'empresaId'] },
+    });
+    prisma.contaReceber.create.mockRejectedValue(erro);
+
+    await expect(
+      service.criar(
+        'empresa-1',
+        {
+          descricao: 'Conta',
+          dataVencimento: '2026-08-10',
+          valorOriginal: 100,
+        },
+        usuario,
+      ),
+    ).rejects.toThrow('numeração');
+  });
+
+  it.each([
+    { target: ['empresaId', 'numero', 'campoExtra'] },
+    { target: 'ContaReceber_empresaId_numero_key' },
+    {},
+  ])('relança P2002 com metadata não estrita: %o', async (meta) => {
+    const erro = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: '6.19.3',
+      meta,
+    });
+    prisma.contaReceber.create.mockRejectedValue(erro);
+
+    await expect(
+      service.criar(
+        'empresa-1',
+        {
+          descricao: 'Conta',
+          dataVencimento: '2026-08-10',
+          valorOriginal: 100,
+        },
+        usuario,
+      ),
+    ).rejects.toBe(erro);
+  });
+
+  it('valida histórico por id + empresaId', async () => {
+    await service.listarHistorico('empresa-1', 'conta-1');
+    expect(prisma.contaReceber.findFirst).toHaveBeenCalledWith({
+      where: { id: 'conta-1', empresaId: 'empresa-1' },
+      select: { id: true },
+    });
+
+    prisma.contaReceber.findFirst.mockResolvedValue(null);
+    await expect(
+      service.adicionarHistorico(
+        'empresa-2',
+        'conta-1',
+        { descricao: 'Anotação' },
+        usuario,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.contaReceberHistorico.create).not.toHaveBeenCalled();
   });
 });
