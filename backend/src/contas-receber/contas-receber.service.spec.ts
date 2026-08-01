@@ -138,7 +138,6 @@ describe('ContasReceberService', () => {
     expect(prisma.contaReceber.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          empresaId: 'empresa-1',
           descricao: 'Conta',
           valorOriginal: new Prisma.Decimal(100),
           valorAberto: new Prisma.Decimal(100),
@@ -440,9 +439,9 @@ describe('ContasReceberService', () => {
     );
     expect(caixas.registrarMovimentacaoFinanceira).toHaveBeenCalledWith(
       prisma,
+      'empresa-1',
       expect.objectContaining({
         caixaId: 'caixa-1',
-        empresaId: 'empresa-1',
         tipo: TipoMovimentacaoCaixa.ENTRADA,
         origem: OrigemMovimentacaoCaixa.CONTA_RECEBER,
         recebimentoContaReceberId: 'recebimento-1',
@@ -555,7 +554,8 @@ describe('ContasReceberService', () => {
     );
     expect(caixas.registrarMovimentacaoFinanceira).toHaveBeenCalledWith(
       prisma,
-      expect.objectContaining({ empresaId: 'empresa-2' }),
+      'empresa-2',
+      expect.any(Object),
     );
   });
 

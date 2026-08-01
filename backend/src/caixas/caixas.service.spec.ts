@@ -17,6 +17,7 @@ function criarPrismaMock() {
     caixa: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
@@ -70,6 +71,7 @@ describe('CaixasService', () => {
     prisma = criarPrismaMock();
     service = new CaixasService(prisma as unknown as PrismaService);
     prisma.caixa.findUnique.mockResolvedValue(caixa());
+    prisma.caixa.findFirst.mockResolvedValue(caixa(StatusCaixa.ABERTO, 100));
     prisma.caixa.findUniqueOrThrow.mockResolvedValue(caixa(StatusCaixa.ABERTO));
     prisma.caixa.updateMany.mockResolvedValue({ count: 1 });
     prisma.aberturaCaixa.findFirst.mockResolvedValue(null);
@@ -340,28 +342,36 @@ describe('CaixasService', () => {
     );
   });
   it('registra saída financeira no tx recebido com idempotência do pagamento', async () => {
-    prisma.caixa.findUnique.mockResolvedValue(caixa(StatusCaixa.ABERTO, 100));
+    prisma.caixa.findFirst.mockResolvedValue(caixa(StatusCaixa.ABERTO, 100));
     prisma.caixa.findUniqueOrThrow.mockResolvedValue(
       caixa(StatusCaixa.ABERTO, 60),
     );
     prisma.aberturaCaixa.findFirst.mockResolvedValue(abertura);
 
-    await service.registrarMovimentacaoFinanceira(prisma as never, {
-      caixaId: 'caixa-1',
-      empresaId: 'empresa-1',
-      tipo: TipoMovimentacaoCaixa.SAIDA,
-      origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
-      descricao: 'Pagamento da conta 1',
-      valor: new Prisma.Decimal(40),
-      dataMovimentacao: new Date('2026-07-20'),
-      pagamentoContaPagarId: 'pagamento-1',
-      usuarioId: 'usuario-1',
-    });
+    await service.registrarMovimentacaoFinanceira(
+      prisma as never,
+      'empresa-1',
+      {
+        caixaId: 'caixa-1',
+        tipo: TipoMovimentacaoCaixa.SAIDA,
+        origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
+        descricao: 'Pagamento da conta 1',
+        valor: new Prisma.Decimal(40),
+        dataMovimentacao: new Date('2026-07-20'),
+        pagamentoContaPagarId: 'pagamento-1',
+        usuarioId: 'usuario-1',
+      },
+    );
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
+    const rawCalls = prisma.$queryRaw.mock.calls as Array<[Prisma.Sql]>;
+    const lock = rawCalls[0][0];
+    expect(lock.values).toEqual(['caixa-1', 'empresa-1']);
+
     expect(prisma.caixa.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
+          id: 'caixa-1',
           empresaId: 'empresa-1',
           saldoAtual: { gte: new Prisma.Decimal(40) },
         }),
@@ -381,14 +391,13 @@ describe('CaixasService', () => {
   });
 
   it('rejeita saída financeira sem saldo antes de movimento e histórico', async () => {
-    prisma.caixa.findUnique.mockResolvedValue(caixa(StatusCaixa.ABERTO, 10));
+    prisma.caixa.findFirst.mockResolvedValue(caixa(StatusCaixa.ABERTO, 10));
     prisma.aberturaCaixa.findFirst.mockResolvedValue(abertura);
     prisma.caixa.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(
-      service.registrarMovimentacaoFinanceira(prisma as never, {
+      service.registrarMovimentacaoFinanceira(prisma as never, 'empresa-1', {
         caixaId: 'caixa-1',
-        empresaId: 'empresa-1',
         tipo: TipoMovimentacaoCaixa.SAIDA,
         origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
         descricao: 'Pagamento',
@@ -402,21 +411,61 @@ describe('CaixasService', () => {
     expect(prisma.caixaHistorico.create).not.toHaveBeenCalled();
   });
 
-  it('rejeita empresa incompatível na movimentação financeira', async () => {
-    prisma.caixa.findUnique.mockResolvedValue(caixa(StatusCaixa.ABERTO, 100));
+  it('trata Caixa externo como inexistente na movimentação financeira', async () => {
+    prisma.caixa.findFirst.mockResolvedValue(null);
 
     await expect(
-      service.registrarMovimentacaoFinanceira(prisma as never, {
+      service.registrarMovimentacaoFinanceira(prisma as never, 'empresa-2', {
         caixaId: 'caixa-1',
-        empresaId: 'empresa-2',
         tipo: TipoMovimentacaoCaixa.SAIDA,
         origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
         descricao: 'Pagamento',
         valor: new Prisma.Decimal(20),
         dataMovimentacao: new Date(),
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Caixa não encontrado');
 
     expect(prisma.caixa.updateMany).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { target: ['pagamentoContaPagarId'], converte: true },
+    { target: 'MovimentacaoCaixa_pagamentoContaPagarId_key', converte: true },
+    { target: ['pagamentoContaPagarId', 'extra'], converte: false },
+    { target: ['outra'], converte: false },
+    { target: 'outra_constraint', converte: false },
+    { target: undefined, converte: false },
+  ])(
+    'trata P2002 da movimentação de forma defensiva: %o',
+    async ({ target, converte }) => {
+      prisma.caixa.findFirst.mockResolvedValue(caixa(StatusCaixa.ABERTO, 100));
+      prisma.caixa.findUniqueOrThrow.mockResolvedValue(
+        caixa(StatusCaixa.ABERTO, 80),
+      );
+      prisma.aberturaCaixa.findFirst.mockResolvedValue(abertura);
+      const erro = new Prisma.PrismaClientKnownRequestError('unique', {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: target === undefined ? {} : { target },
+      });
+      prisma.movimentacaoCaixa.create.mockRejectedValue(erro);
+      const resultado = service.registrarMovimentacaoFinanceira(
+        prisma as never,
+        'empresa-1',
+        {
+          caixaId: 'caixa-1',
+          tipo: TipoMovimentacaoCaixa.SAIDA,
+          origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
+          descricao: 'Pagamento',
+          valor: new Prisma.Decimal(20),
+          dataMovimentacao: new Date(),
+          pagamentoContaPagarId: 'pagamento-1',
+        },
+      );
+      if (converte)
+        await expect(resultado).rejects.toBeInstanceOf(ConflictException);
+      else await expect(resultado).rejects.toBe(erro);
+      expect(prisma.caixaHistorico.create).not.toHaveBeenCalled();
+    },
+  );
 });

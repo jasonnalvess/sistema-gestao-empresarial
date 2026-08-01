@@ -832,24 +832,27 @@ export class ContasPagarService {
 
         if (dados.caixaId) {
           const resultadoCaixa =
-            await this.caixasService.registrarMovimentacaoFinanceira(tx, {
-              caixaId: dados.caixaId,
-              empresaId: conta.empresaId,
-              tipo: TipoMovimentacaoCaixa.SAIDA,
-              origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
-              descricao:
-                'Pagamento da conta a pagar nº ' +
-                conta.numero +
-                ' - ' +
-                conta.descricao,
-              documento:
-                dados.documento?.trim() || conta.documento || undefined,
-              observacao: dados.observacao?.trim(),
-              valor,
-              dataMovimentacao: dataPagamento,
-              usuarioId: this.obterUsuarioId(usuario),
-              pagamentoContaPagarId: pagamento.id,
-            });
+            await this.caixasService.registrarMovimentacaoFinanceira(
+              tx,
+              conta.empresaId,
+              {
+                caixaId: dados.caixaId,
+                tipo: TipoMovimentacaoCaixa.SAIDA,
+                origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
+                descricao:
+                  'Pagamento da conta a pagar nº ' +
+                  conta.numero +
+                  ' - ' +
+                  conta.descricao,
+                documento:
+                  dados.documento?.trim() || conta.documento || undefined,
+                observacao: dados.observacao?.trim(),
+                valor,
+                dataMovimentacao: dataPagamento,
+                usuarioId: this.obterUsuarioId(usuario),
+                pagamentoContaPagarId: pagamento.id,
+              },
+            );
           movimentacaoCaixa = resultadoCaixa.movimentacao;
         }
 

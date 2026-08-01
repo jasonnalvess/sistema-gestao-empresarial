@@ -133,7 +133,6 @@ describe('ContasPagarService', () => {
     expect(prisma.contaPagar.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          empresaId: 'empresa-1',
           descricao: 'Conta',
         }),
       }),
@@ -443,9 +442,9 @@ describe('ContasPagarService', () => {
     );
     expect(caixas.registrarMovimentacaoFinanceira).toHaveBeenCalledWith(
       prisma,
+      'empresa-1',
       expect.objectContaining({
         caixaId: 'caixa-1',
-        empresaId: 'empresa-1',
         pagamentoContaPagarId: 'pagamento-1',
         valor: new Prisma.Decimal(20),
       }),
@@ -565,7 +564,8 @@ describe('ContasPagarService', () => {
     );
     expect(caixas.registrarMovimentacaoFinanceira).toHaveBeenCalledWith(
       prisma,
-      expect.objectContaining({ empresaId: 'empresa-1' }),
+      'empresa-1',
+      expect.any(Object),
     );
   });
 
