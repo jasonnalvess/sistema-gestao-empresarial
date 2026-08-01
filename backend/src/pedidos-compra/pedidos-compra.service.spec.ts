@@ -64,7 +64,7 @@ const pedido = (
 });
 
 function criarContexto() {
-  const tx: any = {
+  const tx = {
     pedidoCompra: {
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
@@ -86,19 +86,21 @@ function criarContexto() {
       update: jest.fn(),
     },
     movimentacaoEstoque: { create: jest.fn() },
-    fornecedor: { findUnique: jest.fn() },
-    deposito: { findUnique: jest.fn() },
+    fornecedor: { findFirst: jest.fn() },
+    deposito: { findFirst: jest.fn() },
     produto: { findMany: jest.fn() },
     $queryRaw: jest.fn(),
   };
-  const prisma: any = {
-    $transaction: jest.fn(async (operacao: (cliente: typeof tx) => unknown) =>
-      operacao(tx),
+  const prisma = {
+    $transaction: jest.fn(
+      (operacao: ((cliente: typeof tx) => unknown) | Promise<unknown>[]) =>
+        Array.isArray(operacao) ? Promise.all(operacao) : operacao(tx),
     ),
     pedidoCompra: {
       findUnique: jest.fn(),
-      findMany: jest.fn(),
-      count: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
     },
     pedidoCompraHistorico: { findMany: jest.fn() },
   };
@@ -126,12 +128,12 @@ function criarContexto() {
   });
   tx.movimentacaoEstoque.create.mockResolvedValue({ id: 'mov1' });
   tx.pedidoCompraHistorico.create.mockResolvedValue({ id: 'hist1' });
-  tx.fornecedor.findUnique.mockResolvedValue({
+  tx.fornecedor.findFirst.mockResolvedValue({
     id: 'f1',
     empresaId: 'e1',
     ativo: true,
   });
-  tx.deposito.findUnique.mockResolvedValue({
+  tx.deposito.findFirst.mockResolvedValue({
     id: 'd1',
     empresaId: 'e1',
     ativo: true,
@@ -140,7 +142,7 @@ function criarContexto() {
   return {
     tx,
     prisma,
-    service: new PedidosCompraService(prisma as PrismaService),
+    service: new PedidosCompraService(prisma as unknown as PrismaService),
   };
 }
 
@@ -155,8 +157,8 @@ describe('PedidosCompraService hardening', () => {
     const { service, prisma, tx } = criarContexto();
     await service.criar('e1', dtoCriacao, usuario);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(tx.fornecedor.findUnique).toHaveBeenCalled();
-    expect(tx.deposito.findUnique).toHaveBeenCalled();
+    expect(tx.fornecedor.findFirst).toHaveBeenCalled();
+    expect(tx.deposito.findFirst).toHaveBeenCalled();
     expect(tx.produto.findMany).toHaveBeenCalled();
     expect(tx.pedidoCompra.create).toHaveBeenCalled();
     expect(tx.pedidoCompraHistorico.create).toHaveBeenCalled();
@@ -347,9 +349,7 @@ describe('PedidosCompraService hardening', () => {
         },
         usuario,
       );
-      return tx.$queryRaw.mock.calls
-        .slice(1)
-        .map((call: any[]) => call[0].values[0]);
+      return tx.$queryRaw.mock.calls.slice(1).map((call) => call[0].values[0]);
     };
     await expect(executar(['ib', 'ia'])).resolves.toEqual([
       'e1:prod-a:d1',
@@ -605,27 +605,206 @@ describe('PedidosCompraService hardening', () => {
     expect(tx.pedidoCompra.create).not.toHaveBeenCalled();
   });
 
+  it('lock usa id e empresaId no SQL com FOR UPDATE', async () => {
+    const { service, tx } = criarContexto();
+    await service.cancelar('e1', 'p1', usuario);
+    const chamadas = tx.$queryRaw.mock.calls as [Prisma.Sql][];
+    const consulta = chamadas[0][0];
+    expect(consulta.values).toEqual(['p1', 'e1']);
+    expect(consulta.strings.join('')).toContain('"empresaId" = ');
+    expect(consulta.strings.join('')).toContain('FOR UPDATE');
+  });
+
+  it('fornecedor e depósito são consultados por id + empresaId', async () => {
+    const { service, tx } = criarContexto();
+    await service.criar('e1', dtoCriacao, usuario);
+    expect(tx.fornecedor.findFirst).toHaveBeenCalledWith({
+      where: { id: 'f1', empresaId: 'e1' },
+    });
+    expect(tx.deposito.findFirst).toHaveBeenCalledWith({
+      where: { id: 'd1', empresaId: 'e1' },
+    });
+  });
+
+  it('fornecedor inexistente ou externo retorna 404', async () => {
+    const { service, tx } = criarContexto();
+    tx.fornecedor.findFirst.mockResolvedValue(null);
+    await expect(
+      service.criar('e1', dtoCriacao, usuario),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(tx.pedidoCompra.create).not.toHaveBeenCalled();
+  });
+
+  it('depósito inexistente ou externo retorna 404', async () => {
+    const { service, tx } = criarContexto();
+    tx.deposito.findFirst.mockResolvedValue(null);
+    await expect(
+      service.criar('e1', dtoCriacao, usuario),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(tx.pedidoCompra.create).not.toHaveBeenCalled();
+  });
+
+  it('fornecedor inativo preserva a regra atual', async () => {
+    const { service, tx } = criarContexto();
+    tx.fornecedor.findFirst.mockResolvedValue({
+      id: 'f1',
+      empresaId: 'e1',
+      ativo: false,
+    });
+    await expect(service.criar('e1', dtoCriacao, usuario)).rejects.toThrow(
+      'Não é possível utilizar um fornecedor inativo',
+    );
+  });
+
+  it('depósito inativo preserva a regra atual', async () => {
+    const { service, tx } = criarContexto();
+    tx.deposito.findFirst.mockResolvedValue({
+      id: 'd1',
+      empresaId: 'e1',
+      ativo: false,
+    });
+    await expect(service.criar('e1', dtoCriacao, usuario)).rejects.toThrow(
+      'Não é possível utilizar um depósito inativo',
+    );
+  });
+
+  it('produtos são consultados por empresaId e IDs', async () => {
+    const { service, tx } = criarContexto();
+    await service.criar('e1', dtoCriacao, usuario);
+    expect(tx.produto.findMany).toHaveBeenCalledWith({
+      where: { empresaId: 'e1', id: { in: ['prod1'] } },
+    });
+  });
+
+  it('produto externo ou inexistente gera 404 genérico', async () => {
+    const { service, tx } = criarContexto();
+    tx.produto.findMany.mockResolvedValue([]);
+    await expect(service.criar('e1', dtoCriacao, usuario)).rejects.toThrow(
+      'Um ou mais produtos não foram encontrados',
+    );
+  });
+
+  it('produto inativo mantém mensagem específica', async () => {
+    const { service, tx } = criarContexto();
+    tx.produto.findMany.mockResolvedValue([{ ...produto(), ativo: false }]);
+    await expect(service.criar('e1', dtoCriacao, usuario)).rejects.toThrow(
+      'O produto "Produto prod1" está inativo',
+    );
+  });
+
+  it('produto duplicado na criação continua rejeitado antes da consulta', async () => {
+    const { service, tx } = criarContexto();
+    await expect(
+      service.criar(
+        'e1',
+        { ...dtoCriacao, itens: [dtoCriacao.itens[0], dtoCriacao.itens[0]] },
+        usuario,
+      ),
+    ).rejects.toThrow('O mesmo produto não pode aparecer mais de uma vez');
+    expect(tx.produto.findMany).not.toHaveBeenCalled();
+  });
+
+  it('recebimento valida depósito e rejeita produto externo do pedido', async () => {
+    const { service, tx } = criarContexto();
+    tx.pedidoCompra.findFirst.mockResolvedValue(
+      pedido(StatusPedidoCompra.APROVADO, [
+        { ...item(), produto: { ...produto(), empresaId: 'e2' } },
+      ]),
+    );
+    await expect(
+      service.receber(
+        'e1',
+        'p1',
+        { itens: [{ itemId: 'item1', quantidadeRecebida: 1 }] },
+        usuario,
+      ),
+    ).rejects.toThrow('Um ou mais produtos não foram encontrados');
+    expect(tx.deposito.findFirst).toHaveBeenCalledWith({
+      where: { id: 'd1', empresaId: 'e1' },
+    });
+    expect(tx.estoqueProduto.update).not.toHaveBeenCalled();
+  });
+
   it.each([
     [['empresaId', 'numero'], true],
-    ['PedidoCompra_empresaId_numero_key', true],
+    [['numero', 'empresaId'], true],
+    [['empresaId', 'numero', 'extra'], false],
     [['outra'], false],
-    ['AlgumaConstraint_desconhecida_key', false],
+    ['PedidoCompra_empresaId_numero_key', false],
+    [undefined, false],
   ] as const)(
-    'P2002 target %p é convertido somente quando conhecido',
-    async (target, conhecido) => {
+    'P2002 target %p respeita o conjunto exato',
+    async (target, convertido) => {
       const { service, tx } = criarContexto();
       const erro = new Prisma.PrismaClientKnownRequestError('unique', {
         code: 'P2002',
         clientVersion: '6.19.3',
-        meta: { target },
+        meta: target === undefined ? undefined : { target },
       });
       tx.pedidoCompra.create.mockRejectedValue(erro);
-      const promessa = service.criar('e1', dtoCriacao, usuario);
-      if (conhecido) {
-        await expect(promessa).rejects.toBeInstanceOf(ConflictException);
-      } else {
-        await expect(promessa).rejects.toBe(erro);
-      }
+      const acao = service.criar('e1', dtoCriacao, usuario);
+      if (convertido)
+        await expect(acao).rejects.toBeInstanceOf(ConflictException);
+      else await expect(acao).rejects.toBe(erro);
     },
   );
+
+  it('P2002 sem target, outro código e erro comum são relançados', async () => {
+    const erros = [
+      new Prisma.PrismaClientKnownRequestError('unique', {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: {},
+      }),
+      new Prisma.PrismaClientKnownRequestError('foreign key', {
+        code: 'P2003',
+        clientVersion: '6.19.3',
+        meta: { target: ['empresaId', 'numero'] },
+      }),
+      new Error('falha comum'),
+    ];
+    for (const erro of erros) {
+      const { service, tx } = criarContexto();
+      tx.pedidoCompra.create.mockRejectedValue(erro);
+      await expect(service.criar('e1', dtoCriacao, usuario)).rejects.toBe(erro);
+    }
+  });
+
+  it('P2002 posterior do histórico não é convertido', async () => {
+    const { service, tx } = criarContexto();
+    const erro = new Prisma.PrismaClientKnownRequestError('history', {
+      code: 'P2002',
+      clientVersion: '6.19.3',
+      meta: { target: ['empresaId', 'numero'] },
+    });
+    tx.pedidoCompraHistorico.create.mockRejectedValue(erro);
+    await expect(service.criar('e1', dtoCriacao, usuario)).rejects.toBe(erro);
+  });
+
+  it.each([
+    'numero',
+    'status',
+    'dataPedido',
+    'dataPrevistaEntrega',
+    'valorTotal',
+    'createdAt',
+    'updatedAt',
+  ] as const)('sortBy permitido %s chega ao Prisma', async (sortBy) => {
+    const { service, prisma } = criarContexto();
+    await service.listar('e1', { sortBy, order: 'asc' });
+    expect(prisma.pedidoCompra.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { [sortBy]: 'asc' } }),
+    );
+  });
+
+  it('sortBy inválido usa createdAt', async () => {
+    const { service, prisma } = criarContexto();
+    await service.listar('e1', { sortBy: 'campoArbitrario', order: 'asc' });
+    expect(prisma.pedidoCompra.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { createdAt: 'asc' } }),
+    );
+    expect(prisma.pedidoCompra.findMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { campoArbitrario: 'asc' } }),
+    );
+  });
 });

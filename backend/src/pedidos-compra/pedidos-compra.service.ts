@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -24,6 +23,19 @@ import { CriarItemPedidoCompraDto } from './dto/criar-item-pedido-compra.dto';
 import { ReceberPedidoCompraDto } from './dto/receber-pedido-compra.dto';
 import { paraDecimalMonetario } from '../contas-pagar/valor-monetario';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+
+const CAMPOS_ORDENACAO_PEDIDO_COMPRA = [
+  'numero',
+  'status',
+  'dataPedido',
+  'dataPrevistaEntrega',
+  'valorTotal',
+  'createdAt',
+  'updatedAt',
+] as const satisfies readonly (keyof Prisma.PedidoCompraOrderByWithRelationInput)[];
+
+type CampoOrdenacaoPedidoCompra =
+  (typeof CAMPOS_ORDENACAO_PEDIDO_COMPRA)[number];
 
 @Injectable()
 export class PedidosCompraService {
@@ -106,34 +118,40 @@ export class PedidosCompraService {
 
   private tratarErroPrisma(error: unknown): never {
     if (
-      this.alvoP2002(
-        error,
-        ['empresaId', 'numero'],
-        'PedidoCompra_empresaId_numero_key',
-      )
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
     ) {
-      throw new ConflictException(
-        'Conflito ao gerar a numeração do pedido de compra',
-      );
+      const target = error.meta?.target;
+
+      if (
+        Array.isArray(target) &&
+        target.length === 2 &&
+        target.includes('empresaId') &&
+        target.includes('numero')
+      ) {
+        throw new ConflictException(
+          'Conflito ao gerar a numeração do pedido de compra',
+        );
+      }
     }
+
     throw error;
   }
 
-  private alvoP2002(error: unknown, campos: string[], indice: string): boolean {
-    if (
-      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-      error.code !== 'P2002'
-    ) {
-      return false;
-    }
-    const target = error.meta?.target;
-    return Array.isArray(target)
-      ? campos.every((campo) => target.includes(campo))
-      : typeof target === 'string' && target.includes(indice);
+  private obterCampoOrdenacao(sortBy?: string): CampoOrdenacaoPedidoCompra {
+    return (
+      CAMPOS_ORDENACAO_PEDIDO_COMPRA.find((campo) => campo === sortBy) ??
+      'createdAt'
+    );
   }
-  private async bloquearPedido(tx: Prisma.TransactionClient, id: string) {
+
+  private async bloquearPedido(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    id: string,
+  ) {
     await tx.$queryRaw(
-      Prisma.sql`SELECT "id" FROM "PedidoCompra" WHERE "id" = ${id} FOR UPDATE`,
+      Prisma.sql`SELECT "id" FROM "PedidoCompra" WHERE "id" = ${id} AND "empresaId" = ${empresaId} FOR UPDATE`,
     );
   }
 
@@ -142,7 +160,7 @@ export class PedidosCompraService {
     empresaId: string,
     id: string,
   ) {
-    await this.bloquearPedido(tx, id);
+    await this.bloquearPedido(tx, empresaId, id);
     const pedido = await tx.pedidoCompra.findFirst({
       where: { id, empresaId },
       include: this.includePedido,
@@ -169,18 +187,15 @@ export class PedidosCompraService {
     fornecedorId: string,
     empresaId: string,
   ) {
-    const fornecedor = await tx.fornecedor.findUnique({
+    const fornecedor = await tx.fornecedor.findFirst({
       where: {
         id: fornecedorId,
+        empresaId,
       },
     });
 
     if (!fornecedor) {
       throw new NotFoundException('Fornecedor não encontrado');
-    }
-
-    if (fornecedor.empresaId !== empresaId) {
-      throw new ForbiddenException('Fornecedor pertence a outra empresa');
     }
 
     if (!fornecedor.ativo) {
@@ -197,18 +212,15 @@ export class PedidosCompraService {
     depositoId: string,
     empresaId: string,
   ) {
-    const deposito = await tx.deposito.findUnique({
+    const deposito = await tx.deposito.findFirst({
       where: {
         id: depositoId,
+        empresaId,
       },
     });
 
     if (!deposito) {
       throw new NotFoundException('Depósito não encontrado');
-    }
-
-    if (deposito.empresaId !== empresaId) {
-      throw new ForbiddenException('Depósito pertence a outra empresa');
     }
 
     if (!deposito.ativo) {
@@ -236,6 +248,7 @@ export class PedidosCompraService {
 
     const produtos = await tx.produto.findMany({
       where: {
+        empresaId,
         id: {
           in: produtoIds,
         },
@@ -247,12 +260,6 @@ export class PedidosCompraService {
     }
 
     for (const produto of produtos) {
-      if (produto.empresaId !== empresaId) {
-        throw new ForbiddenException(
-          `O produto "${produto.nome}" pertence a outra empresa`,
-        );
-      }
-
       if (!produto.ativo) {
         throw new BadRequestException(
           `O produto "${produto.nome}" está inativo`,
@@ -357,27 +364,27 @@ export class PedidosCompraService {
     dados: CriarPedidoCompraDto,
     usuarioLogado: AuthenticatedUser,
   ) {
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        await Promise.all([
-          this.validarFornecedor(tx, dados.fornecedorId, empresaId),
-          this.validarDeposito(tx, dados.depositoId, empresaId),
-          this.validarProdutos(tx, dados.itens, empresaId),
-        ]);
+    return this.prisma.$transaction(async (tx) => {
+      await Promise.all([
+        this.validarFornecedor(tx, dados.fornecedorId, empresaId),
+        this.validarDeposito(tx, dados.depositoId, empresaId),
+        this.validarProdutos(tx, dados.itens, empresaId),
+      ]);
 
-        const totais = this.calcularTotais(
-          dados.itens,
-          dados.valorDesconto,
-          dados.valorFrete,
-          dados.valorOutros,
-        );
-        const ultimoPedido = await tx.pedidoCompra.findFirst({
-          where: { empresaId },
-          orderBy: { numero: 'desc' },
-          select: { numero: true },
-        });
-        const numero = (ultimoPedido?.numero ?? 0) + 1;
-        const pedido = await tx.pedidoCompra.create({
+      const totais = this.calcularTotais(
+        dados.itens,
+        dados.valorDesconto,
+        dados.valorFrete,
+        dados.valorOutros,
+      );
+      const ultimoPedido = await tx.pedidoCompra.findFirst({
+        where: { empresaId },
+        orderBy: { numero: 'desc' },
+        select: { numero: true },
+      });
+      const numero = (ultimoPedido?.numero ?? 0) + 1;
+      const pedido = await tx.pedidoCompra
+        .create({
           data: {
             numero,
             status: StatusPedidoCompra.RASCUNHO,
@@ -398,18 +405,16 @@ export class PedidosCompraService {
             itens: { create: totais.itensCalculados },
           },
           include: this.includePedido,
-        });
-        await this.registrarHistorico(
-          tx,
-          pedido.id,
-          `Pedido de compra nº ${numero} criado como rascunho.`,
-          usuarioLogado,
-        );
-        return pedido;
-      });
-    } catch (error) {
-      this.tratarErroPrisma(error);
-    }
+        })
+        .catch((error: unknown) => this.tratarErroPrisma(error));
+      await this.registrarHistorico(
+        tx,
+        pedido.id,
+        `Pedido de compra nº ${numero} criado como rascunho.`,
+        usuarioLogado,
+      );
+      return pedido;
+    });
   }
   async listar(empresaId: string, filtros: FiltroPedidosCompraDto) {
     const page = filtros.page ?? 1;
@@ -478,19 +483,7 @@ export class PedidosCompraService {
       }
     }
 
-    const camposOrdenacaoPermitidos = [
-      'numero',
-      'status',
-      'dataPedido',
-      'dataPrevistaEntrega',
-      'valorTotal',
-      'createdAt',
-      'updatedAt',
-    ];
-
-    const sortBy = camposOrdenacaoPermitidos.includes(filtros.sortBy ?? '')
-      ? filtros.sortBy
-      : 'createdAt';
+    const sortBy = this.obterCampoOrdenacao(filtros.sortBy);
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.pedidoCompra.findMany({
@@ -510,7 +503,7 @@ export class PedidosCompraService {
           },
         },
         orderBy: {
-          [sortBy!]: filtros.order ?? 'desc',
+          [sortBy]: filtros.order ?? 'desc',
         },
         skip,
         take,
@@ -783,6 +776,14 @@ export class PedidosCompraService {
       ) {
         throw new BadRequestException(
           'Somente pedidos aprovados ou parcialmente recebidos podem ser recebidos',
+        );
+      }
+
+      await this.validarDeposito(tx, pedido.depositoId, empresaId);
+
+      if (pedido.itens.some((item) => item.produto.empresaId !== empresaId)) {
+        throw new NotFoundException(
+          'Um ou mais produtos não foram encontrados',
         );
       }
 
