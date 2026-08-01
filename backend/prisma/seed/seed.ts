@@ -267,6 +267,26 @@ async function main() {
       modulo: 'fornecedores',
     },
 
+    // Pedidos de compra
+    {
+      nome: 'Visualizar pedidos de compra',
+      chave: 'pedidos_compra.visualizar',
+      descricao: 'Permite consultar pedidos de compra',
+      modulo: 'pedidos_compra',
+    },
+    {
+      nome: 'Criar pedidos de compra',
+      chave: 'pedidos_compra.criar',
+      descricao: 'Permite cadastrar pedidos de compra',
+      modulo: 'pedidos_compra',
+    },
+    {
+      nome: 'Editar pedidos de compra',
+      chave: 'pedidos_compra.editar',
+      descricao: 'Permite alterar pedidos de compra',
+      modulo: 'pedidos_compra',
+    },
+
     // Agenda
     {
       nome: 'Visualizar agenda',
@@ -553,6 +573,7 @@ async function main() {
       'perfis',
       'clientes',
       'fornecedores',
+      'pedidos_compra',
       'agenda',
       'funcionarios',
       'estoque',
@@ -568,7 +589,14 @@ async function main() {
   });
 
   const permissoesSupervisor = selecionarPermissoes({
-    modulos: ['clientes', 'fornecedores', 'agenda', 'estoque', 'caixa'],
+    modulos: [
+      'clientes',
+      'fornecedores',
+      'pedidos_compra',
+      'agenda',
+      'estoque',
+      'caixa',
+    ],
     chavesAdicionais: ['funcionarios.visualizar'],
     chavesExcluidas: [
       'clientes.excluir',
@@ -589,6 +617,7 @@ async function main() {
     chavesAdicionais: [
       'clientes.visualizar',
       'fornecedores.visualizar',
+      'pedidos_compra.visualizar',
       'agenda.visualizar',
       'agenda.criar',
       'agenda.editar',
