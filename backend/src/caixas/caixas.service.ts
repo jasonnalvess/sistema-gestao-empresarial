@@ -182,9 +182,19 @@ export class CaixasService {
     throw error;
   }
 
-  private async bloquearCaixa(tx: Prisma.TransactionClient, id: string) {
+  private async bloquearCaixaPorId(tx: Prisma.TransactionClient, id: string) {
     await tx.$queryRaw(
       Prisma.sql`SELECT "id" FROM "Caixa" WHERE "id" = ${id} FOR UPDATE`,
+    );
+  }
+
+  private async bloquearCaixa(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    id: string,
+  ) {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "Caixa" WHERE "id" = ${id} AND "empresaId" = ${empresaId} FOR UPDATE`,
     );
   }
 
@@ -471,7 +481,7 @@ export class CaixasService {
   async abrir(id: string, dados: AbrirCaixaDto, usuario: AuthenticatedUser) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.bloquearCaixa(tx, id);
+        await this.bloquearCaixaPorId(tx, id);
         const caixa = await this.validarCaixa(id, usuario, tx);
 
         if (!caixa.ativo) {
@@ -542,9 +552,9 @@ export class CaixasService {
 
   async registrarMovimentacaoFinanceira(
     tx: Prisma.TransactionClient,
+    empresaId: string,
     dados: {
       caixaId: string;
-      empresaId: string;
       tipo: TipoMovimentacaoCaixa;
       origem: OrigemMovimentacaoCaixa;
       descricao: string;
@@ -557,18 +567,14 @@ export class CaixasService {
       recebimentoContaReceberId?: string;
     },
   ) {
-    await this.bloquearCaixa(tx, dados.caixaId);
+    await this.bloquearCaixa(tx, empresaId, dados.caixaId);
 
-    const caixa = await tx.caixa.findUnique({
-      where: { id: dados.caixaId },
+    const caixa = await tx.caixa.findFirst({
+      where: { id: dados.caixaId, empresaId },
     });
 
     if (!caixa) {
       throw new NotFoundException('Caixa não encontrado');
-    }
-
-    if (caixa.empresaId !== dados.empresaId) {
-      throw new ForbiddenException('Caixa pertence a outra empresa');
     }
 
     if (!caixa.ativo || caixa.status !== StatusCaixa.ABERTO) {
@@ -580,7 +586,7 @@ export class CaixasService {
     const abertura = await tx.aberturaCaixa.findFirst({
       where: {
         caixaId: caixa.id,
-        empresaId: dados.empresaId,
+        empresaId: empresaId,
         aberto: true,
       },
       orderBy: { dataAbertura: 'desc' },
@@ -593,7 +599,7 @@ export class CaixasService {
     const alteracao = await tx.caixa.updateMany({
       where: {
         id: caixa.id,
-        empresaId: dados.empresaId,
+        empresaId: empresaId,
         ativo: true,
         status: StatusCaixa.ABERTO,
         ...(dados.tipo === TipoMovimentacaoCaixa.SAIDA
@@ -609,8 +615,8 @@ export class CaixasService {
     });
 
     if (alteracao.count !== 1) {
-      const atual = await tx.caixa.findUnique({
-        where: { id: caixa.id },
+      const atual = await tx.caixa.findFirst({
+        where: { id: caixa.id, empresaId },
         select: { saldoAtual: true },
       });
 
@@ -627,7 +633,7 @@ export class CaixasService {
     }
 
     const caixaAtualizado = await tx.caixa.findUniqueOrThrow({
-      where: { id: caixa.id },
+      where: { id: caixa.id, empresaId },
     });
 
     const saldoPosterior = new Prisma.Decimal(caixaAtualizado.saldoAtual);
@@ -637,30 +643,51 @@ export class CaixasService {
         ? saldoPosterior.minus(dados.valor)
         : saldoPosterior.plus(dados.valor);
 
-    const movimentacao = await tx.movimentacaoCaixa.create({
-      data: {
-        tipo: dados.tipo,
-        origem: dados.origem,
-        descricao: dados.descricao,
-        documento: dados.documento,
-        observacao: dados.observacao,
-        valor: dados.valor,
-        saldoAnterior,
-        saldoPosterior,
-        dataMovimentacao: dados.dataMovimentacao,
-        empresaId: dados.empresaId,
-        caixaId: caixa.id,
-        aberturaCaixaId: abertura.id,
-        usuarioId: dados.usuarioId,
-        pagamentoContaPagarId: dados.pagamentoContaPagarId,
-        recebimentoContaReceberId: dados.recebimentoContaReceberId,
-      },
-    });
+    const movimentacao = await (async () => {
+      try {
+        return await tx.movimentacaoCaixa.create({
+          data: {
+            tipo: dados.tipo,
+            origem: dados.origem,
+            descricao: dados.descricao,
+            documento: dados.documento,
+            observacao: dados.observacao,
+            valor: dados.valor,
+            saldoAnterior,
+            saldoPosterior,
+            dataMovimentacao: dados.dataMovimentacao,
+            empresaId: empresaId,
+            caixaId: caixa.id,
+            aberturaCaixaId: abertura.id,
+            usuarioId: dados.usuarioId,
+            pagamentoContaPagarId: dados.pagamentoContaPagarId,
+            recebimentoContaReceberId: dados.recebimentoContaReceberId,
+          },
+        });
+      } catch (error) {
+        const target =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+            ? error.meta?.target
+            : undefined;
+        const alvoPagamento =
+          (Array.isArray(target) &&
+            target.length === 1 &&
+            target[0] === 'pagamentoContaPagarId') ||
+          target === 'MovimentacaoCaixa_pagamentoContaPagarId_key';
+        if (alvoPagamento) {
+          throw new ConflictException(
+            'Este pagamento já possui movimentação de caixa',
+          );
+        }
+        throw error;
+      }
+    })();
 
     await this.registrarHistorico(
       tx,
       caixa.id,
-      dados.empresaId,
+      empresaId,
       (dados.tipo === TipoMovimentacaoCaixa.ENTRADA ? 'Entrada' : 'Saída') +
         ' de R$ ' +
         dados.valor.toFixed(2) +
@@ -682,7 +709,7 @@ export class CaixasService {
     usuario: AuthenticatedUser,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      await this.bloquearCaixa(tx, caixaId);
+      await this.bloquearCaixaPorId(tx, caixaId);
       const caixa = await this.validarCaixa(caixaId, usuario, tx);
 
       if (!caixa.ativo) {
@@ -783,7 +810,7 @@ export class CaixasService {
 
   async fechar(id: string, dados: FecharCaixaDto, usuario: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
-      await this.bloquearCaixa(tx, id);
+      await this.bloquearCaixaPorId(tx, id);
       const caixa = await this.validarCaixa(id, usuario, tx);
 
       if (caixa.status !== StatusCaixa.ABERTO) {

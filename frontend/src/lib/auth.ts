@@ -9,6 +9,13 @@ export const PERMISSAO_FORNECEDORES_EDITAR = "fornecedores.editar";
 export const PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR = "pedidos_compra.visualizar";
 export const PERMISSAO_PEDIDOS_COMPRA_CRIAR = "pedidos_compra.criar";
 export const PERMISSAO_PEDIDOS_COMPRA_EDITAR = "pedidos_compra.editar";
+export const PERMISSAO_CONTAS_PAGAR_VISUALIZAR =
+  "financeiro.contas_pagar.visualizar";
+export const PERMISSAO_CONTAS_PAGAR_CRIAR = "financeiro.contas_pagar.criar";
+export const PERMISSAO_CONTAS_PAGAR_EDITAR = "financeiro.contas_pagar.editar";
+export const PERMISSAO_CONTAS_PAGAR_PAGAR = "financeiro.contas_pagar.pagar";
+export const PERMISSAO_CONTAS_PAGAR_CANCELAR =
+  "financeiro.contas_pagar.cancelar";
 
 export type Usuario = {
   id: string;

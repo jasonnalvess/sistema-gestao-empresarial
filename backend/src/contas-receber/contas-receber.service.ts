@@ -955,24 +955,27 @@ export class ContasReceberService {
 
         if (dados.caixaId) {
           const resultadoCaixa =
-            await this.caixasService.registrarMovimentacaoFinanceira(tx, {
-              caixaId: dados.caixaId,
-              empresaId: conta.empresaId,
-              tipo: TipoMovimentacaoCaixa.ENTRADA,
-              origem: OrigemMovimentacaoCaixa.CONTA_RECEBER,
-              descricao:
-                'Recebimento da conta nº ' +
-                conta.numero +
-                ' - ' +
-                conta.descricao,
-              documento:
-                dados.documento?.trim() || conta.documento || undefined,
-              observacao: dados.observacao?.trim(),
-              valor,
-              dataMovimentacao: dataRecebimento,
-              usuarioId: this.obterUsuarioId(usuario),
-              recebimentoContaReceberId: recebimento.id,
-            });
+            await this.caixasService.registrarMovimentacaoFinanceira(
+              tx,
+              conta.empresaId,
+              {
+                caixaId: dados.caixaId,
+                tipo: TipoMovimentacaoCaixa.ENTRADA,
+                origem: OrigemMovimentacaoCaixa.CONTA_RECEBER,
+                descricao:
+                  'Recebimento da conta nº ' +
+                  conta.numero +
+                  ' - ' +
+                  conta.descricao,
+                documento:
+                  dados.documento?.trim() || conta.documento || undefined,
+                observacao: dados.observacao?.trim(),
+                valor,
+                dataMovimentacao: dataRecebimento,
+                usuarioId: this.obterUsuarioId(usuario),
+                recebimentoContaReceberId: recebimento.id,
+              },
+            );
           movimentacaoCaixa = resultadoCaixa.movimentacao;
         }
 

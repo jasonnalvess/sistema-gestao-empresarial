@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -23,10 +22,25 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CriarContaPagarDto } from './dto/criar-conta-pagar.dto';
 import { AtualizarContaPagarDto } from './dto/atualizar-conta-pagar.dto';
 import { FiltroContasPagarDto } from './dto/filtro-contas-pagar.dto';
+import { FiltroResumoContasPagarDto } from './dto/filtro-resumo-contas-pagar.dto';
 import { RegistrarPagamentoContaPagarDto } from './dto/registrar-pagamento-conta-pagar.dto';
 import { CriarContaPagarHistoricoDto } from './dto/criar-conta-pagar-historico.dto';
 import { GerarContaPedidoCompraDto } from './dto/gerar-conta-pedido-compra.dto';
 import { paraDecimalMonetario } from './valor-monetario';
+
+const CAMPOS_ORDENACAO_CONTA_PAGAR = [
+  'numero',
+  'descricao',
+  'status',
+  'origem',
+  'dataEmissao',
+  'dataVencimento',
+  'valorOriginal',
+  'valorAberto',
+  'createdAt',
+  'updatedAt',
+] as const satisfies readonly (keyof Prisma.ContaPagarOrderByWithRelationInput)[];
+type CampoOrdenacaoContaPagar = (typeof CAMPOS_ORDENACAO_CONTA_PAGAR)[number];
 
 @Injectable()
 export class ContasPagarService {
@@ -112,14 +126,6 @@ export class ContasPagarService {
     },
   };
 
-  private obterEmpresaId(usuario: AuthenticatedUser): string {
-    if (!usuario.empresaId) {
-      throw new BadRequestException('O usuário não possui empresa vinculada');
-    }
-
-    return usuario.empresaId;
-  }
-
   private obterUsuarioId(usuario: AuthenticatedUser): string {
     return usuario.id;
   }
@@ -152,27 +158,27 @@ export class ContasPagarService {
     return StatusContaPagar.PENDENTE;
   }
 
-  private alvoP2002(error: unknown, campos: string[], indice: string): boolean {
+  private alvoP2002(
+    error: unknown,
+    campos: readonly string[],
+    indice?: string,
+  ): boolean {
     if (
       !(error instanceof Prisma.PrismaClientKnownRequestError) ||
       error.code !== 'P2002'
-    ) {
+    )
       return false;
-    }
     const target = error.meta?.target;
-    return Array.isArray(target)
-      ? campos.every((campo) => target.includes(campo))
-      : typeof target === 'string' && target.includes(indice);
+    if (Array.isArray(target))
+      return (
+        target.length === campos.length &&
+        campos.every((campo) => target.includes(campo))
+      );
+    return indice !== undefined && target === indice;
   }
 
   private tratarErroPrisma(error: unknown): never {
-    if (
-      this.alvoP2002(
-        error,
-        ['empresaId', 'numero'],
-        'ContaPagar_empresaId_numero_key',
-      )
-    ) {
+    if (this.alvoP2002(error, ['empresaId', 'numero'])) {
       throw new ConflictException(
         'Conflito ao gerar a numeração da conta a pagar',
       );
@@ -198,14 +204,34 @@ export class ContasPagarService {
     throw error;
   }
 
-  private async bloquearConta(tx: Prisma.TransactionClient, id: string) {
+  private tratarErroPagamento(error: unknown): never {
+    if (
+      this.alvoP2002(
+        error,
+        ['pagamentoContaPagarId'],
+        'MovimentacaoCaixa_pagamentoContaPagarId_key',
+      )
+    ) {
+      throw new ConflictException(
+        'Este pagamento já possui movimentação de caixa',
+      );
+    }
+    throw error;
+  }
+
+  private async bloquearConta(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    id: string,
+  ) {
     await tx.$queryRaw(
-      Prisma.sql`SELECT "id" FROM "ContaPagar" WHERE "id" = ${id} FOR UPDATE`,
+      Prisma.sql`SELECT "id" FROM "ContaPagar" WHERE "id" = ${id} AND "empresaId" = ${empresaId} FOR UPDATE`,
     );
   }
 
-  private async atualizarContasVencidas(empresaId?: string) {
+  private async atualizarContasVencidas(empresaId: string) {
     const where: Prisma.ContaPagarWhereInput = {
+      empresaId,
       dataVencimento: {
         lt: this.inicioHoje(),
       },
@@ -216,10 +242,6 @@ export class ContasPagarService {
         gt: 0,
       },
     };
-
-    if (empresaId) {
-      where.empresaId = empresaId;
-    }
 
     await this.prisma.contaPagar.updateMany({
       where,
@@ -234,18 +256,12 @@ export class ContasPagarService {
     empresaId: string,
     cliente: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
-    const fornecedor = await cliente.fornecedor.findUnique({
-      where: {
-        id: fornecedorId,
-      },
+    const fornecedor = await cliente.fornecedor.findFirst({
+      where: { id: fornecedorId, empresaId },
     });
 
     if (!fornecedor) {
       throw new NotFoundException('Fornecedor não encontrado');
-    }
-
-    if (fornecedor.empresaId !== empresaId) {
-      throw new ForbiddenException('Fornecedor pertence a outra empresa');
     }
 
     if (!fornecedor.ativo) {
@@ -262,10 +278,8 @@ export class ContasPagarService {
     empresaId: string,
     cliente: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
-    const pedido = await cliente.pedidoCompra.findUnique({
-      where: {
-        id: pedidoCompraId,
-      },
+    const pedido = await cliente.pedidoCompra.findFirst({
+      where: { id: pedidoCompraId, empresaId },
       include: {
         fornecedor: true,
       },
@@ -273,10 +287,6 @@ export class ContasPagarService {
 
     if (!pedido) {
       throw new NotFoundException('Pedido de compra não encontrado');
-    }
-
-    if (pedido.empresaId !== empresaId) {
-      throw new ForbiddenException('Pedido de compra pertence a outra empresa');
     }
 
     return pedido;
@@ -299,9 +309,11 @@ export class ContasPagarService {
     });
   }
 
-  async criar(dados: CriarContaPagarDto, usuario: AuthenticatedUser) {
-    const empresaId = this.obterEmpresaId(usuario);
-
+  async criar(
+    empresaId: string,
+    dados: CriarContaPagarDto,
+    usuario: AuthenticatedUser,
+  ) {
     let fornecedorId = dados.fornecedorId;
     let pedidoCompra:
       | Awaited<ReturnType<ContasPagarService['validarPedidoCompra']>>
@@ -362,105 +374,99 @@ export class ContasPagarService {
 
     const dataVencimento = new Date(dados.dataVencimento);
 
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        if (dados.pedidoCompraId) {
-          await this.validarPedidoCompra(dados.pedidoCompraId, empresaId, tx);
-        }
-        if (fornecedorId) {
-          await this.validarFornecedor(fornecedorId, empresaId, tx);
-        }
+    return this.prisma.$transaction(async (tx) => {
+      if (dados.pedidoCompraId) {
+        await this.validarPedidoCompra(dados.pedidoCompraId, empresaId, tx);
+      }
+      if (fornecedorId) {
+        await this.validarFornecedor(fornecedorId, empresaId, tx);
+      }
 
-        const ultimaConta = await tx.contaPagar.findFirst({
-          where: {
-            empresaId,
-          },
-          orderBy: {
-            numero: 'desc',
-          },
-          select: {
-            numero: true,
-          },
-        });
-
-        const numero = (ultimaConta?.numero ?? 0) + 1;
-
-        const conta = await tx.contaPagar.create({
-          data: {
-            numero,
-            descricao: dados.descricao.trim(),
-            documento: dados.documento?.trim(),
-            observacao: dados.observacao?.trim(),
-
-            origem:
-              dados.origem ??
-              (dados.pedidoCompraId
-                ? OrigemContaPagar.PEDIDO_COMPRA
-                : OrigemContaPagar.MANUAL),
-
-            status: this.determinarStatusInicial(dataVencimento),
-
-            dataEmissao: dados.dataEmissao
-              ? new Date(dados.dataEmissao)
-              : new Date(),
-
-            dataCompetencia: dados.dataCompetencia
-              ? new Date(dados.dataCompetencia)
-              : undefined,
-
-            dataVencimento,
-
-            parcelaAtual,
-            totalParcelas,
-
-            valorOriginal,
-            valorDesconto,
-            valorJuros,
-            valorMulta,
-            valorPago: 0,
-            valorAberto,
-
-            empresaId,
-            fornecedorId,
-            pedidoCompraId: dados.pedidoCompraId,
-
-            usuarioCriacaoId: this.obterUsuarioId(usuario),
-          },
-          include: this.includeConta,
-        });
-
-        await this.registrarHistorico(
-          conta.id,
-          `Conta a pagar nº ${numero} criada no valor de R$ ${valorOriginal.toFixed(
-            2,
-          )}.`,
-          usuario,
-          tx,
-        );
-
-        return conta;
+      const ultimaConta = await tx.contaPagar.findFirst({
+        where: {
+          empresaId,
+        },
+        orderBy: {
+          numero: 'desc',
+        },
+        select: {
+          numero: true,
+        },
       });
-    } catch (error) {
-      this.tratarErroPrisma(error);
-    }
+
+      const numero = (ultimaConta?.numero ?? 0) + 1;
+
+      const conta = await (async () => {
+        try {
+          return await tx.contaPagar.create({
+            data: {
+              numero,
+              descricao: dados.descricao.trim(),
+              documento: dados.documento?.trim(),
+              observacao: dados.observacao?.trim(),
+
+              origem:
+                dados.origem ??
+                (dados.pedidoCompraId
+                  ? OrigemContaPagar.PEDIDO_COMPRA
+                  : OrigemContaPagar.MANUAL),
+
+              status: this.determinarStatusInicial(dataVencimento),
+
+              dataEmissao: dados.dataEmissao
+                ? new Date(dados.dataEmissao)
+                : new Date(),
+
+              dataCompetencia: dados.dataCompetencia
+                ? new Date(dados.dataCompetencia)
+                : undefined,
+
+              dataVencimento,
+
+              parcelaAtual,
+              totalParcelas,
+
+              valorOriginal,
+              valorDesconto,
+              valorJuros,
+              valorMulta,
+              valorPago: 0,
+              valorAberto,
+
+              empresaId,
+              fornecedorId,
+              pedidoCompraId: dados.pedidoCompraId,
+
+              usuarioCriacaoId: this.obterUsuarioId(usuario),
+            },
+            include: this.includeConta,
+          });
+        } catch (error) {
+          this.tratarErroPrisma(error);
+        }
+      })();
+
+      await this.registrarHistorico(
+        conta.id,
+        `Conta a pagar nº ${numero} criada no valor de R$ ${valorOriginal.toFixed(
+          2,
+        )}.`,
+        usuario,
+        tx,
+      );
+
+      return conta;
+    });
   }
 
-  async listar(usuario: AuthenticatedUser, filtros: FiltroContasPagarDto) {
-    const empresaId =
-      usuario.tipo === 'SUPER_ADMIN' ? undefined : this.obterEmpresaId(usuario);
-
+  async listar(empresaId: string, filtros: FiltroContasPagarDto) {
     await this.atualizarContasVencidas(empresaId);
 
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: Prisma.ContaPagarWhereInput =
-      usuario.tipo === 'SUPER_ADMIN'
-        ? {}
-        : {
-            empresaId: this.obterEmpresaId(usuario),
-          };
+    const where: Prisma.ContaPagarWhereInput = { empresaId };
 
     if (filtros.status) {
       where.status = filtros.status;
@@ -542,22 +548,9 @@ export class ContasPagarService {
       }
     }
 
-    const camposOrdenacao = [
-      'numero',
-      'descricao',
-      'status',
-      'origem',
-      'dataEmissao',
-      'dataVencimento',
-      'valorOriginal',
-      'valorAberto',
-      'createdAt',
-      'updatedAt',
-    ];
-
-    const sortBy = camposOrdenacao.includes(filtros.sortBy ?? '')
-      ? filtros.sortBy
-      : 'dataVencimento';
+    const sortBy: CampoOrdenacaoContaPagar =
+      CAMPOS_ORDENACAO_CONTA_PAGAR.find((campo) => campo === filtros.sortBy) ??
+      'dataVencimento';
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.contaPagar.findMany({
@@ -581,7 +574,7 @@ export class ContasPagarService {
           },
         },
         orderBy: {
-          [sortBy!]: filtros.order ?? 'asc',
+          [sortBy]: filtros.order ?? 'asc',
         },
         skip,
         take,
@@ -595,195 +588,224 @@ export class ContasPagarService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuario: AuthenticatedUser) {
-    await this.atualizarContasVencidas(
-      usuario.tipo === 'SUPER_ADMIN' ? undefined : this.obterEmpresaId(usuario),
-    );
+  async obterResumo(empresaId: string, filtros: FiltroResumoContasPagarDto) {
+    await this.atualizarContasVencidas(empresaId);
 
-    const conta = await this.prisma.contaPagar.findUnique({
-      where: {
-        id,
+    const where: Prisma.ContaPagarWhereInput = {
+      empresaId,
+      status: {
+        not: StatusContaPagar.CANCELADA,
       },
+    };
+
+    if (filtros.vencimentoInicio || filtros.vencimentoFim) {
+      where.dataVencimento = {};
+
+      if (filtros.vencimentoInicio) {
+        where.dataVencimento.gte = new Date(filtros.vencimentoInicio);
+      }
+
+      if (filtros.vencimentoFim) {
+        const dataFim = new Date(filtros.vencimentoFim);
+        dataFim.setUTCHours(23, 59, 59, 999);
+        where.dataVencimento.lte = dataFim;
+      }
+    }
+
+    const [totais, vencidas] = await this.prisma.$transaction([
+      this.prisma.contaPagar.aggregate({
+        where,
+        _sum: {
+          valorOriginal: true,
+          valorPago: true,
+          valorAberto: true,
+        },
+      }),
+      this.prisma.contaPagar.aggregate({
+        where: {
+          ...where,
+          status: StatusContaPagar.VENCIDA,
+        },
+        _sum: {
+          valorAberto: true,
+        },
+      }),
+    ]);
+
+    return {
+      pagar: {
+        valorOriginal: Number(totais._sum.valorOriginal ?? 0),
+        valorPago: Number(totais._sum.valorPago ?? 0),
+        valorAberto: Number(totais._sum.valorAberto ?? 0),
+        valorVencido: Number(vencidas._sum.valorAberto ?? 0),
+      },
+    };
+  }
+
+  async buscarPorId(empresaId: string, id: string) {
+    await this.atualizarContasVencidas(empresaId);
+    const conta = await this.prisma.contaPagar.findFirst({
+      where: { id, empresaId },
       include: this.includeConta,
     });
 
     if (!conta) {
       throw new NotFoundException('Conta a pagar não encontrada');
     }
-
-    if (
-      usuario.tipo !== 'SUPER_ADMIN' &&
-      conta.empresaId !== usuario.empresaId
-    ) {
-      throw new ForbiddenException('Acesso negado a conta de outra empresa');
-    }
-
     return conta;
   }
 
   async atualizar(
+    empresaId: string,
     id: string,
     dados: AtualizarContaPagarDto,
     usuario: AuthenticatedUser,
   ) {
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        await this.bloquearConta(tx, id);
-        const conta = await tx.contaPagar.findUnique({
-          where: { id },
-          include: this.includeConta,
-        });
-        if (!conta) throw new NotFoundException('Conta a pagar não encontrada');
-        if (
-          usuario.tipo !== 'SUPER_ADMIN' &&
-          conta.empresaId !== usuario.empresaId
-        ) {
-          throw new ForbiddenException(
-            'Acesso negado a conta de outra empresa',
-          );
-        }
-        if (
-          conta.status === StatusContaPagar.PAGA ||
-          conta.status === StatusContaPagar.CANCELADA
-        ) {
-          throw new BadRequestException(
-            'Conta paga ou cancelada não pode ser alterada',
-          );
-        }
-        if (
-          conta.pagamentos.length > 0 ||
-          new Prisma.Decimal(conta.valorPago).gt(0)
-        ) {
-          throw new BadRequestException(
-            'Conta com pagamentos registrados não pode ser alterada',
-          );
-        }
-
-        const fornecedorId =
-          dados.fornecedorId !== undefined
-            ? dados.fornecedorId
-            : conta.fornecedorId;
-        const pedidoCompraId =
-          dados.pedidoCompraId !== undefined
-            ? dados.pedidoCompraId
-            : conta.pedidoCompraId;
-
-        if (fornecedorId) {
-          await this.validarFornecedor(fornecedorId, conta.empresaId, tx);
-        }
-        if (pedidoCompraId) {
-          const pedido = await this.validarPedidoCompra(
-            pedidoCompraId,
-            conta.empresaId,
-            tx,
-          );
-          if (fornecedorId && pedido.fornecedorId !== fornecedorId) {
-            throw new BadRequestException(
-              'O fornecedor é diferente do fornecedor do pedido',
-            );
-          }
-        }
-
-        const parcelaAtual = dados.parcelaAtual ?? conta.parcelaAtual;
-        const totalParcelas = dados.totalParcelas ?? conta.totalParcelas;
-        if (parcelaAtual > totalParcelas) {
-          throw new BadRequestException(
-            'A parcela atual não pode ser maior que o total de parcelas',
-          );
-        }
-
-        const valorOriginal = paraDecimalMonetario(
-          dados.valorOriginal ?? conta.valorOriginal,
-          'O valor original',
+    return this.prisma.$transaction(async (tx) => {
+      await this.bloquearConta(tx, empresaId, id);
+      const conta = await tx.contaPagar.findFirst({
+        where: { id, empresaId },
+        include: this.includeConta,
+      });
+      if (!conta) throw new NotFoundException('Conta a pagar não encontrada');
+      if (
+        conta.status === StatusContaPagar.PAGA ||
+        conta.status === StatusContaPagar.CANCELADA
+      ) {
+        throw new BadRequestException(
+          'Conta paga ou cancelada não pode ser alterada',
         );
-        const valorDesconto = paraDecimalMonetario(
-          dados.valorDesconto ?? conta.valorDesconto,
-          'O desconto',
+      }
+      if (
+        conta.pagamentos.length > 0 ||
+        new Prisma.Decimal(conta.valorPago).gt(0)
+      ) {
+        throw new BadRequestException(
+          'Conta com pagamentos registrados não pode ser alterada',
         );
-        const valorJuros = paraDecimalMonetario(
-          dados.valorJuros ?? conta.valorJuros,
-          'Os juros',
-        );
-        const valorMulta = paraDecimalMonetario(
-          dados.valorMulta ?? conta.valorMulta,
-          'A multa',
-        );
-        const valorAberto = valorOriginal
-          .plus(valorJuros)
-          .plus(valorMulta)
-          .minus(valorDesconto);
-        if (valorAberto.lte(0)) {
-          throw new BadRequestException(
-            'O valor aberto precisa ser maior que zero',
-          );
-        }
+      }
 
-        const dataVencimento = dados.dataVencimento
-          ? new Date(dados.dataVencimento)
-          : conta.dataVencimento;
-        const atualizada = await tx.contaPagar.update({
-          where: { id: conta.id, empresaId: conta.empresaId },
-          data: {
-            descricao: dados.descricao?.trim(),
-            documento: dados.documento?.trim(),
-            observacao: dados.observacao?.trim(),
-            dataEmissao: dados.dataEmissao
-              ? new Date(dados.dataEmissao)
-              : undefined,
-            dataCompetencia: dados.dataCompetencia
-              ? new Date(dados.dataCompetencia)
-              : undefined,
-            dataVencimento,
-            parcelaAtual,
-            totalParcelas,
-            valorOriginal,
-            valorDesconto,
-            valorJuros,
-            valorMulta,
-            valorAberto,
-            status: this.determinarStatusInicial(dataVencimento),
-            fornecedorId,
-            pedidoCompraId,
-          },
-          include: this.includeConta,
-        });
-        await this.registrarHistorico(
-          conta.id,
-          'Conta a pagar atualizada.',
-          usuario,
+      const fornecedorId =
+        dados.fornecedorId !== undefined
+          ? dados.fornecedorId
+          : conta.fornecedorId;
+      const pedidoCompraId =
+        dados.pedidoCompraId !== undefined
+          ? dados.pedidoCompraId
+          : conta.pedidoCompraId;
+
+      if (fornecedorId) {
+        await this.validarFornecedor(fornecedorId, conta.empresaId, tx);
+      }
+      if (pedidoCompraId) {
+        const pedido = await this.validarPedidoCompra(
+          pedidoCompraId,
+          conta.empresaId,
           tx,
         );
-        return atualizada;
-      });
-    } catch (error) {
-      this.tratarErroPrisma(error);
-    }
+        if (fornecedorId && pedido.fornecedorId !== fornecedorId) {
+          throw new BadRequestException(
+            'O fornecedor é diferente do fornecedor do pedido',
+          );
+        }
+      }
+
+      const parcelaAtual = dados.parcelaAtual ?? conta.parcelaAtual;
+      const totalParcelas = dados.totalParcelas ?? conta.totalParcelas;
+      if (parcelaAtual > totalParcelas) {
+        throw new BadRequestException(
+          'A parcela atual não pode ser maior que o total de parcelas',
+        );
+      }
+
+      const valorOriginal = paraDecimalMonetario(
+        dados.valorOriginal ?? conta.valorOriginal,
+        'O valor original',
+      );
+      const valorDesconto = paraDecimalMonetario(
+        dados.valorDesconto ?? conta.valorDesconto,
+        'O desconto',
+      );
+      const valorJuros = paraDecimalMonetario(
+        dados.valorJuros ?? conta.valorJuros,
+        'Os juros',
+      );
+      const valorMulta = paraDecimalMonetario(
+        dados.valorMulta ?? conta.valorMulta,
+        'A multa',
+      );
+      const valorAberto = valorOriginal
+        .plus(valorJuros)
+        .plus(valorMulta)
+        .minus(valorDesconto);
+      if (valorAberto.lte(0)) {
+        throw new BadRequestException(
+          'O valor aberto precisa ser maior que zero',
+        );
+      }
+
+      const dataVencimento = dados.dataVencimento
+        ? new Date(dados.dataVencimento)
+        : conta.dataVencimento;
+      const atualizada = await (async () => {
+        try {
+          return await tx.contaPagar.update({
+            where: { id: conta.id, empresaId: conta.empresaId },
+            data: {
+              descricao: dados.descricao?.trim(),
+              documento: dados.documento?.trim(),
+              observacao: dados.observacao?.trim(),
+              dataEmissao: dados.dataEmissao
+                ? new Date(dados.dataEmissao)
+                : undefined,
+              dataCompetencia: dados.dataCompetencia
+                ? new Date(dados.dataCompetencia)
+                : undefined,
+              dataVencimento,
+              parcelaAtual,
+              totalParcelas,
+              valorOriginal,
+              valorDesconto,
+              valorJuros,
+              valorMulta,
+              valorAberto,
+              status: this.determinarStatusInicial(dataVencimento),
+              fornecedorId,
+              pedidoCompraId,
+            },
+            include: this.includeConta,
+          });
+        } catch (error) {
+          this.tratarErroPrisma(error);
+        }
+      })();
+      await this.registrarHistorico(
+        conta.id,
+        'Conta a pagar atualizada.',
+        usuario,
+        tx,
+      );
+      return atualizada;
+    });
   }
 
   async registrarPagamento(
+    empresaId: string,
     id: string,
     dados: RegistrarPagamentoContaPagarDto,
     usuario: AuthenticatedUser,
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.bloquearConta(tx, id);
+        await this.bloquearConta(tx, empresaId, id);
 
-        const conta = await tx.contaPagar.findUnique({
-          where: { id },
+        const conta = await tx.contaPagar.findFirst({
+          where: { id, empresaId },
           include: this.includeConta,
         });
 
         if (!conta) {
           throw new NotFoundException('Conta a pagar não encontrada');
-        }
-        if (
-          usuario.tipo !== 'SUPER_ADMIN' &&
-          conta.empresaId !== usuario.empresaId
-        ) {
-          throw new ForbiddenException(
-            'Acesso negado a conta de outra empresa',
-          );
         }
         if (conta.status === StatusContaPagar.PAGA) {
           throw new BadRequestException('Esta conta já está paga');
@@ -865,24 +887,27 @@ export class ContasPagarService {
 
         if (dados.caixaId) {
           const resultadoCaixa =
-            await this.caixasService.registrarMovimentacaoFinanceira(tx, {
-              caixaId: dados.caixaId,
-              empresaId: conta.empresaId,
-              tipo: TipoMovimentacaoCaixa.SAIDA,
-              origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
-              descricao:
-                'Pagamento da conta a pagar nº ' +
-                conta.numero +
-                ' - ' +
-                conta.descricao,
-              documento:
-                dados.documento?.trim() || conta.documento || undefined,
-              observacao: dados.observacao?.trim(),
-              valor,
-              dataMovimentacao: dataPagamento,
-              usuarioId: this.obterUsuarioId(usuario),
-              pagamentoContaPagarId: pagamento.id,
-            });
+            await this.caixasService.registrarMovimentacaoFinanceira(
+              tx,
+              conta.empresaId,
+              {
+                caixaId: dados.caixaId,
+                tipo: TipoMovimentacaoCaixa.SAIDA,
+                origem: OrigemMovimentacaoCaixa.CONTA_PAGAR,
+                descricao:
+                  'Pagamento da conta a pagar nº ' +
+                  conta.numero +
+                  ' - ' +
+                  conta.descricao,
+                documento:
+                  dados.documento?.trim() || conta.documento || undefined,
+                observacao: dados.observacao?.trim(),
+                valor,
+                dataMovimentacao: dataPagamento,
+                usuarioId: this.obterUsuarioId(usuario),
+                pagamentoContaPagarId: pagamento.id,
+              },
+            );
           movimentacaoCaixa = resultadoCaixa.movimentacao;
         }
 
@@ -914,26 +939,20 @@ export class ContasPagarService {
         return { pagamento, movimentacaoCaixa, conta: contaAtualizada };
       });
     } catch (error) {
-      this.tratarErroPrisma(error);
+      this.tratarErroPagamento(error);
     }
   }
 
-  async cancelar(id: string, usuario: AuthenticatedUser) {
+  async cancelar(empresaId: string, id: string, usuario: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
-      await this.bloquearConta(tx, id);
-      const conta = await tx.contaPagar.findUnique({
-        where: { id },
+      await this.bloquearConta(tx, empresaId, id);
+      const conta = await tx.contaPagar.findFirst({
+        where: { id, empresaId },
         include: this.includeConta,
       });
 
       if (!conta) {
         throw new NotFoundException('Conta a pagar não encontrada');
-      }
-      if (
-        usuario.tipo !== 'SUPER_ADMIN' &&
-        conta.empresaId !== usuario.empresaId
-      ) {
-        throw new ForbiddenException('Acesso negado a conta de outra empresa');
       }
       if (conta.status === StatusContaPagar.CANCELADA) {
         return conta;
@@ -992,133 +1011,136 @@ export class ContasPagarService {
   }
 
   async gerarAPartirPedidoCompra(
+    empresaId: string,
     pedidoCompraId: string,
     dados: GerarContaPedidoCompraDto,
     usuario: AuthenticatedUser,
   ) {
-    const empresaId = this.obterEmpresaId(usuario);
+    return this.prisma.$transaction(async (tx) => {
+      const pedido = await this.validarPedidoCompra(
+        pedidoCompraId,
+        empresaId,
+        tx,
+      );
 
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const pedido = await this.validarPedidoCompra(
-          pedidoCompraId,
-          empresaId,
-          tx,
+      if (pedido.status !== 'RECEBIDO') {
+        throw new BadRequestException(
+          'Somente pedidos totalmente recebidos podem gerar conta a pagar',
         );
+      }
 
-        if (pedido.status !== 'RECEBIDO') {
-          throw new BadRequestException(
-            'Somente pedidos totalmente recebidos podem gerar conta a pagar',
-          );
-        }
-
-        const contaExistente = await tx.contaPagar.findUnique({
-          where: { pedidoCompraId },
-          select: { numero: true },
-        });
-
-        if (contaExistente) {
-          throw new ConflictException(
-            'O pedido de compra já possui a conta a pagar nº ' +
-              contaExistente.numero,
-          );
-        }
-
-        await this.validarFornecedor(pedido.fornecedorId, empresaId, tx);
-
-        const valorOriginal = paraDecimalMonetario(
-          pedido.valorTotal,
-          'O valor total do pedido de compra',
-        );
-        if (valorOriginal.lte(0)) {
-          throw new BadRequestException(
-            'O pedido precisa possuir valor total maior que zero',
-          );
-        }
-
-        const dataVencimento = new Date(dados.dataVencimento);
-        const ultimaConta = await tx.contaPagar.findFirst({
-          where: { empresaId },
-          orderBy: { numero: 'desc' },
-          select: { numero: true },
-        });
-        const numero = (ultimaConta?.numero ?? 0) + 1;
-
-        const conta = await tx.contaPagar.create({
-          data: {
-            numero,
-            descricao: 'Pedido de compra nº ' + pedido.numero,
-            documento:
-              dados.documento?.trim() || 'PEDIDO-COMPRA-' + pedido.numero,
-            observacao:
-              dados.observacao?.trim() ||
-              'Conta gerada a partir do pedido de compra nº ' +
-                pedido.numero +
-                '.',
-            origem: OrigemContaPagar.PEDIDO_COMPRA,
-            status: this.determinarStatusInicial(dataVencimento),
-            dataEmissao: new Date(),
-            dataCompetencia: dados.dataCompetencia
-              ? new Date(dados.dataCompetencia)
-              : undefined,
-            dataVencimento,
-            parcelaAtual: 1,
-            totalParcelas: 1,
-            valorOriginal,
-            valorDesconto: 0,
-            valorJuros: 0,
-            valorMulta: 0,
-            valorPago: 0,
-            valorAberto: valorOriginal,
-            empresaId,
-            fornecedorId: pedido.fornecedorId,
-            pedidoCompraId: pedido.id,
-            usuarioCriacaoId: this.obterUsuarioId(usuario),
-          },
-          include: this.includeConta,
-        });
-
-        await this.registrarHistorico(
-          conta.id,
-          'Conta a pagar nº ' +
-            numero +
-            ' gerada a partir do pedido de compra nº ' +
-            pedido.numero +
-            '.',
-          usuario,
-          tx,
-        );
-
-        return conta;
+      const contaExistente = await tx.contaPagar.findUnique({
+        where: { pedidoCompraId },
+        select: { numero: true },
       });
-    } catch (error) {
-      this.tratarErroPrisma(error);
-    }
+
+      if (contaExistente) {
+        throw new ConflictException(
+          'O pedido de compra já possui a conta a pagar nº ' +
+            contaExistente.numero,
+        );
+      }
+
+      await this.validarFornecedor(pedido.fornecedorId, empresaId, tx);
+
+      const valorOriginal = paraDecimalMonetario(
+        pedido.valorTotal,
+        'O valor total do pedido de compra',
+      );
+      if (valorOriginal.lte(0)) {
+        throw new BadRequestException(
+          'O pedido precisa possuir valor total maior que zero',
+        );
+      }
+
+      const dataVencimento = new Date(dados.dataVencimento);
+      const ultimaConta = await tx.contaPagar.findFirst({
+        where: { empresaId },
+        orderBy: { numero: 'desc' },
+        select: { numero: true },
+      });
+      const numero = (ultimaConta?.numero ?? 0) + 1;
+
+      const conta = await (async () => {
+        try {
+          return await tx.contaPagar.create({
+            data: {
+              numero,
+              descricao: 'Pedido de compra nº ' + pedido.numero,
+              documento:
+                dados.documento?.trim() || 'PEDIDO-COMPRA-' + pedido.numero,
+              observacao:
+                dados.observacao?.trim() ||
+                'Conta gerada a partir do pedido de compra nº ' +
+                  pedido.numero +
+                  '.',
+              origem: OrigemContaPagar.PEDIDO_COMPRA,
+              status: this.determinarStatusInicial(dataVencimento),
+              dataEmissao: new Date(),
+              dataCompetencia: dados.dataCompetencia
+                ? new Date(dados.dataCompetencia)
+                : undefined,
+              dataVencimento,
+              parcelaAtual: 1,
+              totalParcelas: 1,
+              valorOriginal,
+              valorDesconto: 0,
+              valorJuros: 0,
+              valorMulta: 0,
+              valorPago: 0,
+              valorAberto: valorOriginal,
+              empresaId,
+              fornecedorId: pedido.fornecedorId,
+              pedidoCompraId: pedido.id,
+              usuarioCriacaoId: this.obterUsuarioId(usuario),
+            },
+            include: this.includeConta,
+          });
+        } catch (error) {
+          this.tratarErroPrisma(error);
+        }
+      })();
+
+      await this.registrarHistorico(
+        conta.id,
+        'Conta a pagar nº ' +
+          numero +
+          ' gerada a partir do pedido de compra nº ' +
+          pedido.numero +
+          '.',
+        usuario,
+        tx,
+      );
+
+      return conta;
+    });
   }
 
   async adicionarHistorico(
+    empresaId: string,
     contaPagarId: string,
     dados: CriarContaPagarHistoricoDto,
     usuario: AuthenticatedUser,
   ) {
-    await this.buscarPorId(contaPagarId, usuario);
-
-    return this.prisma.contaPagarHistorico.create({
-      data: {
-        contaPagarId,
-        descricao: dados.descricao.trim(),
-        usuarioId: this.obterUsuarioId(usuario),
-      },
-      include: {
-        usuario: {
-          select: this.usuarioSelect,
+    return this.prisma.$transaction(async (tx) => {
+      const conta = await tx.contaPagar.findFirst({
+        where: { id: contaPagarId, empresaId },
+        select: { id: true },
+      });
+      if (!conta) throw new NotFoundException('Conta a pagar não encontrada');
+      return tx.contaPagarHistorico.create({
+        data: {
+          contaPagarId: conta.id,
+          descricao: dados.descricao.trim(),
+          usuarioId: this.obterUsuarioId(usuario),
         },
-      },
+        include: { usuario: { select: this.usuarioSelect } },
+      });
     });
   }
 
-  async listarHistorico(contaPagarId: string, usuario: AuthenticatedUser) {
-    await this.buscarPorId(contaPagarId, usuario);
+  async listarHistorico(empresaId: string, contaPagarId: string) {
+    await this.buscarPorId(empresaId, contaPagarId);
 
     return this.prisma.contaPagarHistorico.findMany({
       where: {
