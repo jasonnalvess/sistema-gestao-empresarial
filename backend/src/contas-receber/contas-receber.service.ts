@@ -258,6 +258,16 @@ export class ContasReceberService {
     throw error;
   }
 
+  private async bloquearNumeracao(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+  ) {
+    const chave = `conta-receber-numero:${empresaId}`;
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))`,
+    );
+  }
+
   private async bloquearConta(
     tx: Prisma.TransactionClient,
     empresaId: string,
@@ -461,6 +471,8 @@ export class ContasReceberService {
         if (clienteId) {
           await this.validarCliente(clienteId, empresaId, tx);
         }
+
+        await this.bloquearNumeracao(tx, empresaId);
 
         const ultimaConta = await tx.contaReceber.findFirst({
           where: { empresaId },
@@ -1125,6 +1137,8 @@ export class ContasReceberService {
           'Somente ordens de serviço concluídas podem gerar conta a receber',
         );
       }
+
+      await this.bloquearNumeracao(tx, empresaId);
 
       const contaExistente = await tx.contaReceber.findFirst({
         where: {

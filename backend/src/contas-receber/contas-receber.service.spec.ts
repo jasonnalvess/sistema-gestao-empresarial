@@ -31,6 +31,7 @@ function criarPrismaMock() {
     recebimentoContaReceber: { create: jest.fn() },
     contaReceberHistorico: { create: jest.fn(), findMany: jest.fn() },
     $queryRaw: jest.fn(),
+    $executeRaw: jest.fn().mockResolvedValue(0),
     $transaction: jest.fn(),
   };
   prisma.$transaction.mockImplementation(async (operacao: unknown) => {
@@ -153,6 +154,47 @@ describe('ContasReceberService', () => {
     expect(prisma.contaReceberHistorico.create).toHaveBeenCalled();
   });
 
+  it('serializa a numeração por empresa antes de consultar o último número', async () => {
+    await service.criar(
+      'empresa-1',
+      {
+        descricao: 'Conta',
+        dataVencimento: '2026-08-10',
+        valorOriginal: 100,
+      },
+      usuario,
+    );
+
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    const [[sql]] = prisma.$executeRaw.mock.calls as Array<[Prisma.Sql]>;
+    expect(sql.sql).toContain(
+      'SELECT pg_advisory_xact_lock(hashtextextended(?, 0))',
+    );
+    expect(sql.values).toEqual(['conta-receber-numero:empresa-1']);
+    expect(prisma.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.contaReceber.findFirst.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('interrompe a criação antes da conta e do histórico se o lock falhar', async () => {
+    const erro = new Error('falha no advisory lock');
+    prisma.$executeRaw.mockRejectedValueOnce(erro);
+
+    await expect(
+      service.criar(
+        'empresa-1',
+        {
+          descricao: 'Conta',
+          dataVencimento: '2026-08-10',
+          valorOriginal: 100,
+        },
+        usuario,
+      ),
+    ).rejects.toBe(erro);
+    expect(prisma.contaReceber.create).not.toHaveBeenCalled();
+    expect(prisma.contaReceberHistorico.create).not.toHaveBeenCalled();
+  });
+
   it('rejeita cliente de outro tenant sem criar conta', async () => {
     prisma.cliente.findFirst.mockResolvedValue(null);
     await expect(
@@ -189,6 +231,20 @@ describe('ContasReceberService', () => {
           empresaId: 'empresa-1',
         }),
       }),
+    );
+  });
+
+  it('adquire o lock de numeração antes da checagem lógica da ordem', async () => {
+    await service.gerarAPartirOrdemServico(
+      'empresa-1',
+      'ordem-1',
+      { dataVencimento: '2026-08-10', valorOriginal: 100 },
+      usuario,
+    );
+
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.contaReceber.findFirst.mock.invocationCallOrder[0],
     );
   });
 
@@ -253,6 +309,8 @@ describe('ContasReceberService', () => {
     ['target diferente', { target: 'outra_constraint' }],
     ['target ausente', {}],
     ['meta ausente', undefined],
+    ['target composto da numeração real', { target: ['empresaId', 'numero'] }],
+    ['target em formato inválido', { target: 123 }],
   ])('relança P2002 da ordem com %s', async (_cenario, meta) => {
     const erro = new Prisma.PrismaClientKnownRequestError('unique', {
       code: 'P2002',
