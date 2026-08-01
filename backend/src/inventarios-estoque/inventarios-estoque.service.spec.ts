@@ -62,6 +62,7 @@ describe('InventariosEstoqueService hardening', () => {
   beforeEach(() => {
     tx = {
       $queryRaw: jest.fn().mockResolvedValue([{ id: 'inv1' }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
       deposito: { findUnique: jest.fn().mockResolvedValue(deposito) },
       inventarioEstoque: {
         findFirst: jest.fn(),
@@ -254,7 +255,7 @@ describe('InventariosEstoqueService hardening', () => {
   it('saldo inexistente com contagem positiva é criado após lock', async () => {
     tx.estoqueProduto.findUnique.mockResolvedValue(null);
     await service.finalizar('inv1', usuario);
-    expect(tx.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+    expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
       tx.estoqueProduto.findUnique.mock.invocationCallOrder[0],
     );
     expect(tx.estoqueProduto.create).toHaveBeenCalled();
@@ -280,7 +281,9 @@ describe('InventariosEstoqueService hardening', () => {
         estoque(where.empresaId_produtoId_depositoId.produtoId),
       );
       await service.finalizar('inv1', usuario);
-      return tx.$queryRaw.mock.calls.slice(1).map((call: any[]) => call[1]);
+      return tx.$executeRaw.mock.calls.map(
+        (call: [Prisma.Sql]) => call[0].values[0],
+      );
     };
     const primeira = await capturar([item('p2', '2'), item('p1', '2')]);
     jest.clearAllMocks();

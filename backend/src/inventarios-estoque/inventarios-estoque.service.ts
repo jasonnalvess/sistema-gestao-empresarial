@@ -396,6 +396,7 @@ export class InventariosEstoqueService {
         }
         await bloquearEstoques(
           tx,
+          inventario.empresaId,
           itens.map((item) =>
             chaveLockEstoque(
               inventario.empresaId,

@@ -1072,6 +1072,7 @@ export class VendasService {
 
         await bloquearEstoques(
           tx,
+          venda.empresaId,
           venda.itens.map((item) =>
             chaveLockEstoque(venda.empresaId, item.produtoId, venda.depositoId),
           ),
@@ -1866,6 +1867,7 @@ export class VendasService {
 
       await bloquearEstoques(
         tx,
+        venda.empresaId,
         venda.itens.map((item) =>
           chaveLockEstoque(venda.empresaId, item.produtoId, venda.depositoId),
         ),
