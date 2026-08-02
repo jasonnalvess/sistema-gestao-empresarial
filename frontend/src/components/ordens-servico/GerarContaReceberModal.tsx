@@ -12,6 +12,7 @@ import { FormDialog } from "@/components/forms/FormDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { PERMISSAO_CONTAS_RECEBER_CRIAR } from "@/lib/auth";
+import { ordensServicoQueryKeys } from "@/lib/ordens-servico-query-keys";
 
 import {
   contasReceberQueryKeys,
@@ -120,11 +121,7 @@ export function GerarContaReceberModal({
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["ordem-servico", ordem.id],
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["ordem-servico", empresaEfetivaId, ordem.id],
+        queryKey: ordensServicoQueryKeys.detalhe(empresaEfetivaId, ordem.id),
       });
     } catch (error: unknown) {
       toast.error(

@@ -4,6 +4,15 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_ORDENS_SERVICO_CRIAR,
+  PERMISSAO_ORDENS_SERVICO_VISUALIZAR,
+} from "@/lib/auth";
+import { ordensServicoQueryKeys } from "@/lib/ordens-servico-query-keys";
 import { PageHeader } from "@/components/common/PageHeader";
 
 import { CrudCard } from "@/components/crud/CrudCard";
@@ -28,6 +37,12 @@ import { OrdemServicoPrioridadeBadge } from "@/components/ordens-servico/OrdemSe
 import { OrdensServicoSummaryCards } from "@/components/ordens-servico/OrdensServicoSummaryCards";
 
 export default function OrdensServicoPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresa = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_ORDENS_SERVICO_VISUALIZAR);
+  const podeCriar = temPermissao(PERMISSAO_ORDENS_SERVICO_CRIAR);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
@@ -35,18 +50,24 @@ export default function OrdensServicoPage() {
   const [prioridadeFiltro, setPrioridadeFiltro] = useState("");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: [
-      "ordens-servico",
-      searchAplicado,
-      statusFiltro,
-      prioridadeFiltro,
+    queryKey: ordensServicoQueryKeys.lista(empresaEfetivaId ?? "", {
+      search: searchAplicado,
+      status: statusFiltro
+        ? (statusFiltro as
+            "ABERTA" | "EM_ANDAMENTO" | "CONCLUIDA" | "CANCELADA")
+        : undefined,
+      prioridade: prioridadeFiltro
+        ? (prioridadeFiltro as "BAIXA" | "NORMAL" | "ALTA" | "URGENTE")
+        : undefined,
       page,
-    ],
+      limit: 10,
+    }),
     queryFn: () =>
       listarOrdensServico({
         search: searchAplicado,
         status: statusFiltro
-          ? (statusFiltro as "ABERTA" | "EM_ANDAMENTO" | "CONCLUIDA" | "CANCELADA")
+          ? (statusFiltro as
+              "ABERTA" | "EM_ANDAMENTO" | "CONCLUIDA" | "CANCELADA")
           : undefined,
         prioridade: prioridadeFiltro
           ? (prioridadeFiltro as "BAIXA" | "NORMAL" | "ALTA" | "URGENTE")
@@ -54,6 +75,11 @@ export default function OrdensServicoPage() {
         page,
         limit: 10,
       }),
+    enabled:
+      podeVisualizar &&
+      possuiEmpresa &&
+      !carregando &&
+      Boolean(empresaEfetivaId),
   });
 
   const ordens = data?.data ?? [];
@@ -64,13 +90,32 @@ export default function OrdensServicoPage() {
     setSearchAplicado(search);
   }
 
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  if (!podeVisualizar)
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  if (!possuiEmpresa)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <PageHeader
           title="Ordens de Serviço"
           description="Gerencie solicitações técnicas, serviços e atendimentos operacionais."
-          actions={<NovaOrdemServicoModal />}
+          actions={podeCriar ? <NovaOrdemServicoModal /> : undefined}
         />
 
         <OrdensServicoSummaryCards ordens={ordens} />
@@ -88,7 +133,9 @@ export default function OrdensServicoPage() {
             <>
               <div className="mb-4 grid gap-3 md:grid-cols-3">
                 <div>
-                  <label className="text-sm font-medium text-slate-700">Buscar</label>
+                  <label className="text-sm font-medium text-slate-700">
+                    Buscar
+                  </label>
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -101,7 +148,9 @@ export default function OrdensServicoPage() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-slate-700">Status</label>
+                  <label className="text-sm font-medium text-slate-700">
+                    Status
+                  </label>
                   <select
                     value={statusFiltro}
                     onChange={(e) => {
@@ -119,7 +168,9 @@ export default function OrdensServicoPage() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-slate-700">Prioridade</label>
+                  <label className="text-sm font-medium text-slate-700">
+                    Prioridade
+                  </label>
                   <select
                     value={prioridadeFiltro}
                     onChange={(e) => {
@@ -167,13 +218,13 @@ export default function OrdensServicoPage() {
                         </TableCell>
 
                         <TableCell>
-                          <OrdemServicoPrioridadeBadge prioridade={ordem.prioridade} />
+                          <OrdemServicoPrioridadeBadge
+                            prioridade={ordem.prioridade}
+                          />
                         </TableCell>
 
                         <TableCell>
-                          {new Date(ordem.dataAbertura).toLocaleString(
-                            "pt-BR"
-                          )}
+                          {new Date(ordem.dataAbertura).toLocaleString("pt-BR")}
                         </TableCell>
 
                         <TableCell className="text-right">

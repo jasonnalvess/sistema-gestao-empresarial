@@ -6,6 +6,15 @@ import Link from "next/link";
 import { CalendarDays, UserRound, Wrench, AlertTriangle } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_ORDENS_SERVICO_STATUS_ALTERAR,
+  PERMISSAO_ORDENS_SERVICO_VISUALIZAR,
+} from "@/lib/auth";
+import { ordensServicoQueryKeys } from "@/lib/ordens-servico-query-keys";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudLoading } from "@/components/crud/CrudLoading";
@@ -22,12 +31,50 @@ import { buscarOrdemServicoPorId } from "@/services/ordens-servico.service";
 export default function OrdemServicoDetalhesPage() {
   const params = useParams();
   const ordemId = params.id as string;
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresa = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_ORDENS_SERVICO_VISUALIZAR);
+  const podeAlterarStatus = temPermissao(
+    PERMISSAO_ORDENS_SERVICO_STATUS_ALTERAR,
+  );
 
-  const { data: ordem, isLoading, error } = useQuery({
-    queryKey: ["ordem-servico", ordemId],
+  const {
+    data: ordem,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ordensServicoQueryKeys.detalhe(empresaEfetivaId ?? "", ordemId),
     queryFn: () => buscarOrdemServicoPorId(ordemId),
-    enabled: !!ordemId,
+    enabled:
+      podeVisualizar &&
+      possuiEmpresa &&
+      !carregando &&
+      Boolean(empresaEfetivaId) &&
+      Boolean(ordemId),
   });
+
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+
+  if (!podeVisualizar)
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  if (!possuiEmpresa)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
 
   if (isLoading) {
     return (
@@ -54,23 +101,12 @@ export default function OrdemServicoDetalhesPage() {
           actions={
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" asChild>
-                <Link href="/ordens-servico">
-                  Voltar
-                </Link>
+                <Link href="/ordens-servico">Voltar</Link>
               </Button>
 
-              {[
-                "CONCLUIDA",
-                "CONCLUÍDA",
-                "FINALIZADA",
-                "FINALIZADO",
-              ].includes(
-                ordem.status.toUpperCase()
-              ) && (
-                <GerarContaReceberModal
-                  ordem={ordem}
-                />
-              )}
+              {["CONCLUIDA", "CONCLUÍDA", "FINALIZADA", "FINALIZADO"].includes(
+                ordem.status.toUpperCase(),
+              ) && <GerarContaReceberModal ordem={ordem} />}
             </div>
           }
         />
@@ -157,13 +193,14 @@ export default function OrdemServicoDetalhesPage() {
           )}
         </CrudCard>
 
-        <CrudCard>
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Alterar status
-          </h2>
-
-          <AlterarStatusOrdemServicoCard ordem={ordem} />
-        </CrudCard>
+        {podeAlterarStatus && (
+          <CrudCard>
+            <h2 className="mb-4 text-lg font-semibold text-slate-900">
+              Alterar status
+            </h2>
+            <AlterarStatusOrdemServicoCard ordem={ordem} />
+          </CrudCard>
+        )}
 
         <CrudCard>
           <h2 className="mb-4 text-lg font-semibold text-slate-900">
