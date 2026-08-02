@@ -7,6 +7,7 @@ import {
   Building2,
   Users,
   ClipboardList,
+  ClipboardCheck,
   Settings,
   Blocks,
   CalendarDays,
@@ -77,6 +78,11 @@ export const menu = [
     titulo: "Movimentações",
     href: "/movimentacoes",
     icon: ArrowLeftRight,
+  },
+  {
+    titulo: "Inventários",
+    href: "/inventarios",
+    icon: ClipboardCheck,
   },
   {
     titulo: "Agenda",

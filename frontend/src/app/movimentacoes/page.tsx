@@ -171,8 +171,8 @@ export default function MovimentacoesPage() {
   const movimentacoes = data?.data ?? [];
   const totalPages = data?.meta.totalPages ?? 1;
 
-  if (!podeVisualizar) return <AppLayout><AcessoNegado /></AppLayout>;
   if (carregando) return <AppLayout><CrudLoading /></AppLayout>;
+  if (!podeVisualizar) return <AppLayout><AcessoNegado /></AppLayout>;
   if (!possuiEmpresaEfetiva) return <AppLayout><EmpresaNaoSelecionada /></AppLayout>;
 
   return (

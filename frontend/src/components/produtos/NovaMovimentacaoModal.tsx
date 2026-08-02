@@ -26,15 +26,14 @@ import {
 } from "@/services/movimentacoes.service";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
-import { PERMISSAO_DEPOSITOS_VISUALIZAR, PERMISSAO_ENTRADAS_REGISTRAR, PERMISSAO_ESTOQUE_AJUSTAR, PERMISSAO_INVENTARIOS_FINALIZAR, PERMISSAO_PRODUTOS_VISUALIZAR, PERMISSAO_SAIDAS_REGISTRAR } from "@/lib/auth";
+import { PERMISSAO_DEPOSITOS_VISUALIZAR, PERMISSAO_ENTRADAS_REGISTRAR, PERMISSAO_ESTOQUE_AJUSTAR, PERMISSAO_PRODUTOS_VISUALIZAR, PERMISSAO_SAIDAS_REGISTRAR } from "@/lib/auth";
 import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 import { obterMensagemErro } from "@/lib/api-error";
 
 type TipoPermitido =
   | "ENTRADA"
   | "SAIDA"
-  | "AJUSTE"
-  | "INVENTARIO";
+  | "AJUSTE";
 
 export function NovaMovimentacaoModal() {
   const queryClient = useQueryClient();
@@ -44,7 +43,6 @@ export function NovaMovimentacaoModal() {
     ENTRADA: temPermissao(PERMISSAO_ENTRADAS_REGISTRAR),
     SAIDA: temPermissao(PERMISSAO_SAIDAS_REGISTRAR),
     AJUSTE: temPermissao(PERMISSAO_ESTOQUE_AJUSTAR),
-    INVENTARIO: temPermissao(PERMISSAO_INVENTARIOS_FINALIZAR),
   };
   const podeRegistrar = Object.values(permissoesPorTipo).some(Boolean);
 
@@ -57,7 +55,7 @@ export function NovaMovimentacaoModal() {
     if (permissoesPorTipo.ENTRADA) return "ENTRADA";
     if (permissoesPorTipo.SAIDA) return "SAIDA";
     if (permissoesPorTipo.AJUSTE) return "AJUSTE";
-    return "INVENTARIO";
+    return "AJUSTE";
   });
 
   const [quantidade, setQuantidade] = useState("");
@@ -180,8 +178,6 @@ export function NovaMovimentacaoModal() {
       case "AJUSTE":
         return "A quantidade informada será o novo saldo do depósito.";
 
-      case "INVENTARIO":
-        return "A quantidade informada será considerada o saldo contado fisicamente.";
 
       default:
         return "";
@@ -262,9 +258,6 @@ export function NovaMovimentacaoModal() {
               {permissoesPorTipo.ENTRADA && <option value="ENTRADA">Entrada</option>}
               {permissoesPorTipo.SAIDA && <option value="SAIDA">Saída</option>}
               {permissoesPorTipo.AJUSTE && <option value="AJUSTE">Ajuste de saldo</option>}
-              {permissoesPorTipo.INVENTARIO && <option value="INVENTARIO">
-                Contagem de inventário
-              </option>}
             </select>
 
             <p className="mt-1 text-xs text-slate-500">

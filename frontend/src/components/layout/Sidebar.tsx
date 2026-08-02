@@ -16,6 +16,9 @@ import {
   PERMISSAO_MARCAS_VISUALIZAR,
   PERMISSAO_UNIDADES_VISUALIZAR,
   PERMISSAO_DEPOSITOS_VISUALIZAR,
+  PERMISSAO_ESTOQUE_VISUALIZAR,
+  PERMISSAO_MOVIMENTACOES_VISUALIZAR,
+  PERMISSAO_INVENTARIOS_VISUALIZAR,
   possuiPermissao,
 } from "@/lib/auth";
 import { X } from "lucide-react";
@@ -40,6 +43,9 @@ export function Sidebar({ aberto, aoFechar }: SidebarProps) {
     "/marcas-produtos": PERMISSAO_MARCAS_VISUALIZAR,
     "/unidades-medida": PERMISSAO_UNIDADES_VISUALIZAR,
     "/depositos": PERMISSAO_DEPOSITOS_VISUALIZAR,
+    "/estoque": PERMISSAO_ESTOQUE_VISUALIZAR,
+    "/movimentacoes": PERMISSAO_MOVIMENTACOES_VISUALIZAR,
+    "/inventarios": PERMISSAO_INVENTARIOS_VISUALIZAR,
   };
 
   const menuPermitido = menu.filter((item) => {
