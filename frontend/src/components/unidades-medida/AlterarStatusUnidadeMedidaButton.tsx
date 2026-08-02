@@ -12,6 +12,11 @@ import {
   ativarUnidadeMedida,
   desativarUnidadeMedida,
 } from "@/services/unidades-medida.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_UNIDADES_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   unidade: UnidadeMedida;
@@ -19,8 +24,12 @@ type Props = {
 
 export function AlterarStatusUnidadeMedidaButton({ unidade }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_UNIDADES_EDITAR);
 
   async function alterarStatus() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     try {
       if (unidade.ativo) {
         await desativarUnidadeMedida(unidade.id);
@@ -31,12 +40,14 @@ export function AlterarStatusUnidadeMedidaButton({ unidade }: Props) {
       }
 
       queryClient.invalidateQueries({
-        queryKey: ["unidades-medida"],
+        queryKey: estoqueQueryKeys.unidades(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao alterar status");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao alterar status"));
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <ConfirmDialog

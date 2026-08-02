@@ -40,8 +40,14 @@ import {
 
 import { listarClientes } from "@/services/clientes.service";
 import { listarDepositos } from "@/services/depositos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CLIENTES_VISUALIZAR, PERMISSAO_DEPOSITOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 export default function VendasPage() {
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [status, setStatus] = useState("");
@@ -52,17 +58,18 @@ export default function VendasPage() {
   const [page, setPage] = useState(1);
 
   const { data: clientesResponse } = useQuery({
-    queryKey: ["clientes-select-vendas"],
+    queryKey: ["clientes-select-vendas", empresaEfetivaId],
     queryFn: () =>
       listarClientes({
         ativo: "true",
         page: 1,
         limit: 100,
       }),
+    enabled: temPermissao(PERMISSAO_CLIENTES_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-vendas"],
+    queryKey: estoqueQueryKeys.depositosSelect(empresaEfetivaId ?? "", "vendas"),
     queryFn: () =>
       listarDepositos({
         ativo: true,
@@ -71,6 +78,7 @@ export default function VendasPage() {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled: temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const {
@@ -80,6 +88,7 @@ export default function VendasPage() {
   } = useQuery({
     queryKey: [
       "vendas",
+      empresaEfetivaId,
       searchAplicado,
       status,
       clienteId,
@@ -114,6 +123,7 @@ export default function VendasPage() {
         sortBy: "dataVenda",
         order: "desc",
       }),
+    enabled: Boolean(empresaEfetivaId) && !carregando,
   });
 
   function pesquisar() {

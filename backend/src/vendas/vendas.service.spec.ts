@@ -46,6 +46,7 @@ function criarPrismaMock() {
     },
     contaReceberHistorico: { create: jest.fn() },
     $queryRaw: jest.fn().mockResolvedValue([{ pg_advisory_xact_lock: null }]),
+    $executeRaw: jest.fn().mockResolvedValue(1),
     $transaction: jest.fn(),
   };
   prisma.$transaction.mockImplementation(async (operacao: unknown) => {

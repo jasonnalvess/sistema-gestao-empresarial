@@ -28,8 +28,30 @@ import { listarMarcasProdutos } from "@/services/marcas-produtos.service";
 import { listarUnidadesMedida } from "@/services/unidades-medida.service";
 import { ProdutosSummaryCards } from "@/components/produtos/ProdutosSummaryCards";
 import { DetailsButton } from "@/components/actions/DetailsButton";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_CATEGORIAS_VISUALIZAR,
+  PERMISSAO_MARCAS_VISUALIZAR,
+  PERMISSAO_PRODUTOS_CRIAR,
+  PERMISSAO_PRODUTOS_EDITAR,
+  PERMISSAO_PRODUTOS_VISUALIZAR,
+  PERMISSAO_UNIDADES_VISUALIZAR,
+} from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 export default function ProdutosPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } = useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR);
+  const podeCriar = temPermissao(PERMISSAO_PRODUTOS_CRIAR);
+  const podeEditar = temPermissao(PERMISSAO_PRODUTOS_EDITAR);
+  const podeVisualizarCategorias = temPermissao(PERMISSAO_CATEGORIAS_VISUALIZAR);
+  const podeVisualizarMarcas = temPermissao(PERMISSAO_MARCAS_VISUALIZAR);
+  const podeVisualizarUnidades = temPermissao(PERMISSAO_UNIDADES_VISUALIZAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [page, setPage] = useState(1);
@@ -39,7 +61,7 @@ export default function ProdutosPage() {
   const [ativo, setAtivo] = useState("");
 
   const { data: categoriasResponse } = useQuery({
-    queryKey: ["categorias-select"],
+    queryKey: estoqueQueryKeys.categoriasSelect(empresaEfetivaId ?? ""),
     queryFn: () =>
       listarCategorias({
         page: 1,
@@ -47,29 +69,32 @@ export default function ProdutosPage() {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled: podeVisualizar && podeVisualizarCategorias && possuiEmpresaEfetiva && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: marcasResponse } = useQuery({
-    queryKey: ["marcas-select"],
+    queryKey: estoqueQueryKeys.marcasSelect(empresaEfetivaId ?? ""),
     queryFn: () =>
       listarMarcasProdutos({
         page: 1,
         limit: 100,
       }),
+    enabled: podeVisualizar && podeVisualizarMarcas && possuiEmpresaEfetiva && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: unidadesResponse } = useQuery({
-    queryKey: ["unidades-select"],
+    queryKey: estoqueQueryKeys.unidadesSelect(empresaEfetivaId ?? ""),
     queryFn: () =>
       listarUnidadesMedida({
         page: 1,
         limit: 100,
       }),
+    enabled: podeVisualizar && podeVisualizarUnidades && possuiEmpresaEfetiva && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
-      "produtos",
+      ...estoqueQueryKeys.produtos(empresaEfetivaId ?? ""),
       searchAplicado,
       categoriaId,
       marcaId,
@@ -92,6 +117,7 @@ export default function ProdutosPage() {
         sortBy: "createdAt",
         order: "desc",
       }),
+    enabled: podeVisualizar && possuiEmpresaEfetiva && Boolean(empresaEfetivaId) && !carregando,
   });
 
   function pesquisar() {
@@ -102,13 +128,17 @@ export default function ProdutosPage() {
   const produtos = data?.data ?? [];
   const totalPages = data?.meta.totalPages ?? 1;
 
+  if (!podeVisualizar) return <AppLayout><AcessoNegado /></AppLayout>;
+  if (carregando) return <AppLayout><CrudLoading /></AppLayout>;
+  if (!possuiEmpresaEfetiva) return <AppLayout><EmpresaNaoSelecionada /></AppLayout>;
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <PageHeader
           title="Produtos"
           description="Gerencie os produtos cadastrados no sistema."
-          actions={<NovoProdutoModal />}
+          actions={podeCriar ? <NovoProdutoModal /> : undefined}
         />
 
         <ProdutosSummaryCards produtos={produtos} />
@@ -271,8 +301,7 @@ export default function ProdutosPage() {
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <DetailsButton href={`/produtos/${produto.id}`} />
-                            <EditarProdutoModal produto={produto} />
-                            <AlterarStatusProdutoButton produto={produto} />
+                            {podeEditar && <><EditarProdutoModal produto={produto} /><AlterarStatusProdutoButton produto={produto} /></>}
                           </div>
                         </TableCell>
                       </TableRow>

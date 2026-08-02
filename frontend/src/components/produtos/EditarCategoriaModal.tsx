@@ -20,6 +20,11 @@ import {
   CategoriaProduto,
   atualizarCategoria,
 } from "@/services/categorias.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CATEGORIAS_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   categoria: CategoriaProduto;
@@ -27,6 +32,9 @@ type Props = {
 
 export function EditarCategoriaModal({ categoria }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_CATEGORIAS_EDITAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -34,6 +42,7 @@ export function EditarCategoriaModal({ categoria }: Props) {
   const [descricao, setDescricao] = useState(categoria.descricao ?? "");
 
   async function salvar() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     try {
       setSalvando(true);
 
@@ -47,16 +56,16 @@ export function EditarCategoriaModal({ categoria }: Props) {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["categorias"],
+        queryKey: estoqueQueryKeys.categorias(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao atualizar categoria"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar categoria"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>

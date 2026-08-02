@@ -10,9 +10,17 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
 import { criarMarcaProduto } from "@/services/marcas-produtos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_MARCAS_CRIAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 export function NovaMarcaProdutoModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriar = temPermissao(PERMISSAO_MARCAS_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -20,6 +28,7 @@ export function NovaMarcaProdutoModal() {
   const [descricao, setDescricao] = useState("");
 
   async function salvar() {
+    if (!podeCriar || !empresaEfetivaId || carregando) return;
     try {
       setSalvando(true);
 
@@ -35,14 +44,16 @@ export function NovaMarcaProdutoModal() {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["marcas-produtos"],
+        queryKey: estoqueQueryKeys.marcas(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao cadastrar marca");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao cadastrar marca"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog

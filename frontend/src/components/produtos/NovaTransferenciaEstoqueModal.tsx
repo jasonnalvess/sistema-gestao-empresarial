@@ -19,9 +19,17 @@ import {
 import { listarProdutos } from "@/services/produtos.service";
 import { listarDepositos } from "@/services/depositos.service";
 import { criarTransferenciaEstoque } from "@/services/movimentacoes.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_DEPOSITOS_VISUALIZAR, PERMISSAO_PRODUTOS_VISUALIZAR, PERMISSAO_TRANSFERENCIAS_REALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 export function NovaTransferenciaEstoqueModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeTransferir = temPermissao(PERMISSAO_TRANSFERENCIAS_REALIZAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -34,7 +42,7 @@ export function NovaTransferenciaEstoqueModal() {
   const [observacao, setObservacao] = useState("");
 
   const { data: produtosResponse } = useQuery({
-    queryKey: ["produtos-select-transferencia"],
+    queryKey: estoqueQueryKeys.produtosSelect(empresaEfetivaId ?? "", "transferencia"),
     queryFn: () =>
       listarProdutos({
         page: 1,
@@ -43,10 +51,11 @@ export function NovaTransferenciaEstoqueModal() {
         order: "asc",
         ativo: true,
       }),
+    enabled: aberto && podeTransferir && temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-transferencia"],
+    queryKey: estoqueQueryKeys.depositosSelect(empresaEfetivaId ?? "", "transferencia"),
     queryFn: () =>
       listarDepositos({
         page: 1,
@@ -55,6 +64,7 @@ export function NovaTransferenciaEstoqueModal() {
         order: "asc",
         ativo: true,
       }),
+    enabled: aberto && podeTransferir && temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   function limparCampos() {
@@ -67,6 +77,7 @@ export function NovaTransferenciaEstoqueModal() {
   }
 
   async function salvar() {
+    if (!podeTransferir || !empresaEfetivaId || carregando) return;
     if (!produtoId) {
       toast.error("Selecione o produto.");
       return;
@@ -108,29 +119,28 @@ export function NovaTransferenciaEstoqueModal() {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["movimentacoes"],
+        queryKey: estoqueQueryKeys.movimentacoes(empresaEfetivaId),
       });
 
       queryClient.invalidateQueries({
-        queryKey: ["estoque"],
+        queryKey: estoqueQueryKeys.estoque(empresaEfetivaId),
       });
 
       queryClient.invalidateQueries({
-        queryKey: ["produtos"],
+        queryKey: estoqueQueryKeys.produtos(empresaEfetivaId),
       });
 
       queryClient.invalidateQueries({
-        queryKey: ["produto"],
+        queryKey: estoqueQueryKeys.produtosDetalhes(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          "Erro ao realizar transferência"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao realizar transferência"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeTransferir || !empresaEfetivaId || carregando) return null;
 
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>

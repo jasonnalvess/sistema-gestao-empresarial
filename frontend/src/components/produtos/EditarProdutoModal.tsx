@@ -20,6 +20,11 @@ import { atualizarProduto, Produto } from "@/services/produtos.service";
 import { listarCategorias } from "@/services/categorias.service";
 import { listarMarcasProdutos } from "@/services/marcas-produtos.service";
 import { listarUnidadesMedida } from "@/services/unidades-medida.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CATEGORIAS_VISUALIZAR, PERMISSAO_MARCAS_VISUALIZAR, PERMISSAO_PRODUTOS_EDITAR, PERMISSAO_UNIDADES_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   produto: Produto;
@@ -27,6 +32,9 @@ type Props = {
 
 export function EditarProdutoModal({ produto }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_PRODUTOS_EDITAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -51,7 +59,7 @@ export function EditarProdutoModal({ produto }: Props) {
   );
 
   const { data: categoriasResponse } = useQuery({
-    queryKey: ["categorias-produtos-select"],
+    queryKey: estoqueQueryKeys.categoriasSelect(empresaEfetivaId ?? ""),
     queryFn: () =>
       listarCategorias({
         page: 1,
@@ -59,19 +67,23 @@ export function EditarProdutoModal({ produto }: Props) {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled: aberto && podeEditar && temPermissao(PERMISSAO_CATEGORIAS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: marcasResponse } = useQuery({
-    queryKey: ["marcas-produtos-select"],
+    queryKey: estoqueQueryKeys.marcasSelect(empresaEfetivaId ?? ""),
     queryFn: () => listarMarcasProdutos({ page: 1, limit: 100 }),
+    enabled: aberto && podeEditar && temPermissao(PERMISSAO_MARCAS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: unidadesResponse } = useQuery({
-    queryKey: ["unidades-medida-select"],
+    queryKey: estoqueQueryKeys.unidadesSelect(empresaEfetivaId ?? ""),
     queryFn: () => listarUnidadesMedida({ page: 1, limit: 100 }),
+    enabled: aberto && podeEditar && temPermissao(PERMISSAO_UNIDADES_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   async function salvar() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     if (!nome.trim()) {
       toast.error("Informe o nome do produto.");
       return;
@@ -108,16 +120,19 @@ export function EditarProdutoModal({ produto }: Props) {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["produtos"],
+        queryKey: estoqueQueryKeys.produtos(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao atualizar produto"
-      );
+      queryClient.invalidateQueries({
+        queryKey: estoqueQueryKeys.produtosDetalhes(empresaEfetivaId),
+      });
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar produto"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { PERMISSAO_PEDIDOS_COMPRA_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -184,15 +185,15 @@ export function ReceberPedidoCompraModal({ pedido }: Props) {
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["estoque"],
+        queryKey: estoqueQueryKeys.estoque(empresaEfetivaId),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["movimentacoes"],
+        queryKey: estoqueQueryKeys.movimentacoes(empresaEfetivaId),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["dashboard-resumo"],
+        queryKey: estoqueQueryKeys.dashboardResumo(empresaEfetivaId),
       });
     } catch (error: unknown) {
       toast.error(
