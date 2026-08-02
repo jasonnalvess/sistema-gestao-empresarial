@@ -22,6 +22,7 @@ function criarPrismaMock() {
     aberturaCaixa: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
       create: jest.fn(),
       updateMany: jest.fn(),
       findFirstOrThrow: jest.fn(),
@@ -540,11 +541,15 @@ describe('CaixasService', () => {
       },
     );
 
-    it('busca abertura e lista sessões por Caixa e empresa', async () => {
+    it('busca abertura e lista sessões paginadas por Caixa e empresa', async () => {
       prisma.aberturaCaixa.findFirst.mockResolvedValue(abertura);
-      prisma.aberturaCaixa.findMany.mockResolvedValue([]);
+      prisma.aberturaCaixa.findMany.mockResolvedValue([abertura]);
+      prisma.aberturaCaixa.count.mockResolvedValue(3);
       await service.buscarAberturaAtiva('empresa-1', 'caixa-1');
-      await service.listarAberturas('empresa-1', 'caixa-1');
+      const resultado = await service.listarAberturas('empresa-1', 'caixa-1', {
+        page: 2,
+        limit: 1,
+      });
       const chamadasAbertura = prisma.aberturaCaixa.findFirst.mock
         .calls as Array<[{ where: { caixaId: string; empresaId: string } }]>;
       const chamadaAbertura = chamadasAbertura[0][0];
@@ -557,9 +562,51 @@ describe('CaixasService', () => {
       expect(prisma.aberturaCaixa.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { caixaId: 'caixa-1', empresaId: 'empresa-1' },
+          orderBy: { dataAbertura: 'desc' },
+          skip: 1,
+          take: 1,
         }),
       );
+      expect(prisma.aberturaCaixa.count).toHaveBeenCalledWith({
+        where: { caixaId: 'caixa-1', empresaId: 'empresa-1' },
+      });
+      expect(resultado).toEqual({
+        data: [abertura],
+        meta: { total: 3, page: 2, limit: 1, totalPages: 3 },
+      });
     });
+
+    it('usa paginação padrão e retorna envelope vazio', async () => {
+      prisma.aberturaCaixa.findMany.mockResolvedValue([]);
+      prisma.aberturaCaixa.count.mockResolvedValue(0);
+
+      const resultado = await service.listarAberturas(
+        'empresa-1',
+        'caixa-1',
+        {},
+      );
+
+      expect(prisma.aberturaCaixa.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 0, take: 10 }),
+      );
+      expect(resultado).toEqual({
+        data: [],
+        meta: { total: 0, page: 1, limit: 10, totalPages: 0 },
+      });
+    });
+
+    it.each(['inexistente', 'externo'])(
+      'não lista aberturas de Caixa %s',
+      async () => {
+        prisma.caixa.findFirst.mockResolvedValue(null);
+
+        await expect(
+          service.listarAberturas('empresa-1', 'caixa-x', {}),
+        ).rejects.toThrow('Caixa não encontrado');
+        expect(prisma.aberturaCaixa.findMany).not.toHaveBeenCalled();
+        expect(prisma.aberturaCaixa.count).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('atualização', () => {

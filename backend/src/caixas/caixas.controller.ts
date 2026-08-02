@@ -30,6 +30,7 @@ import { CriarMovimentacaoCaixaDto } from './dto/criar-movimentacao-caixa.dto';
 import { FiltroCaixasDto } from './dto/filtro-caixas.dto';
 import { FiltroMovimentacoesCaixaDto } from './dto/filtro-movimentacoes-caixa.dto';
 import { FiltroResumoCaixasDto } from './dto/filtro-resumo-caixas.dto';
+import { FiltroAberturasCaixaDto } from './dto/filtro-aberturas-caixa.dto';
 
 @Controller('caixas')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard, EmpresaContextoGuard)
@@ -144,8 +145,9 @@ export class CaixasController {
   listarAberturas(
     @EmpresaAtual() empresa: EmpresaContexto,
     @Param('id') id: string,
+    @Query() filtros: FiltroAberturasCaixaDto,
   ) {
-    return this.caixasService.listarAberturas(empresa.empresaId, id);
+    return this.caixasService.listarAberturas(empresa.empresaId, id, filtros);
   }
 
   @Post(':id/movimentacoes')
