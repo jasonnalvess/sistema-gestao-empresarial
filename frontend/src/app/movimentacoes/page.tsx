@@ -13,6 +13,12 @@ import {
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_DEPOSITOS_VISUALIZAR, PERMISSAO_MOVIMENTACOES_VISUALIZAR, PERMISSAO_PRODUTOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
@@ -95,6 +101,12 @@ function obterTipoMovimentacao(
 }
 
 export default function MovimentacoesPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } = useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_MOVIMENTACOES_VISUALIZAR);
+  const podeVisualizarProdutos = temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR);
+  const podeVisualizarDepositos = temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [page, setPage] = useState(1);
@@ -103,7 +115,7 @@ export default function MovimentacoesPage() {
   const [tipo, setTipo] = useState("");
 
   const { data: produtosResponse } = useQuery({
-    queryKey: ["produtos-select-filtro-movimentacoes"],
+    queryKey: estoqueQueryKeys.produtosSelect(empresaEfetivaId ?? "", "filtro-movimentacoes"),
     queryFn: () =>
       listarProdutos({
         page: 1,
@@ -111,10 +123,11 @@ export default function MovimentacoesPage() {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled: podeVisualizar && podeVisualizarProdutos && possuiEmpresaEfetiva && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-filtro-movimentacoes"],
+    queryKey: estoqueQueryKeys.depositosSelect(empresaEfetivaId ?? "", "filtro-movimentacoes"),
     queryFn: () =>
       listarDepositos({
         page: 1,
@@ -122,11 +135,12 @@ export default function MovimentacoesPage() {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled: podeVisualizar && podeVisualizarDepositos && possuiEmpresaEfetiva && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
-      "movimentacoes",
+      ...estoqueQueryKeys.movimentacoes(empresaEfetivaId ?? ""),
       searchAplicado,
       produtoId,
       depositoId,
@@ -146,6 +160,7 @@ export default function MovimentacoesPage() {
         sortBy: "createdAt",
         order: "desc",
       }),
+    enabled: podeVisualizar && possuiEmpresaEfetiva && Boolean(empresaEfetivaId) && !carregando,
   });
 
   function pesquisar() {
@@ -155,6 +170,10 @@ export default function MovimentacoesPage() {
 
   const movimentacoes = data?.data ?? [];
   const totalPages = data?.meta.totalPages ?? 1;
+
+  if (!podeVisualizar) return <AppLayout><AcessoNegado /></AppLayout>;
+  if (carregando) return <AppLayout><CrudLoading /></AppLayout>;
+  if (!possuiEmpresaEfetiva) return <AppLayout><EmpresaNaoSelecionada /></AppLayout>;
 
   return (
     <AppLayout>

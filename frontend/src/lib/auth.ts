@@ -26,6 +26,37 @@ export const PERMISSAO_CONTAS_RECEBER_RECEBER =
   "financeiro.contas_receber.receber";
 export const PERMISSAO_CONTAS_RECEBER_CANCELAR =
   "financeiro.contas_receber.cancelar";
+export const PERMISSAO_PRODUTOS_VISUALIZAR = "estoque.produtos.visualizar";
+export const PERMISSAO_PRODUTOS_CRIAR = "estoque.produtos.criar";
+export const PERMISSAO_PRODUTOS_EDITAR = "estoque.produtos.editar";
+export const PERMISSAO_CATEGORIAS_VISUALIZAR = "estoque.categorias.visualizar";
+export const PERMISSAO_CATEGORIAS_CRIAR = "estoque.categorias.criar";
+export const PERMISSAO_CATEGORIAS_EDITAR = "estoque.categorias.editar";
+export const PERMISSAO_MARCAS_VISUALIZAR = "estoque.marcas.visualizar";
+export const PERMISSAO_MARCAS_CRIAR = "estoque.marcas.criar";
+export const PERMISSAO_MARCAS_EDITAR = "estoque.marcas.editar";
+export const PERMISSAO_UNIDADES_VISUALIZAR = "estoque.unidades.visualizar";
+export const PERMISSAO_UNIDADES_CRIAR = "estoque.unidades.criar";
+export const PERMISSAO_UNIDADES_EDITAR = "estoque.unidades.editar";
+export const PERMISSAO_DEPOSITOS_VISUALIZAR = "estoque.depositos.visualizar";
+export const PERMISSAO_DEPOSITOS_CRIAR = "estoque.depositos.criar";
+export const PERMISSAO_DEPOSITOS_EDITAR = "estoque.depositos.editar";
+export const PERMISSAO_ESTOQUE_VISUALIZAR = "estoque.visualizar";
+export const PERMISSAO_ESTOQUE_AJUSTAR = "estoque.ajustes.realizar";
+export const PERMISSAO_MOVIMENTACOES_VISUALIZAR =
+  "estoque.movimentacoes.visualizar";
+export const PERMISSAO_ENTRADAS_REGISTRAR = "estoque.entradas.registrar";
+export const PERMISSAO_SAIDAS_REGISTRAR = "estoque.saidas.registrar";
+export const PERMISSAO_TRANSFERENCIAS_REALIZAR =
+  "estoque.transferencias.realizar";
+export const PERMISSAO_INVENTARIOS_VISUALIZAR =
+  "estoque.inventarios.visualizar";
+export const PERMISSAO_INVENTARIOS_CRIAR = "estoque.inventarios.criar";
+export const PERMISSAO_INVENTARIOS_EDITAR = "estoque.inventarios.editar";
+export const PERMISSAO_INVENTARIOS_FINALIZAR =
+  "estoque.inventarios.finalizar";
+export const PERMISSAO_INVENTARIOS_CANCELAR =
+  "estoque.inventarios.cancelar";
 
 export type Usuario = {
   id: string;

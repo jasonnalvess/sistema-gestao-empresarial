@@ -14,6 +14,11 @@ import {
   atualizarMarcaProduto,
   MarcaProduto,
 } from "@/services/marcas-produtos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_MARCAS_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   marca: MarcaProduto;
@@ -21,6 +26,9 @@ type Props = {
 
 export function EditarMarcaProdutoModal({ marca }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_MARCAS_EDITAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -29,6 +37,7 @@ export function EditarMarcaProdutoModal({ marca }: Props) {
   const [descricao, setDescricao] = useState(marca.descricao ?? "");
 
   async function salvar() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     try {
       setSalvando(true);
 
@@ -41,14 +50,16 @@ export function EditarMarcaProdutoModal({ marca }: Props) {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["marcas-produtos"],
+        queryKey: estoqueQueryKeys.marcas(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao atualizar marca");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar marca"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog

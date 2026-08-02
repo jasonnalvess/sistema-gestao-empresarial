@@ -15,6 +15,8 @@ import {
   PERMISSAO_FORNECEDORES_VISUALIZAR,
   PERMISSAO_PEDIDOS_COMPRA_EDITAR,
 } from "@/lib/auth";
+import { PERMISSAO_DEPOSITOS_VISUALIZAR, PERMISSAO_PRODUTOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 import { listarFornecedores } from "@/services/fornecedores.service";
 import { listarDepositos } from "@/services/depositos.service";
@@ -53,6 +55,8 @@ export function EditarPedidoCompraModal({ pedido }: Props) {
   const podeVisualizarFornecedores = temPermissao(
     PERMISSAO_FORNECEDORES_VISUALIZAR,
   );
+  const podeVisualizarDepositos = temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR);
+  const podeVisualizarProdutos = temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -106,7 +110,7 @@ export function EditarPedidoCompraModal({ pedido }: Props) {
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-editar-pedido", empresaEfetivaId],
+    queryKey: estoqueQueryKeys.depositosSelect(empresaEfetivaId ?? "", "editar-pedido"),
     queryFn: () =>
       listarDepositos({
         ativo: true,
@@ -116,11 +120,11 @@ export function EditarPedidoCompraModal({ pedido }: Props) {
         order: "asc",
       }),
     enabled:
-      aberto && podeEditarPedido && Boolean(empresaEfetivaId) && !carregando,
+      aberto && podeEditarPedido && podeVisualizarDepositos && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: produtosResponse } = useQuery({
-    queryKey: ["produtos-select-editar-pedido", empresaEfetivaId],
+    queryKey: estoqueQueryKeys.produtosSelect(empresaEfetivaId ?? "", "editar-pedido"),
     queryFn: () =>
       listarProdutos({
         ativo: true,
@@ -130,7 +134,7 @@ export function EditarPedidoCompraModal({ pedido }: Props) {
         order: "asc",
       }),
     enabled:
-      aberto && podeEditarPedido && Boolean(empresaEfetivaId) && !carregando,
+      aberto && podeEditarPedido && podeVisualizarProdutos && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const totais = useMemo(() => {
