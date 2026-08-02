@@ -44,6 +44,19 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
+## Seed seguro
+
+O seed é bloqueado por padrão e aceita somente o banco `sistema_gestao_teste`. Nunca o execute em produção. Para provisionar os dados estruturais e a conta administrativa, informe conscientemente as variáveis obrigatórias:
+
+```bash
+ALLOW_DATABASE_SEED=true \
+SEED_ADMIN_EMAIL="<email-administrativo>" \
+SEED_ADMIN_PASSWORD="<senha-forte-fornecida-fora-do-repositorio>" \
+npm run seed
+```
+
+Usuários demonstrativos não são criados por padrão. Para criá-los, defina também `SEED_CREATE_DEMO_USERS=true`, `SEED_DEMO_ADMIN_EMAIL`, `SEED_DEMO_USER_EMAIL` e `SEED_DEMO_PASSWORD`. Não registre senhas reais em arquivos versionados ou logs.
+
 ## Run tests
 
 ```bash
