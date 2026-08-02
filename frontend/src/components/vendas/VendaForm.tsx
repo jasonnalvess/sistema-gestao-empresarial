@@ -21,6 +21,10 @@ import {
   criarVenda,
   FormaPagamentoVenda,
 } from "@/services/vendas.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CLIENTES_VISUALIZAR, PERMISSAO_DEPOSITOS_VISUALIZAR, PERMISSAO_PRODUTOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 export type VendaFormPayload = Parameters<typeof criarVenda>[0];
 
@@ -110,6 +114,8 @@ export function VendaForm({
   onSubmit,
   onCancelar,
 }: VendaFormProps) {
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
   const [clienteId, setClienteId] = useState(
     initialData?.clienteId ?? ""
   );
@@ -168,17 +174,18 @@ export function VendaForm({
   );
 
   const { data: clientesResponse } = useQuery({
-    queryKey: ["clientes-select-venda-form"],
+    queryKey: ["clientes-select-venda-form", empresaEfetivaId],
     queryFn: () =>
       listarClientes({
         ativo: "true",
         page: 1,
         limit: 100,
       }),
+    enabled: temPermissao(PERMISSAO_CLIENTES_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-venda-form"],
+    queryKey: estoqueQueryKeys.depositosSelect(empresaEfetivaId ?? "", "venda-form"),
     queryFn: () =>
       listarDepositos({
         ativo: true,
@@ -187,10 +194,11 @@ export function VendaForm({
         sortBy: "nome",
         order: "asc",
       }),
+    enabled: temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: produtosResponse } = useQuery({
-    queryKey: ["produtos-select-venda-form"],
+    queryKey: estoqueQueryKeys.produtosSelect(empresaEfetivaId ?? "", "venda-form"),
     queryFn: () =>
       listarProdutos({
         ativo: true,
@@ -199,6 +207,7 @@ export function VendaForm({
         sortBy: "nome",
         order: "asc",
       }),
+    enabled: temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const clientes = clientesResponse?.data ?? [];

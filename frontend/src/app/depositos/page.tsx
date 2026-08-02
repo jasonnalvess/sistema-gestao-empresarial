@@ -5,6 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_DEPOSITOS_CRIAR, PERMISSAO_DEPOSITOS_EDITAR, PERMISSAO_DEPOSITOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
 import { CrudSearch } from "@/components/crud/CrudSearch";
@@ -29,13 +35,19 @@ import { EditarDepositoModal } from "@/components/depositos/EditarDepositoModal"
 import { AlterarStatusDepositoButton } from "@/components/depositos/AlterarStatusDepositoButton";
 
 export default function DepositosPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } = useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR);
+  const podeCriar = temPermissao(PERMISSAO_DEPOSITOS_CRIAR);
+  const podeEditar = temPermissao(PERMISSAO_DEPOSITOS_EDITAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [ativo, setAtivo] = useState("");
   const [page, setPage] = useState(1);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["depositos", searchAplicado, ativo, page],
+    queryKey: [...estoqueQueryKeys.depositos(empresaEfetivaId ?? ""), searchAplicado, ativo, page],
     queryFn: () =>
       listarDepositos({
         search: searchAplicado || undefined,
@@ -45,6 +57,7 @@ export default function DepositosPage() {
         sortBy: "createdAt",
         order: "desc",
       }),
+    enabled: podeVisualizar && possuiEmpresaEfetiva && Boolean(empresaEfetivaId) && !carregando,
   });
 
   function pesquisar() {
@@ -55,13 +68,17 @@ export default function DepositosPage() {
   const depositos = data?.data ?? [];
   const totalPages = data?.meta?.totalPages ?? 1;
 
+  if (!podeVisualizar) return <AppLayout><AcessoNegado /></AppLayout>;
+  if (carregando) return <AppLayout><CrudLoading /></AppLayout>;
+  if (!possuiEmpresaEfetiva) return <AppLayout><EmpresaNaoSelecionada /></AppLayout>;
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <PageHeader
           title="Depósitos"
           description="Gerencie depósitos, almoxarifados e locais de armazenamento."
-          actions={<NovoDepositoModal />}
+          actions={podeCriar ? <NovoDepositoModal /> : undefined}
         />
 
         <CrudCard>
@@ -135,8 +152,7 @@ export default function DepositosPage() {
 
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <EditarDepositoModal deposito={deposito} />
-                            <AlterarStatusDepositoButton deposito={deposito} />
+                            {podeEditar && <><EditarDepositoModal deposito={deposito} /><AlterarStatusDepositoButton deposito={deposito} /></>}
                           </div>
                         </TableCell>
                       </TableRow>

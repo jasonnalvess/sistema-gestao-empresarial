@@ -48,6 +48,8 @@ import {
   PERMISSAO_PEDIDOS_COMPRA_CRIAR,
   PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,
 } from "@/lib/auth";
+import { PERMISSAO_DEPOSITOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 export default function PedidosCompraPage() {
   const { temPermissao } = useAuth();
@@ -61,6 +63,7 @@ export default function PedidosCompraPage() {
   const podeVisualizarFornecedores = temPermissao(
     PERMISSAO_FORNECEDORES_VISUALIZAR,
   );
+  const podeVisualizarDepositos = temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [status, setStatus] = useState("");
@@ -87,7 +90,7 @@ export default function PedidosCompraPage() {
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-pedidos-compra", empresaEfetivaId],
+    queryKey: estoqueQueryKeys.depositosSelect(empresaEfetivaId ?? "", "pedidos-compra"),
     queryFn: () =>
       listarDepositos({
         ativo: true,
@@ -98,6 +101,7 @@ export default function PedidosCompraPage() {
       }),
     enabled:
       podeVisualizarPedidos &&
+      podeVisualizarDepositos &&
       possuiEmpresaEfetiva &&
       Boolean(empresaEfetivaId) &&
       !carregando,

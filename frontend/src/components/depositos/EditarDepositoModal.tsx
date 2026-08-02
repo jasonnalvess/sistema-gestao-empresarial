@@ -14,6 +14,11 @@ import {
   atualizarDeposito,
   Deposito,
 } from "@/services/depositos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_DEPOSITOS_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   deposito: Deposito;
@@ -21,6 +26,9 @@ type Props = {
 
 export function EditarDepositoModal({ deposito }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_DEPOSITOS_EDITAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -31,6 +39,7 @@ export function EditarDepositoModal({ deposito }: Props) {
   const [endereco, setEndereco] = useState(deposito.endereco ?? "");
 
   async function salvar() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     if (!nome.trim() || !codigo.trim()) {
       toast.error("Nome e código são obrigatórios.");
       return;
@@ -50,16 +59,16 @@ export function EditarDepositoModal({ deposito }: Props) {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["depositos"],
+        queryKey: estoqueQueryKeys.depositos(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao atualizar depósito"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar depósito"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog

@@ -12,6 +12,11 @@ import {
   ativarMarcaProduto,
   desativarMarcaProduto,
 } from "@/services/marcas-produtos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_MARCAS_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   marca: MarcaProduto;
@@ -19,8 +24,12 @@ type Props = {
 
 export function AlterarStatusMarcaProdutoButton({ marca }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_MARCAS_EDITAR);
 
   async function alterarStatus() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     try {
       if (marca.ativo) {
         await desativarMarcaProduto(marca.id);
@@ -31,12 +40,14 @@ export function AlterarStatusMarcaProdutoButton({ marca }: Props) {
       }
 
       queryClient.invalidateQueries({
-        queryKey: ["marcas-produtos"],
+        queryKey: estoqueQueryKeys.marcas(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao alterar status");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao alterar status"));
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <ConfirmDialog

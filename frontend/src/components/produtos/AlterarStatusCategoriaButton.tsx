@@ -22,6 +22,11 @@ import {
   ativarCategoria,
   desativarCategoria,
 } from "@/services/categorias.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CATEGORIAS_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   categoria: CategoriaProduto;
@@ -29,8 +34,12 @@ type Props = {
 
 export function AlterarStatusCategoriaButton({ categoria }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_CATEGORIAS_EDITAR);
 
   async function alterarStatus() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     try {
       if (categoria.ativo) {
         await desativarCategoria(categoria.id);
@@ -41,18 +50,18 @@ export function AlterarStatusCategoriaButton({ categoria }: Props) {
       }
 
       queryClient.invalidateQueries({
-        queryKey: ["categorias"],
+        queryKey: estoqueQueryKeys.categorias(empresaEfetivaId),
       });
 
       queryClient.invalidateQueries({
-        queryKey: ["categorias-produtos-select"],
+        queryKey: estoqueQueryKeys.categoriasSelect(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao alterar status da categoria"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao alterar status da categoria"));
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <AlertDialog>

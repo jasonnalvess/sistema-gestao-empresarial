@@ -4,13 +4,10 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
-  Barcode,
   Box,
   DollarSign,
   Package,
-  Ruler,
   Tags,
-  Weight,
 } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -23,16 +20,30 @@ import { Button } from "@/components/ui/button";
 
 import { buscarProdutoPorId } from "@/services/produtos.service";
 import { ProdutoHistoricoCard } from "@/components/produtos/ProdutoHistoricoCard";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_PRODUTOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 export default function ProdutoDetalhesPage() {
   const params = useParams();
   const produtoId = params.id as string;
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } = useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR);
 
   const { data: produto, isLoading, error } = useQuery({
-    queryKey: ["produto", produtoId],
+    queryKey: estoqueQueryKeys.produto(empresaEfetivaId ?? "", produtoId),
     queryFn: () => buscarProdutoPorId(produtoId),
-    enabled: !!produtoId,
+    enabled: podeVisualizar && possuiEmpresaEfetiva && Boolean(empresaEfetivaId) && Boolean(produtoId) && !carregando,
   });
+
+  if (!podeVisualizar) return <AppLayout><AcessoNegado /></AppLayout>;
+  if (carregando) return <AppLayout><CrudLoading /></AppLayout>;
+  if (!possuiEmpresaEfetiva) return <AppLayout><EmpresaNaoSelecionada /></AppLayout>;
 
   if (isLoading) {
     return (

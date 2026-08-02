@@ -5,6 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_MARCAS_CRIAR, PERMISSAO_MARCAS_EDITAR, PERMISSAO_MARCAS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudPagination } from "@/components/crud/CrudPagination";
@@ -27,19 +33,30 @@ import { EditarMarcaProdutoModal } from "@/components/marcas-produtos/EditarMarc
 import { AlterarStatusMarcaProdutoButton } from "@/components/marcas-produtos/AlterarStatusMarcaProdutoButton";
 
 export default function MarcasProdutosPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } = useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_MARCAS_VISUALIZAR);
+  const podeCriar = temPermissao(PERMISSAO_MARCAS_CRIAR);
+  const podeEditar = temPermissao(PERMISSAO_MARCAS_EDITAR);
   const [page, setPage] = useState(1);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["marcas-produtos", page],
+    queryKey: [...estoqueQueryKeys.marcas(empresaEfetivaId ?? ""), page],
     queryFn: () =>
       listarMarcasProdutos({
         page,
         limit: 10,
       }),
+    enabled: podeVisualizar && possuiEmpresaEfetiva && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const marcas = data?.data ?? [];
   const totalPages = data?.meta?.totalPages ?? 1;
+
+  if (!podeVisualizar) return <AppLayout><AcessoNegado /></AppLayout>;
+  if (carregando) return <AppLayout><CrudLoading /></AppLayout>;
+  if (!possuiEmpresaEfetiva) return <AppLayout><EmpresaNaoSelecionada /></AppLayout>;
 
   return (
     <AppLayout>
@@ -47,7 +64,7 @@ export default function MarcasProdutosPage() {
         <PageHeader
           title="Marcas de Produto"
           description="Gerencie marcas e fabricantes vinculados aos produtos."
-          actions={<NovaMarcaProdutoModal />}
+          actions={podeCriar ? <NovaMarcaProdutoModal /> : undefined}
         />
 
         <CrudCard>
@@ -87,8 +104,7 @@ export default function MarcasProdutosPage() {
 
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <EditarMarcaProdutoModal marca={marca} />
-                            <AlterarStatusMarcaProdutoButton marca={marca} />
+                            {podeEditar && <><EditarMarcaProdutoModal marca={marca} /><AlterarStatusMarcaProdutoButton marca={marca} /></>}
                           </div>
                         </TableCell>
                       </TableRow>

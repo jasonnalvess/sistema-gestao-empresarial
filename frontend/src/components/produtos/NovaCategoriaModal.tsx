@@ -17,9 +17,17 @@ import {
 } from "@/components/ui/dialog";
 
 import { criarCategoria } from "@/services/categorias.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CATEGORIAS_CRIAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 export function NovaCategoriaModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriar = temPermissao(PERMISSAO_CATEGORIAS_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -27,6 +35,7 @@ export function NovaCategoriaModal() {
   const [descricao, setDescricao] = useState("");
 
   async function salvar() {
+    if (!podeCriar || !empresaEfetivaId || carregando) return;
     try {
       setSalvando(true);
 
@@ -42,16 +51,16 @@ export function NovaCategoriaModal() {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["categorias"],
+        queryKey: estoqueQueryKeys.categorias(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao cadastrar categoria"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao cadastrar categoria"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriar || !empresaEfetivaId || carregando) return null;
 
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>

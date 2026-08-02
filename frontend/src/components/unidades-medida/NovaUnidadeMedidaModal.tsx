@@ -9,9 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormDialog } from "@/components/forms/FormDialog";
 import { criarUnidadeMedida } from "@/services/unidades-medida.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_UNIDADES_CRIAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 export function NovaUnidadeMedidaModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriar = temPermissao(PERMISSAO_UNIDADES_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -19,6 +27,7 @@ export function NovaUnidadeMedidaModal() {
   const [sigla, setSigla] = useState("");
 
   async function salvar() {
+    if (!podeCriar || !empresaEfetivaId || carregando) return;
     try {
       setSalvando(true);
 
@@ -34,14 +43,16 @@ export function NovaUnidadeMedidaModal() {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["unidades-medida"],
+        queryKey: estoqueQueryKeys.unidades(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao cadastrar unidade");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao cadastrar unidade"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog

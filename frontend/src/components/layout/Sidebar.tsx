@@ -11,6 +11,14 @@ import {
   PERMISSAO_CONTAS_RECEBER_VISUALIZAR,
   PERMISSAO_FORNECEDORES_VISUALIZAR,
   PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,
+  PERMISSAO_PRODUTOS_VISUALIZAR,
+  PERMISSAO_CATEGORIAS_VISUALIZAR,
+  PERMISSAO_MARCAS_VISUALIZAR,
+  PERMISSAO_UNIDADES_VISUALIZAR,
+  PERMISSAO_DEPOSITOS_VISUALIZAR,
+  PERMISSAO_ESTOQUE_VISUALIZAR,
+  PERMISSAO_MOVIMENTACOES_VISUALIZAR,
+  PERMISSAO_INVENTARIOS_VISUALIZAR,
   possuiPermissao,
 } from "@/lib/auth";
 import { X } from "lucide-react";
@@ -24,26 +32,25 @@ export function Sidebar({ aberto, aoFechar }: SidebarProps) {
   const pathname = usePathname();
   const { usuario, temPermissao } = useAuth();
 
+  const permissoesPorRota: Partial<Record<string, string>> = {
+    "/clientes": PERMISSAO_CLIENTES_VISUALIZAR,
+    "/fornecedores": PERMISSAO_FORNECEDORES_VISUALIZAR,
+    "/pedidos-compra": PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,
+    "/contas-pagar": PERMISSAO_CONTAS_PAGAR_VISUALIZAR,
+    "/contas-receber": PERMISSAO_CONTAS_RECEBER_VISUALIZAR,
+    "/produtos": PERMISSAO_PRODUTOS_VISUALIZAR,
+    "/categorias": PERMISSAO_CATEGORIAS_VISUALIZAR,
+    "/marcas-produtos": PERMISSAO_MARCAS_VISUALIZAR,
+    "/unidades-medida": PERMISSAO_UNIDADES_VISUALIZAR,
+    "/depositos": PERMISSAO_DEPOSITOS_VISUALIZAR,
+    "/estoque": PERMISSAO_ESTOQUE_VISUALIZAR,
+    "/movimentacoes": PERMISSAO_MOVIMENTACOES_VISUALIZAR,
+    "/inventarios": PERMISSAO_INVENTARIOS_VISUALIZAR,
+  };
+
   const menuPermitido = menu.filter((item) => {
-    if (item.href === "/clientes") {
-      return temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
-    }
-
-    if (item.href === "/fornecedores") {
-      return temPermissao(PERMISSAO_FORNECEDORES_VISUALIZAR);
-    }
-
-    if (item.href === "/pedidos-compra") {
-      return temPermissao(PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR);
-    }
-
-    if (item.href === "/contas-pagar") {
-      return temPermissao(PERMISSAO_CONTAS_PAGAR_VISUALIZAR);
-    }
-
-    if (item.href === "/contas-receber") {
-      return temPermissao(PERMISSAO_CONTAS_RECEBER_VISUALIZAR);
-    }
+    const permissao = permissoesPorRota[item.href];
+    if (permissao) return temPermissao(permissao);
 
     return usuario ? possuiPermissao(usuario.tipo, item.href) : false;
   });

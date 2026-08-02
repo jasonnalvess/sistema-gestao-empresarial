@@ -5,6 +5,16 @@ import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_CATEGORIAS_CRIAR,
+  PERMISSAO_CATEGORIAS_EDITAR,
+  PERMISSAO_CATEGORIAS_VISUALIZAR,
+} from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
@@ -29,12 +39,23 @@ import { EditarCategoriaModal } from "@/components/produtos/EditarCategoriaModal
 import { AlterarStatusCategoriaButton } from "@/components/produtos/AlterarStatusCategoriaButton";
 
 export default function CategoriasPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_CATEGORIAS_VISUALIZAR);
+  const podeCriar = temPermissao(PERMISSAO_CATEGORIAS_CRIAR);
+  const podeEditar = temPermissao(PERMISSAO_CATEGORIAS_EDITAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [page, setPage] = useState(1);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["categorias", searchAplicado, page],
+    queryKey: [
+      ...estoqueQueryKeys.categorias(empresaEfetivaId ?? ""),
+      searchAplicado,
+      page,
+    ],
     queryFn: () =>
       listarCategorias({
         search: searchAplicado,
@@ -43,6 +64,11 @@ export default function CategoriasPage() {
         sortBy: "createdAt",
         order: "desc",
       }),
+    enabled:
+      podeVisualizar &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   function pesquisar() {
@@ -53,13 +79,17 @@ export default function CategoriasPage() {
   const categorias = data?.data ?? [];
   const totalPages = data?.meta.totalPages ?? 1;
 
+  if (!podeVisualizar) return <AppLayout><AcessoNegado /></AppLayout>;
+  if (carregando) return <AppLayout><CrudLoading /></AppLayout>;
+  if (!possuiEmpresaEfetiva) return <AppLayout><EmpresaNaoSelecionada /></AppLayout>;
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <PageHeader
           title="Categorias"
           description="Gerencie as categorias de produtos da empresa."
-          actions={<NovaCategoriaModal />}
+          actions={podeCriar ? <NovaCategoriaModal /> : undefined}
         />
 
         <CrudCard>
@@ -108,10 +138,12 @@ export default function CategoriasPage() {
 
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <EditarCategoriaModal categoria={categoria} />
-                            <AlterarStatusCategoriaButton
-                              categoria={categoria}
-                            />
+                            {podeEditar && (
+                              <>
+                                <EditarCategoriaModal categoria={categoria} />
+                                <AlterarStatusCategoriaButton categoria={categoria} />
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

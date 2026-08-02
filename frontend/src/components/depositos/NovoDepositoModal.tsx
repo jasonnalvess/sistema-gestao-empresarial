@@ -11,9 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
 
 import { criarDeposito } from "@/services/depositos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_DEPOSITOS_CRIAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 export function NovoDepositoModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriar = temPermissao(PERMISSAO_DEPOSITOS_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -31,6 +39,7 @@ export function NovoDepositoModal() {
   }
 
   async function salvar() {
+    if (!podeCriar || !empresaEfetivaId || carregando) return;
     if (!nome.trim()) {
       toast.error("Informe o nome do depósito.");
       return;
@@ -57,16 +66,16 @@ export function NovoDepositoModal() {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["depositos"],
+        queryKey: estoqueQueryKeys.depositos(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao cadastrar depósito"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao cadastrar depósito"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
