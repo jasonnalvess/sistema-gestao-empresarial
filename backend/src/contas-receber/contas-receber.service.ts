@@ -1034,6 +1034,7 @@ export class ContasReceberService {
 
         if (contaAtualizada.vendaId) {
           await this.vendasService.concluirSeQuitada(
+            empresaId,
             contaAtualizada.vendaId,
             this.obterUsuarioId(usuario),
             tx,
