@@ -24,6 +24,7 @@ import { FecharCaixaDto } from './dto/fechar-caixa.dto';
 import { CriarMovimentacaoCaixaDto } from './dto/criar-movimentacao-caixa.dto';
 import { FiltroMovimentacoesCaixaDto } from './dto/filtro-movimentacoes-caixa.dto';
 import { FiltroResumoCaixasDto } from './dto/filtro-resumo-caixas.dto';
+import { FiltroAberturasCaixaDto } from './dto/filtro-aberturas-caixa.dto';
 
 @Injectable()
 export class CaixasService {
@@ -1042,35 +1043,52 @@ export class CaixasService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async listarAberturas(empresaId: string, caixaId: string) {
+  async listarAberturas(
+    empresaId: string,
+    caixaId: string,
+    filtros: FiltroAberturasCaixaDto,
+  ) {
     const caixa = await this.validarCaixa(empresaId, caixaId);
+    const page = filtros.page ?? 1;
+    const limit = filtros.limit ?? 10;
+    const { skip, take } = calcularPaginacao(page, limit);
+    const where: Prisma.AberturaCaixaWhereInput = {
+      caixaId: caixa.id,
+      empresaId,
+    };
 
-    return this.prisma.aberturaCaixa.findMany({
-      where: {
-        caixaId: caixa.id,
-        empresaId,
-      },
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.aberturaCaixa.findMany({
+        where,
 
-      include: {
-        usuarioAbertura: {
-          select: this.usuarioSelect,
-        },
+        include: {
+          usuarioAbertura: {
+            select: this.usuarioSelect,
+          },
 
-        usuarioFechamento: {
-          select: this.usuarioSelect,
-        },
+          usuarioFechamento: {
+            select: this.usuarioSelect,
+          },
 
-        _count: {
-          select: {
-            movimentacoes: true,
+          _count: {
+            select: {
+              movimentacoes: true,
+            },
           },
         },
-      },
 
-      orderBy: {
-        dataAbertura: 'desc',
-      },
-    });
+        orderBy: {
+          dataAbertura: 'desc',
+        },
+
+        skip,
+        take,
+      }),
+
+      this.prisma.aberturaCaixa.count({ where }),
+    ]);
+
+    return respostaPaginada(data, total, page, limit);
   }
 
   async resumo(empresaId: string, filtros: FiltroResumoCaixasDto) {

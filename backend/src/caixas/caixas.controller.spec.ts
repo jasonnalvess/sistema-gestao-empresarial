@@ -106,7 +106,7 @@ describe('CaixasController', () => {
     await controller.abrir(empresa, 'c1', abrir, usuario);
     await controller.fechar(empresa, 'c1', fechar, usuario);
     await controller.aberturaAtual(empresa, 'c1');
-    await controller.listarAberturas(empresa, 'c1');
+    await controller.listarAberturas(empresa, 'c1', filtros);
     await controller.movimentar(empresa, 'c1', movimento, usuario);
 
     expect(service.criar).toHaveBeenCalledWith('e1', 'u1', criar);
@@ -118,7 +118,7 @@ describe('CaixasController', () => {
     expect(service.abrir).toHaveBeenCalledWith('e1', 'c1', 'u1', abrir);
     expect(service.fechar).toHaveBeenCalledWith('e1', 'c1', 'u1', fechar);
     expect(service.buscarAberturaAtiva).toHaveBeenCalledWith('e1', 'c1');
-    expect(service.listarAberturas).toHaveBeenCalledWith('e1', 'c1');
+    expect(service.listarAberturas).toHaveBeenCalledWith('e1', 'c1', filtros);
     expect(service.criarMovimentacao).toHaveBeenCalledWith(
       'e1',
       'c1',
