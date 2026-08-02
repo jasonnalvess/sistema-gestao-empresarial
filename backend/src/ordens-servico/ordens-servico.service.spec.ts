@@ -1,17 +1,11 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { OrdensServicoService } from './ordens-servico.service';
 
-const usuario = {
-  id: 'usuario-1',
-  email: 'usuario@teste.com',
-  empresaId: 'empresa-1',
-  tipo: 'ADMIN_EMPRESA',
-};
 const cliente = { id: 'cliente-1', empresaId: 'empresa-1', ativo: true };
 const ordem = {
   id: 'ordem-1',
@@ -33,16 +27,16 @@ function erroP2002(target: string | string[]) {
 function criarContexto() {
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
-    cliente: { findUnique: jest.fn().mockResolvedValue(cliente) },
+    cliente: { findFirst: jest.fn().mockResolvedValue(cliente) },
     usuario: {
-      findUnique: jest.fn().mockResolvedValue({
+      findFirst: jest.fn().mockResolvedValue({
         id: 'responsavel-1',
         empresaId: 'empresa-1',
         ativo: true,
       }),
     },
     agendaEvento: {
-      findUnique: jest.fn().mockResolvedValue({
+      findFirst: jest.fn().mockResolvedValue({
         id: 'agenda-1',
         empresaId: 'empresa-1',
         clienteId: 'cliente-1',
@@ -50,9 +44,8 @@ function criarContexto() {
       }),
     },
     ordemServico: {
-      findFirst: jest.fn().mockResolvedValue(null),
-      findUnique: jest.fn().mockResolvedValue(ordem),
-      findUniqueOrThrow: jest.fn().mockResolvedValue({
+      findFirst: jest.fn().mockResolvedValue(ordem),
+      findFirstOrThrow: jest.fn().mockResolvedValue({
         ...ordem,
         status: 'EM_ANDAMENTO',
       }),
@@ -68,7 +61,7 @@ function criarContexto() {
       callback(tx),
     ),
     ordemServico: {
-      findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
     },
@@ -77,7 +70,7 @@ function criarContexto() {
   return {
     tx,
     prisma,
-    service: new OrdensServicoService(prisma as any),
+    service: new OrdensServicoService(prisma as never),
   };
 }
 
@@ -93,17 +86,19 @@ describe('OrdensServicoService', () => {
     it('executa validações, numeração, criação e histórico no mesmo tx', async () => {
       const { service, prisma, tx } = criarContexto();
 
-      await expect(service.criar(dto, usuario)).resolves.toEqual(ordem);
+      await expect(
+        service.criar('empresa-1', 'usuario-1', dto),
+      ).resolves.toEqual(ordem);
 
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(tx.cliente.findUnique).toHaveBeenCalledWith({
-        where: { id: 'cliente-1' },
+      expect(tx.cliente.findFirst).toHaveBeenCalledWith({
+        where: { id: 'cliente-1', empresaId: 'empresa-1' },
       });
-      expect(tx.usuario.findUnique).toHaveBeenCalledWith({
-        where: { id: 'responsavel-1' },
+      expect(tx.usuario.findFirst).toHaveBeenCalledWith({
+        where: { id: 'responsavel-1', empresaId: 'empresa-1' },
       });
-      expect(tx.agendaEvento.findUnique).toHaveBeenCalledWith({
-        where: { id: 'agenda-1' },
+      expect(tx.agendaEvento.findFirst).toHaveBeenCalledWith({
+        where: { id: 'agenda-1', empresaId: 'empresa-1' },
       });
       expect(tx.ordemServico.create).toHaveBeenCalledTimes(1);
       expect(tx.ordemServicoHistorico.create).toHaveBeenCalledWith(
@@ -119,7 +114,7 @@ describe('OrdensServicoService', () => {
 
     it('adquire advisory lock de numeração antes de buscar o último número', async () => {
       const { service, tx } = criarContexto();
-      await service.criar(dto, usuario);
+      await service.criar('empresa-1', 'usuario-1', dto);
       expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
         tx.ordemServico.findFirst.mock.invocationCallOrder[0],
       );
@@ -130,46 +125,36 @@ describe('OrdensServicoService', () => {
 
     it('rejeita cliente de outra empresa antes de criar', async () => {
       const { service, tx } = criarContexto();
-      tx.cliente.findUnique.mockResolvedValue({
-        ...cliente,
-        empresaId: 'empresa-2',
-      });
-      await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      tx.cliente.findFirst.mockResolvedValue(null);
+      await expect(
+        service.criar('empresa-1', 'usuario-1', dto),
+      ).rejects.toBeInstanceOf(NotFoundException);
       expect(tx.ordemServico.create).not.toHaveBeenCalled();
     });
 
     it('rejeita responsável de outra empresa', async () => {
       const { service, tx } = criarContexto();
-      tx.usuario.findUnique.mockResolvedValue({
-        id: 'responsavel-1',
-        empresaId: 'empresa-2',
-        ativo: true,
-      });
-      await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      tx.usuario.findFirst.mockResolvedValue(null);
+      await expect(
+        service.criar('empresa-1', 'usuario-1', dto),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('rejeita agenda de outra empresa', async () => {
       const { service, tx } = criarContexto();
-      tx.agendaEvento.findUnique.mockResolvedValue({
-        id: 'agenda-1',
-        empresaId: 'empresa-2',
-        clienteId: 'cliente-1',
-        ativo: true,
-      });
-      await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      tx.agendaEvento.findFirst.mockResolvedValue(null);
+      await expect(
+        service.criar('empresa-1', 'usuario-1', dto),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('propaga falha do histórico para rollback da transação', async () => {
       const { service, tx } = criarContexto();
       const falha = new Error('falha no histórico');
       tx.ordemServicoHistorico.create.mockRejectedValue(falha);
-      await expect(service.criar(dto, usuario)).rejects.toBe(falha);
+      await expect(service.criar('empresa-1', 'usuario-1', dto)).rejects.toBe(
+        falha,
+      );
     });
 
     it.each([[['empresaId', 'numero']], ['OrdemServico_empresaId_numero_key']])(
@@ -177,9 +162,9 @@ describe('OrdensServicoService', () => {
       async (target) => {
         const { service, tx } = criarContexto();
         tx.ordemServico.create.mockRejectedValue(erroP2002(target));
-        await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
-          ConflictException,
-        );
+        await expect(
+          service.criar('empresa-1', 'usuario-1', dto),
+        ).rejects.toBeInstanceOf(ConflictException);
       },
     );
 
@@ -187,22 +172,22 @@ describe('OrdensServicoService', () => {
       const { service, tx } = criarContexto();
       const erro = erroP2002('AlgumaConstraint_desconhecida_key');
       tx.ordemServico.create.mockRejectedValue(erro);
-      await expect(service.criar(dto, usuario)).rejects.toBe(erro);
+      await expect(service.criar('empresa-1', 'usuario-1', dto)).rejects.toBe(
+        erro,
+      );
     });
   });
 
   describe('alterarStatus', () => {
     it('bloqueia antes da releitura e usa updateMany condicional', async () => {
       const { service, prisma, tx } = criarContexto();
-      await service.alterarStatus(
-        'ordem-1',
-        { status: 'EM_ANDAMENTO' },
-        usuario,
-      );
+      await service.alterarStatus('empresa-1', 'ordem-1', 'usuario-1', {
+        status: 'EM_ANDAMENTO',
+      });
 
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-        tx.ordemServico.findUnique.mock.invocationCallOrder[0],
+        tx.ordemServico.findFirst.mock.invocationCallOrder[0],
       );
       expect(tx.ordemServico.updateMany).toHaveBeenCalledWith({
         where: { id: 'ordem-1', empresaId: 'empresa-1', status: 'ABERTA' },
@@ -212,11 +197,13 @@ describe('OrdensServicoService', () => {
 
     it('conclui e registra histórico dentro do mesmo tx', async () => {
       const { service, tx } = criarContexto();
-      tx.ordemServico.findUnique.mockResolvedValue({
+      tx.ordemServico.findFirst.mockResolvedValue({
         ...ordem,
         status: 'EM_ANDAMENTO',
       });
-      await service.alterarStatus('ordem-1', { status: 'CONCLUIDA' }, usuario);
+      await service.alterarStatus('empresa-1', 'ordem-1', 'usuario-1', {
+        status: 'CONCLUIDA',
+      });
       expect(tx.ordemServico.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ status: 'EM_ANDAMENTO' }),
@@ -243,12 +230,14 @@ describe('OrdensServicoService', () => {
       ['ABERTA', 'ABERTA'],
     ])('rejeita transição %s -> %s sem efeitos', async (anterior, novo) => {
       const { service, tx } = criarContexto();
-      tx.ordemServico.findUnique.mockResolvedValue({
+      tx.ordemServico.findFirst.mockResolvedValue({
         ...ordem,
         status: anterior,
       });
       await expect(
-        service.alterarStatus('ordem-1', { status: novo }, usuario),
+        service.alterarStatus('empresa-1', 'ordem-1', 'usuario-1', {
+          status: novo,
+        }),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(tx.ordemServico.updateMany).not.toHaveBeenCalled();
       expect(tx.ordemServicoHistorico.create).not.toHaveBeenCalled();
@@ -258,32 +247,35 @@ describe('OrdensServicoService', () => {
       const { service, tx } = criarContexto();
       tx.ordemServico.updateMany.mockResolvedValue({ count: 0 });
       await expect(
-        service.alterarStatus('ordem-1', { status: 'EM_ANDAMENTO' }, usuario),
+        service.alterarStatus('empresa-1', 'ordem-1', 'usuario-1', {
+          status: 'EM_ANDAMENTO',
+        }),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(tx.ordemServicoHistorico.create).not.toHaveBeenCalled();
     });
 
     it('simula segunda conclusão vendo o estado já concluído', async () => {
       const { service, tx } = criarContexto();
-      tx.ordemServico.findUnique.mockResolvedValue({
+      tx.ordemServico.findFirst.mockResolvedValue({
         ...ordem,
         status: 'CONCLUIDA',
       });
       await expect(
-        service.alterarStatus('ordem-1', { status: 'CONCLUIDA' }, usuario),
+        service.alterarStatus('empresa-1', 'ordem-1', 'usuario-1', {
+          status: 'CONCLUIDA',
+        }),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(tx.ordemServico.updateMany).not.toHaveBeenCalled();
     });
 
     it('rejeita ordem de outra empresa após lock', async () => {
       const { service, tx } = criarContexto();
-      tx.ordemServico.findUnique.mockResolvedValue({
-        ...ordem,
-        empresaId: 'empresa-2',
-      });
+      tx.ordemServico.findFirst.mockResolvedValue(null);
       await expect(
-        service.alterarStatus('ordem-1', { status: 'EM_ANDAMENTO' }, usuario),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+        service.alterarStatus('empresa-1', 'ordem-1', 'usuario-1', {
+          status: 'EM_ANDAMENTO',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('propaga falha do histórico e não executa a releitura final', async () => {
@@ -291,41 +283,94 @@ describe('OrdensServicoService', () => {
       const falha = new Error('falha no histórico');
       tx.ordemServicoHistorico.create.mockRejectedValue(falha);
       await expect(
-        service.alterarStatus('ordem-1', { status: 'EM_ANDAMENTO' }, usuario),
+        service.alterarStatus('empresa-1', 'ordem-1', 'usuario-1', {
+          status: 'EM_ANDAMENTO',
+        }),
       ).rejects.toBe(falha);
-      expect(tx.ordemServico.findUniqueOrThrow).not.toHaveBeenCalled();
+      expect(tx.ordemServico.findFirstOrThrow).not.toHaveBeenCalled();
     });
   });
 
   describe('adicionarHistorico', () => {
     it('usa transação, lock antes da releitura e o mesmo tx', async () => {
       const { service, prisma, tx } = criarContexto();
-      await service.adicionarHistorico(
-        'ordem-1',
-        { descricao: 'Diagnóstico registrado' },
-        usuario,
-      );
+      await service.adicionarHistorico('empresa-1', 'ordem-1', 'usuario-1', {
+        descricao: 'Diagnóstico registrado',
+      });
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-        tx.ordemServico.findUnique.mock.invocationCallOrder[0],
+        tx.ordemServico.findFirst.mock.invocationCallOrder[0],
       );
       expect(tx.ordemServicoHistorico.create).toHaveBeenCalledTimes(1);
     });
 
     it('não grava histórico para tenant incorreto', async () => {
       const { service, tx } = criarContexto();
-      tx.ordemServico.findUnique.mockResolvedValue({
-        ...ordem,
-        empresaId: 'empresa-2',
-      });
+      tx.ordemServico.findFirst.mockResolvedValue(null);
       await expect(
-        service.adicionarHistorico(
-          'ordem-1',
-          { descricao: 'Tentativa' },
-          usuario,
-        ),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+        service.adicionarHistorico('empresa-1', 'ordem-1', 'usuario-1', {
+          descricao: 'Tentativa',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
       expect(tx.ordemServicoHistorico.create).not.toHaveBeenCalled();
+    });
+  });
+  describe('isolamento tenant-aware', () => {
+    it('lista e conta pelo mesmo empresaId sem modo global', async () => {
+      const { service, prisma } = criarContexto();
+      prisma.ordemServico.findMany.mockResolvedValue([]);
+      prisma.ordemServico.count.mockResolvedValue(0);
+      prisma.$transaction.mockImplementationOnce((operacoes: unknown) =>
+        Promise.all(operacoes as Promise<unknown>[]),
+      );
+      await service.listar('empresa-1', { page: 1, limit: 10 });
+      expect(prisma.ordemServico.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { empresaId: 'empresa-1' } }),
+      );
+      expect(prisma.ordemServico.count).toHaveBeenCalledWith({
+        where: { empresaId: 'empresa-1' },
+      });
+    });
+
+    it('busca detalhe diretamente por id e empresaId', async () => {
+      const { service, prisma } = criarContexto();
+      prisma.ordemServico.findFirst.mockResolvedValue(ordem);
+      await service.buscarPorId('empresa-1', 'ordem-1');
+      expect(prisma.ordemServico.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'ordem-1', empresaId: 'empresa-1' },
+        }),
+      );
+    });
+
+    it('retorna o mesmo 404 para ordem inexistente ou externa', async () => {
+      const { service, prisma } = criarContexto();
+      prisma.ordemServico.findFirst.mockResolvedValue(null);
+      await expect(
+        service.buscarPorId('empresa-1', 'inexistente'),
+      ).rejects.toThrow('Ordem de serviço não encontrada');
+      await expect(service.buscarPorId('empresa-1', 'externa')).rejects.toThrow(
+        'Ordem de serviço não encontrada',
+      );
+    });
+
+    it('parametriza o lock com ordem e empresa antes da releitura', async () => {
+      const { service, tx } = criarContexto();
+      await service.alterarStatus('empresa-1', 'ordem-1', 'usuario-1', {
+        status: 'EM_ANDAMENTO',
+      });
+      const chamada = tx.$queryRaw.mock.calls[0] as [
+        TemplateStringsArray,
+        string,
+        string,
+      ];
+      expect(chamada[1]).toBe('ordem-1');
+      expect(chamada[2]).toBe('empresa-1');
+      expect(tx.ordemServico.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'ordem-1', empresaId: 'empresa-1' },
+        }),
+      );
     });
   });
 });

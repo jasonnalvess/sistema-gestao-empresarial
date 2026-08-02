@@ -180,6 +180,12 @@ async function main() {
       descricao: 'Agenda de clientes e atendimentos',
     },
     {
+      nome: 'Ordens de Serviço',
+      chave: 'ordens_servico',
+      descricao:
+        'Gerenciamento de ordens de serviço, acompanhamento de status e histórico.',
+    },
+    {
       nome: 'Funcionários',
       chave: 'funcionarios',
       descricao: 'Cadastro e controle de funcionários',
@@ -454,6 +460,35 @@ async function main() {
       chave: 'funcionarios.inativar',
       descricao: 'Permite inativar funcionários',
       modulo: 'funcionarios',
+    },
+
+    // Ordens de Serviço
+    {
+      nome: 'Visualizar Ordens de Serviço',
+      chave: 'ordens_servico.visualizar',
+      descricao:
+        'Permite listar, detalhar e consultar o histórico das Ordens de Serviço.',
+      modulo: 'ordens_servico',
+    },
+    {
+      nome: 'Criar Ordens de Serviço',
+      chave: 'ordens_servico.criar',
+      descricao: 'Permite cadastrar novas Ordens de Serviço.',
+      modulo: 'ordens_servico',
+    },
+    {
+      nome: 'Adicionar histórico de Ordens de Serviço',
+      chave: 'ordens_servico.historico.adicionar',
+      descricao:
+        'Permite incluir registros manuais no histórico das Ordens de Serviço.',
+      modulo: 'ordens_servico',
+    },
+    {
+      nome: 'Alterar status de Ordens de Serviço',
+      chave: 'ordens_servico.status.alterar',
+      descricao:
+        'Permite alterar o status das Ordens de Serviço conforme as transições permitidas.',
+      modulo: 'ordens_servico',
     },
 
     // Estoque
@@ -833,6 +868,7 @@ async function main() {
       'fornecedores',
       'pedidos_compra',
       'agenda',
+      'ordens_servico',
       'funcionarios',
       'estoque',
       'caixa',
@@ -852,6 +888,7 @@ async function main() {
       'fornecedores',
       'pedidos_compra',
       'agenda',
+      'ordens_servico',
       'estoque',
       'caixa',
     ],
@@ -900,6 +937,7 @@ async function main() {
       'estoque.visualizar',
       'estoque.movimentacoes.visualizar',
       'estoque.inventarios.visualizar',
+      'ordens_servico.visualizar',
       'caixa.visualizar',
     ],
   });

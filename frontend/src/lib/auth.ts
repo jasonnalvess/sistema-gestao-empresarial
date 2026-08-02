@@ -1,5 +1,12 @@
 import { permissoes } from "./permissoes";
 
+export const PERMISSAO_ORDENS_SERVICO_VISUALIZAR = "ordens_servico.visualizar";
+export const PERMISSAO_ORDENS_SERVICO_CRIAR = "ordens_servico.criar";
+export const PERMISSAO_ORDENS_SERVICO_HISTORICO_ADICIONAR =
+  "ordens_servico.historico.adicionar";
+export const PERMISSAO_ORDENS_SERVICO_STATUS_ALTERAR =
+  "ordens_servico.status.alterar";
+
 export const PERMISSAO_CLIENTES_VISUALIZAR = "clientes.visualizar";
 export const PERMISSAO_CLIENTES_CRIAR = "clientes.criar";
 export const PERMISSAO_CLIENTES_EDITAR = "clientes.editar";
