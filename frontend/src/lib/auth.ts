@@ -65,6 +65,16 @@ export const PERMISSAO_INVENTARIOS_CRIAR = "estoque.inventarios.criar";
 export const PERMISSAO_INVENTARIOS_EDITAR = "estoque.inventarios.editar";
 export const PERMISSAO_INVENTARIOS_FINALIZAR = "estoque.inventarios.finalizar";
 export const PERMISSAO_INVENTARIOS_CANCELAR = "estoque.inventarios.cancelar";
+export const PERMISSAO_CAIXA_VISUALIZAR = "caixa.visualizar";
+export const PERMISSAO_CAIXA_CRIAR = "caixa.criar";
+export const PERMISSAO_CAIXA_EDITAR = "caixa.editar";
+export const PERMISSAO_CAIXA_ABRIR = "caixa.abrir";
+export const PERMISSAO_CAIXA_FECHAR = "caixa.fechar";
+export const PERMISSAO_CAIXA_MOVIMENTACOES_REGISTRAR =
+  "caixa.movimentacoes.registrar";
+export const PERMISSAO_CAIXA_MOVIMENTACOES_CANCELAR =
+  "caixa.movimentacoes.cancelar";
+export const PERMISSAO_FINANCEIRO_VISUALIZAR = "financeiro.visualizar";
 
 export type Usuario = {
   id: string;

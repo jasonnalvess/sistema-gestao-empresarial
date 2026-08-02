@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { HandCoins } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,6 +12,7 @@ import { FormDialog } from "@/components/forms/FormDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { PERMISSAO_CONTAS_RECEBER_RECEBER } from "@/lib/auth";
+import { caixasQueryKeys } from "@/lib/caixas-query-keys";
 
 import {
   ContaReceberDetalhada,
@@ -29,9 +27,7 @@ type Props = {
   conta: ContaReceberDetalhada;
 };
 
-export function RegistrarRecebimentoModal({
-  conta,
-}: Props) {
+export function RegistrarRecebimentoModal({ conta }: Props) {
   const queryClient = useQueryClient();
   const { temPermissao } = useAuth();
   const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
@@ -40,9 +36,7 @@ export function RegistrarRecebimentoModal({
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  const [valor, setValor] = useState(
-    Number(conta.valorAberto).toFixed(2)
-  );
+  const [valor, setValor] = useState(Number(conta.valorAberto).toFixed(2));
 
   const [desconto, setDesconto] = useState("");
   const [juros, setJuros] = useState("");
@@ -51,24 +45,21 @@ export function RegistrarRecebimentoModal({
   const [formaRecebimento, setFormaRecebimento] =
     useState<FormaRecebimento>("PIX");
 
-  const [dataRecebimento, setDataRecebimento] =
-    useState(
-      new Date().toISOString().slice(0, 10)
-    );
+  const [dataRecebimento, setDataRecebimento] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
 
   const [documento, setDocumento] = useState("");
   const [observacao, setObservacao] = useState("");
   const [caixaId, setCaixaId] = useState("");
 
   const { data: caixasResponse } = useQuery({
-    queryKey: ["caixas-abertos-recebimento", empresaEfetivaId],
+    queryKey: caixasQueryKeys.abertosRecebimento(empresaEfetivaId ?? ""),
     queryFn: listarCaixasAbertos,
-    enabled:
-      aberto && podeReceber && Boolean(empresaEfetivaId) && !carregando,
+    enabled: aberto && podeReceber && Boolean(empresaEfetivaId) && !carregando,
   });
 
-  const caixasAbertos =
-    caixasResponse?.data ?? [];
+  const caixasAbertos = caixasResponse?.data ?? [];
 
   const saldoAjustado =
     Number(conta.valorAberto) +
@@ -77,9 +68,7 @@ export function RegistrarRecebimentoModal({
     Number(desconto || 0);
 
   function quitarSaldo() {
-    setValor(
-      Math.max(saldoAjustado, 0).toFixed(2)
-    );
+    setValor(Math.max(saldoAjustado, 0).toFixed(2));
   }
 
   async function salvar() {
@@ -90,24 +79,20 @@ export function RegistrarRecebimentoModal({
     const valorNumero = Number(valor);
 
     if (valorNumero <= 0) {
-      toast.error(
-        "Informe um valor de recebimento válido."
-      );
+      toast.error("Informe um valor de recebimento válido.");
       return;
     }
 
     if (saldoAjustado <= 0) {
-      toast.error(
-        "Os descontos não podem eliminar ou ultrapassar o saldo."
-      );
+      toast.error("Os descontos não podem eliminar ou ultrapassar o saldo.");
       return;
     }
 
     if (valorNumero > saldoAjustado) {
       toast.error(
         `O recebimento não pode superar o saldo de ${formatarMoeda(
-          saldoAjustado
-        )}.`
+          saldoAjustado,
+        )}.`,
       );
       return;
     }
@@ -115,32 +100,23 @@ export function RegistrarRecebimentoModal({
     try {
       setSalvando(true);
 
-      await registrarRecebimentoContaReceber(
-        conta.id,
-        {
-          valor: valorNumero,
-          desconto: Number(desconto || 0),
-          juros: Number(juros || 0),
-          multa: Number(multa || 0),
-          formaRecebimento,
+      await registrarRecebimentoContaReceber(conta.id, {
+        valor: valorNumero,
+        desconto: Number(desconto || 0),
+        juros: Number(juros || 0),
+        multa: Number(multa || 0),
+        formaRecebimento,
 
-          dataRecebimento:
-            dataRecebimento || undefined,
+        dataRecebimento: dataRecebimento || undefined,
 
-          caixaId:
-            caixaId || undefined,
+        caixaId: caixaId || undefined,
 
-          documento:
-            documento.trim() || undefined,
+        documento: documento.trim() || undefined,
 
-          observacao:
-            observacao.trim() || undefined,
-        }
-      );
+        observacao: observacao.trim() || undefined,
+      });
 
-      toast.success(
-        "Recebimento registrado com sucesso!"
-      );
+      toast.success("Recebimento registrado com sucesso!");
 
       setAberto(false);
 
@@ -160,21 +136,26 @@ export function RegistrarRecebimentoModal({
         queryKey: contasReceberQueryKeys.historico(empresaEfetivaId, conta.id),
       });
 
-      await queryClient.invalidateQueries({
-        queryKey: ["caixas-abertos-recebimento", empresaEfetivaId],
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["caixas", empresaEfetivaId],
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["caixa", empresaEfetivaId],
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["movimentacoes-caixa", empresaEfetivaId],
-      });
+      if (caixaId) {
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.listas(empresaEfetivaId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.detalhe(empresaEfetivaId, caixaId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.resumo(empresaEfetivaId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.movimentacoes(empresaEfetivaId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.abertosPagamento(empresaEfetivaId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.abertosRecebimento(empresaEfetivaId),
+        });
+      }
     } catch (error: unknown) {
       toast.error(
         obterMensagemErroContasReceber(error, "Erro ao registrar recebimento"),
@@ -190,9 +171,10 @@ export function RegistrarRecebimentoModal({
     <FormDialog
       open={aberto}
       onOpenChange={setAberto}
-      title={`Registrar recebimento da conta #${String(
-        conta.numero
-      ).padStart(5, "0")}`}
+      title={`Registrar recebimento da conta #${String(conta.numero).padStart(
+        5,
+        "0",
+      )}`}
       trigger={
         <Button>
           <HandCoins size={16} className="mr-2" />
@@ -202,16 +184,9 @@ export function RegistrarRecebimentoModal({
     >
       <div className="space-y-5">
         <div className="grid gap-4 rounded-lg bg-slate-50 p-4 md:grid-cols-2">
-          <Resumo
-            label="Saldo atual"
-            valor={Number(conta.valorAberto)}
-          />
+          <Resumo label="Saldo atual" valor={Number(conta.valorAberto)} />
 
-          <Resumo
-            label="Saldo ajustado"
-            valor={saldoAjustado}
-            destaque
-          />
+          <Resumo label="Saldo ajustado" valor={saldoAjustado} destaque />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -221,17 +196,9 @@ export function RegistrarRecebimentoModal({
             onChange={setDesconto}
           />
 
-          <CampoNumero
-            label="Juros"
-            value={juros}
-            onChange={setJuros}
-          />
+          <CampoNumero label="Juros" value={juros} onChange={setJuros} />
 
-          <CampoNumero
-            label="Multa"
-            value={multa}
-            onChange={setMulta}
-          />
+          <CampoNumero label="Multa" value={multa} onChange={setMulta} />
 
           <div>
             <label className="text-sm font-medium text-slate-700">
@@ -244,16 +211,10 @@ export function RegistrarRecebimentoModal({
                 min="0.01"
                 step="0.01"
                 value={valor}
-                onChange={(event) =>
-                  setValor(event.target.value)
-                }
+                onChange={(event) => setValor(event.target.value)}
               />
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={quitarSaldo}
-              >
+              <Button type="button" variant="outline" onClick={quitarSaldo}>
                 Quitar
               </Button>
             </div>
@@ -267,44 +228,25 @@ export function RegistrarRecebimentoModal({
             <select
               value={formaRecebimento}
               onChange={(event) =>
-                setFormaRecebimento(
-                  event.target
-                    .value as FormaRecebimento
-                )
+                setFormaRecebimento(event.target.value as FormaRecebimento)
               }
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="DINHEIRO">
-                Dinheiro
-              </option>
+              <option value="DINHEIRO">Dinheiro</option>
 
-              <option value="PIX">
-                PIX
-              </option>
+              <option value="PIX">PIX</option>
 
-              <option value="BOLETO">
-                Boleto
-              </option>
+              <option value="BOLETO">Boleto</option>
 
-              <option value="TRANSFERENCIA">
-                Transferência
-              </option>
+              <option value="TRANSFERENCIA">Transferência</option>
 
-              <option value="CARTAO_CREDITO">
-                Cartão de crédito
-              </option>
+              <option value="CARTAO_CREDITO">Cartão de crédito</option>
 
-              <option value="CARTAO_DEBITO">
-                Cartão de débito
-              </option>
+              <option value="CARTAO_DEBITO">Cartão de débito</option>
 
-              <option value="CHEQUE">
-                Cheque
-              </option>
+              <option value="CHEQUE">Cheque</option>
 
-              <option value="OUTRA">
-                Outra
-              </option>
+              <option value="OUTRA">Outra</option>
             </select>
           </div>
 
@@ -316,11 +258,7 @@ export function RegistrarRecebimentoModal({
             <Input
               type="date"
               value={dataRecebimento}
-              onChange={(event) =>
-                setDataRecebimento(
-                  event.target.value
-                )
-              }
+              onChange={(event) => setDataRecebimento(event.target.value)}
             />
           </div>
 
@@ -331,33 +269,23 @@ export function RegistrarRecebimentoModal({
 
             <select
               value={caixaId}
-              onChange={(event) =>
-                setCaixaId(event.target.value)
-              }
+              onChange={(event) => setCaixaId(event.target.value)}
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="">
-                Não movimentar caixa
-              </option>
+              <option value="">Não movimentar caixa</option>
 
               {caixasAbertos.map((caixa) => (
-                <option
-                  key={caixa.id}
-                  value={caixa.id}
-                >
+                <option key={caixa.id} value={caixa.id}>
                   {caixa.nome} — {caixa.codigo} —{" "}
-                  {formatarMoeda(
-                    Number(caixa.saldoAtual)
-                  )}
+                  {formatarMoeda(Number(caixa.saldoAtual))}
                 </option>
               ))}
             </select>
 
             {caixasAbertos.length === 0 && (
               <p className="mt-1 text-xs text-amber-600">
-                Não existe caixa aberto disponível.
-                O recebimento poderá ser registrado sem
-                movimentação no caixa.
+                Não existe caixa aberto disponível. O recebimento poderá ser
+                registrado sem movimentação no caixa.
               </p>
             )}
           </div>
@@ -369,9 +297,7 @@ export function RegistrarRecebimentoModal({
 
             <Input
               value={documento}
-              onChange={(event) =>
-                setDocumento(event.target.value)
-              }
+              onChange={(event) => setDocumento(event.target.value)}
               placeholder="Ex.: comprovante, PIX ou boleto"
             />
           </div>
@@ -384,9 +310,7 @@ export function RegistrarRecebimentoModal({
 
           <Textarea
             value={observacao}
-            onChange={(event) =>
-              setObservacao(event.target.value)
-            }
+            onChange={(event) => setObservacao(event.target.value)}
           />
         </div>
 
@@ -399,13 +323,8 @@ export function RegistrarRecebimentoModal({
             Cancelar
           </Button>
 
-          <Button
-            onClick={salvar}
-            disabled={salvando}
-          >
-            {salvando
-              ? "Registrando..."
-              : "Confirmar recebimento"}
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? "Registrando..." : "Confirmar recebimento"}
           </Button>
         </div>
       </div>
@@ -424,18 +343,14 @@ function CampoNumero({
 }) {
   return (
     <div>
-      <label className="text-sm font-medium text-slate-700">
-        {label}
-      </label>
+      <label className="text-sm font-medium text-slate-700">{label}</label>
 
       <Input
         type="number"
         min="0"
         step="0.01"
         value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(event) => onChange(event.target.value)}
       />
     </div>
   );
