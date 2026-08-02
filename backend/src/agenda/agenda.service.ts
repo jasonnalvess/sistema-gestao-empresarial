@@ -22,12 +22,6 @@ type DadosConflito = IntervaloAgenda & {
   eventoId?: string;
 };
 
-export type UsuarioAgendaAutenticado = {
-  id: string;
-  empresaId?: string;
-  tipo?: string;
-};
-
 @Injectable()
 export class AgendaService {
   constructor(private readonly prisma: PrismaService) {}
@@ -46,25 +40,6 @@ export class AgendaService {
       },
     },
   } satisfies Prisma.AgendaEventoHistoricoInclude;
-
-  private obterEmpresaId(usuario: UsuarioAgendaAutenticado) {
-    if (!usuario?.empresaId) {
-      throw new ForbiddenException('Usuário sem empresa vinculada');
-    }
-    return usuario.empresaId;
-  }
-
-  private obterUsuarioId(usuario: UsuarioAgendaAutenticado) {
-    return usuario.id;
-  }
-
-  private obterUsuarioIdObrigatorio(usuario: UsuarioAgendaAutenticado) {
-    const usuarioId = this.obterUsuarioId(usuario);
-    if (!usuarioId) {
-      throw new ForbiddenException('Usuário autenticado sem identificador');
-    }
-    return usuarioId;
-  }
 
   private converterData(valor: string | Date, campo: string) {
     const data =
@@ -219,12 +194,14 @@ export class AgendaService {
   }
 
   async criar(
+    empresaId: string,
+    usuarioIdAutoria: string,
     dados: CriarAgendaEventoDto,
-    usuarioLogado: UsuarioAgendaAutenticado,
   ) {
-    const empresaId = this.obterEmpresaId(usuarioLogado);
-    const usuarioId =
-      dados.usuarioId ?? this.obterUsuarioIdObrigatorio(usuarioLogado);
+    if (!usuarioIdAutoria) {
+      throw new ForbiddenException('Usuário autenticado sem identificador');
+    }
+    const usuarioId = dados.usuarioId ?? usuarioIdAutoria;
 
     return this.prisma.$transaction(async (tx) => {
       const intervalo = this.validarIntervalo(dados.dataInicio, dados.dataFim);
@@ -253,11 +230,8 @@ export class AgendaService {
     });
   }
 
-  async listar(usuarioLogado: UsuarioAgendaAutenticado) {
-    const where: Prisma.AgendaEventoWhereInput =
-      usuarioLogado.tipo === 'SUPER_ADMIN'
-        ? {}
-        : { empresaId: usuarioLogado.empresaId };
+  async listar(empresaId: string) {
+    const where: Prisma.AgendaEventoWhereInput = { empresaId };
 
     return this.prisma.agendaEvento.findMany({
       where,
@@ -266,31 +240,33 @@ export class AgendaService {
     });
   }
 
-  async buscarPorId(id: string, usuarioLogado: UsuarioAgendaAutenticado) {
-    const evento = await this.prisma.agendaEvento.findUnique({
-      where: { id },
+  async buscarPorId(empresaId: string, id: string) {
+    const evento = await this.prisma.agendaEvento.findFirst({
+      where: { id, empresaId },
       include: this.includeEvento,
     });
     if (!evento) {
       throw new NotFoundException('Evento não encontrado');
     }
-    if (
-      usuarioLogado.tipo !== 'SUPER_ADMIN' &&
-      evento.empresaId !== usuarioLogado.empresaId
-    ) {
-      throw new ForbiddenException('Acesso negado a evento de outra empresa');
-    }
     return evento;
   }
 
   async atualizar(
+    empresaId: string,
     id: string,
+    usuarioIdAutoria: string,
     dados: AtualizarAgendaEventoDto,
-    usuarioLogado: UsuarioAgendaAutenticado,
   ) {
-    const empresaId = this.obterEmpresaId(usuarioLogado);
+    if ((dados as { status?: string }).status === 'CANCELADO') {
+      throw new BadRequestException(
+        'Para cancelar um evento, utilize a operação de cancelamento.',
+      );
+    }
     return this.prisma.$transaction(async (tx) => {
       const atual = await this.buscarEventoBloqueado(tx, empresaId, id);
+      if (atual.status === 'CANCELADO') {
+        throw new BadRequestException('Evento cancelado não pode ser alterado');
+      }
       const intervalo = this.validarIntervalo(
         dados.dataInicio ?? atual.dataInicio,
         dados.dataFim ?? atual.dataFim,
@@ -331,8 +307,8 @@ export class AgendaService {
         });
       }
 
-      return tx.agendaEvento.update({
-        where: { id },
+      const atualizacao = await tx.agendaEvento.updateMany({
+        where: { id, empresaId, status: atual.status },
         data: {
           titulo: dados.titulo,
           descricao: dados.descricao,
@@ -344,35 +320,86 @@ export class AgendaService {
           clienteContato: dados.clienteContato,
           clienteId: dados.clienteId,
           usuarioId: dados.usuarioId,
+          ...(dados.status === undefined ? {} : { status: dados.status }),
         },
+      });
+      if (atualizacao.count !== 1) {
+        throw new ConflictException(
+          'O evento foi alterado por outra operação. Recarregue e tente novamente.',
+        );
+      }
+      if (dados.status !== undefined && dados.status !== atual.status) {
+        await tx.agendaEventoHistorico.create({
+          data: {
+            agendaEventoId: id,
+            descricao:
+              'Status alterado de ' +
+              atual.status +
+              ' para ' +
+              dados.status +
+              '.',
+            usuarioId: usuarioIdAutoria,
+          },
+          include: this.includeHistorico,
+        });
+      }
+      return tx.agendaEvento.findFirstOrThrow({
+        where: { id, empresaId },
+        include: this.includeEvento,
+      });
+    });
+  }
+
+  async cancelar(empresaId: string, id: string, usuarioId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const atual = await this.buscarEventoBloqueado(tx, empresaId, id);
+      if (atual.status === 'CANCELADO') return atual;
+      if (atual.status === 'CONCLUIDO') {
+        throw new BadRequestException(
+          'Evento concluído não pode ser cancelado',
+        );
+      }
+      const atualizacao = await tx.agendaEvento.updateMany({
+        where: { id, empresaId, status: atual.status },
+        data: { status: 'CANCELADO' },
+      });
+      if (atualizacao.count !== 1) {
+        throw new ConflictException(
+          'O evento foi alterado por outra operação. Recarregue e tente novamente.',
+        );
+      }
+      await tx.agendaEventoHistorico.create({
+        data: { agendaEventoId: id, descricao: 'Evento cancelado.', usuarioId },
+        include: this.includeHistorico,
+      });
+      return tx.agendaEvento.findFirstOrThrow({
+        where: { id, empresaId },
+        include: this.includeEvento,
       });
     });
   }
 
   async adicionarHistorico(
+    empresaId: string,
     agendaEventoId: string,
+    usuarioId: string,
     dados: CriarAgendaHistoricoDto,
-    usuarioLogado: UsuarioAgendaAutenticado,
   ) {
-    const empresaId = this.obterEmpresaId(usuarioLogado);
     return this.prisma.$transaction(async (tx) => {
       await this.buscarEventoBloqueado(tx, empresaId, agendaEventoId);
       return tx.agendaEventoHistorico.create({
         data: {
           agendaEventoId,
           descricao: dados.descricao,
-          usuarioId: this.obterUsuarioId(usuarioLogado),
+          usuarioId,
         },
         include: this.includeHistorico,
       });
     });
   }
 
-  async listarHistorico(
-    agendaEventoId: string,
-    usuarioLogado: UsuarioAgendaAutenticado,
-  ) {
-    await this.buscarPorId(agendaEventoId, usuarioLogado);
+  async listarHistorico(empresaId: string, agendaEventoId: string) {
+    await this.buscarPorId(empresaId, agendaEventoId);
     return this.prisma.agendaEventoHistorico.findMany({
       where: { agendaEventoId },
       include: this.includeHistorico,

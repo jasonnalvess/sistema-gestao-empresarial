@@ -8,6 +8,7 @@ import { AgendaEvento } from "@/services/agenda.service";
 import { EditarEventoModal } from "./EditarEventoModal";
 import { AgendaStatusBadge } from "./AgendaStatusBadge";
 import { AgendaHistoricoModal } from "./AgendaHistoricoModal";
+import { CancelarEventoButton } from "./CancelarEventoButton";
 
 type Props = {
   eventos: AgendaEvento[];
@@ -95,7 +96,7 @@ export function AgendaMonthView({ eventos }: Props) {
         {dias.map((dia, index) => {
           const eventosDoDia = dia
             ? eventos.filter((evento) =>
-                mesmoDia(new Date(evento.dataInicio), dia)
+                mesmoDia(new Date(evento.dataInicio), dia),
               )
             : [];
 
@@ -117,7 +118,9 @@ export function AgendaMonthView({ eventos }: Props) {
                         className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-700"
                         title={evento.titulo}
                       >
-                        <div className="truncate font-medium">{evento.titulo}</div>
+                        <div className="truncate font-medium">
+                          {evento.titulo}
+                        </div>
                         <div className="mt-1">
                           <AgendaStatusBadge status={evento.status} />
                         </div>
@@ -125,6 +128,7 @@ export function AgendaMonthView({ eventos }: Props) {
                           <div className="flex flex-col gap-1">
                             <EditarEventoModal evento={evento} />
                             <AgendaHistoricoModal evento={evento} />
+                            <CancelarEventoButton evento={evento} />
                           </div>
                         </div>
                       </div>

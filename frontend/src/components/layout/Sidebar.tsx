@@ -20,6 +20,7 @@ import {
   PERMISSAO_MOVIMENTACOES_VISUALIZAR,
   PERMISSAO_INVENTARIOS_VISUALIZAR,
   PERMISSAO_ORDENS_SERVICO_VISUALIZAR,
+  PERMISSAO_AGENDA_VISUALIZAR,
   possuiPermissao,
 } from "@/lib/auth";
 import { X } from "lucide-react";
@@ -48,6 +49,7 @@ export function Sidebar({ aberto, aoFechar }: SidebarProps) {
     "/movimentacoes": PERMISSAO_MOVIMENTACOES_VISUALIZAR,
     "/inventarios": PERMISSAO_INVENTARIOS_VISUALIZAR,
     "/ordens-servico": PERMISSAO_ORDENS_SERVICO_VISUALIZAR,
+    "/agenda": PERMISSAO_AGENDA_VISUALIZAR,
   };
 
   const menuPermitido = menu.filter((item) => {

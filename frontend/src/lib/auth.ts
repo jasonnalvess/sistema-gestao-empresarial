@@ -6,6 +6,10 @@ export const PERMISSAO_ORDENS_SERVICO_HISTORICO_ADICIONAR =
   "ordens_servico.historico.adicionar";
 export const PERMISSAO_ORDENS_SERVICO_STATUS_ALTERAR =
   "ordens_servico.status.alterar";
+export const PERMISSAO_AGENDA_VISUALIZAR = "agenda.visualizar";
+export const PERMISSAO_AGENDA_CRIAR = "agenda.criar";
+export const PERMISSAO_AGENDA_EDITAR = "agenda.editar";
+export const PERMISSAO_AGENDA_CANCELAR = "agenda.cancelar";
 
 export const PERMISSAO_CLIENTES_VISUALIZAR = "clientes.visualizar";
 export const PERMISSAO_CLIENTES_CRIAR = "clientes.criar";
@@ -25,8 +29,7 @@ export const PERMISSAO_CONTAS_PAGAR_CANCELAR =
   "financeiro.contas_pagar.cancelar";
 export const PERMISSAO_CONTAS_RECEBER_VISUALIZAR =
   "financeiro.contas_receber.visualizar";
-export const PERMISSAO_CONTAS_RECEBER_CRIAR =
-  "financeiro.contas_receber.criar";
+export const PERMISSAO_CONTAS_RECEBER_CRIAR = "financeiro.contas_receber.criar";
 export const PERMISSAO_CONTAS_RECEBER_EDITAR =
   "financeiro.contas_receber.editar";
 export const PERMISSAO_CONTAS_RECEBER_RECEBER =
@@ -60,10 +63,8 @@ export const PERMISSAO_INVENTARIOS_VISUALIZAR =
   "estoque.inventarios.visualizar";
 export const PERMISSAO_INVENTARIOS_CRIAR = "estoque.inventarios.criar";
 export const PERMISSAO_INVENTARIOS_EDITAR = "estoque.inventarios.editar";
-export const PERMISSAO_INVENTARIOS_FINALIZAR =
-  "estoque.inventarios.finalizar";
-export const PERMISSAO_INVENTARIOS_CANCELAR =
-  "estoque.inventarios.cancelar";
+export const PERMISSAO_INVENTARIOS_FINALIZAR = "estoque.inventarios.finalizar";
+export const PERMISSAO_INVENTARIOS_CANCELAR = "estoque.inventarios.cancelar";
 
 export type Usuario = {
   id: string;

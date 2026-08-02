@@ -3,6 +3,7 @@ import { AgendaEvento } from "@/services/agenda.service";
 import { EditarEventoModal } from "./EditarEventoModal";
 import { AgendaStatusBadge } from "./AgendaStatusBadge";
 import { AgendaHistoricoModal } from "./AgendaHistoricoModal";
+import { CancelarEventoButton } from "./CancelarEventoButton";
 
 type Props = {
   eventos: AgendaEvento[];
@@ -11,7 +12,7 @@ type Props = {
 export function AgendaListView({ eventos }: Props) {
   const eventosOrdenados = [...eventos].sort(
     (a, b) =>
-      new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime()
+      new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime(),
   );
 
   return (
@@ -50,11 +51,11 @@ export function AgendaListView({ eventos }: Props) {
                 )}
 
                 {(evento.cliente?.nome || evento.clienteNome) && (
-  <span className="flex items-center gap-2">
-    <User size={15} />
-    {evento.cliente?.nome || evento.clienteNome}
-  </span>
-)}
+                  <span className="flex items-center gap-2">
+                    <User size={15} />
+                    {evento.cliente?.nome || evento.clienteNome}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -63,6 +64,7 @@ export function AgendaListView({ eventos }: Props) {
               <div className="flex gap-2">
                 <EditarEventoModal evento={evento} />
                 <AgendaHistoricoModal evento={evento} />
+                <CancelarEventoButton evento={evento} />
               </div>
             </div>
           </div>
