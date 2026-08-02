@@ -658,6 +658,19 @@ async function main() {
       modulo: 'caixa',
     },
     {
+      nome: 'Criar Caixas',
+      chave: 'caixa.criar',
+      descricao: 'Permite cadastrar novos Caixas para a empresa.',
+      modulo: 'caixa',
+    },
+    {
+      nome: 'Editar Caixas',
+      chave: 'caixa.editar',
+      descricao:
+        'Permite alterar os dados cadastrais e o estado ativo dos Caixas.',
+      modulo: 'caixa',
+    },
+    {
       nome: 'Abrir caixa',
       chave: 'caixa.abrir',
       descricao: 'Permite abrir caixas',
@@ -908,6 +921,8 @@ async function main() {
     chavesExcluidas: [
       'clientes.excluir',
       'agenda.excluir',
+      'caixa.criar',
+      'caixa.editar',
       'caixa.movimentacoes.cancelar',
     ],
   });

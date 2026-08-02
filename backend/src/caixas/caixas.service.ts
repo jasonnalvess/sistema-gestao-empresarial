@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,7 +15,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
-import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 import { CriarCaixaDto } from './dto/criar-caixa.dto';
 import { AtualizarCaixaDto } from './dto/atualizar-caixa.dto';
@@ -135,18 +133,6 @@ export class CaixasService {
     },
   };
 
-  private obterEmpresaId(usuario: AuthenticatedUser): string {
-    if (!usuario.empresaId) {
-      throw new BadRequestException('O usuário não possui empresa vinculada');
-    }
-
-    return usuario.empresaId;
-  }
-
-  private obterUsuarioId(usuario: AuthenticatedUser): string {
-    return usuario.id;
-  }
-
   private alvoP2002(error: unknown, campos: string[], indice: string): boolean {
     if (
       !(error instanceof Prisma.PrismaClientKnownRequestError) ||
@@ -156,8 +142,9 @@ export class CaixasService {
     }
     const target = error.meta?.target;
     return Array.isArray(target)
-      ? campos.every((campo) => target.includes(campo))
-      : typeof target === 'string' && target.includes(indice);
+      ? target.length === campos.length &&
+          campos.every((campo) => target.includes(campo))
+      : typeof target === 'string' && target === indice;
   }
 
   private tratarErroPrisma(error: unknown): never {
@@ -182,12 +169,6 @@ export class CaixasService {
     throw error;
   }
 
-  private async bloquearCaixaPorId(tx: Prisma.TransactionClient, id: string) {
-    await tx.$queryRaw(
-      Prisma.sql`SELECT "id" FROM "Caixa" WHERE "id" = ${id} FOR UPDATE`,
-    );
-  }
-
   private async bloquearCaixa(
     tx: Prisma.TransactionClient,
     empresaId: string,
@@ -203,27 +184,25 @@ export class CaixasService {
     caixaId: string,
     empresaId: string,
     descricao: string,
-    usuario: { id?: string },
+    usuarioId?: string,
   ) {
     return tx.caixaHistorico.create({
       data: {
         caixaId,
         empresaId,
         descricao,
-        usuarioId: usuario.id,
+        usuarioId,
       },
     });
   }
 
   private async validarCaixa(
+    empresaId: string,
     id: string,
-    usuario: AuthenticatedUser,
     cliente: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
-    const caixa = await cliente.caixa.findUnique({
-      where: {
-        id,
-      },
+    const caixa = await cliente.caixa.findFirst({
+      where: { id, empresaId },
 
       include: this.includeCaixa,
     });
@@ -232,23 +211,18 @@ export class CaixasService {
       throw new NotFoundException('Caixa não encontrado');
     }
 
-    if (
-      usuario.tipo !== 'SUPER_ADMIN' &&
-      caixa.empresaId !== this.obterEmpresaId(usuario)
-    ) {
-      throw new ForbiddenException('Caixa pertence a outra empresa');
-    }
-
     return caixa;
   }
 
   private async buscarAberturaAtual(
+    empresaId: string,
     caixaId: string,
     cliente: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
     return cliente.aberturaCaixa.findFirst({
       where: {
         caixaId,
+        empresaId,
         aberto: true,
       },
 
@@ -260,9 +234,7 @@ export class CaixasService {
     });
   }
 
-  async criar(dados: CriarCaixaDto, usuario: AuthenticatedUser) {
-    const empresaId = this.obterEmpresaId(usuario);
-
+  async criar(empresaId: string, usuarioId: string, dados: CriarCaixaDto) {
     try {
       return await this.prisma.caixa.create({
         data: {
@@ -273,7 +245,7 @@ export class CaixasService {
 
           empresaId,
 
-          usuarioCriacaoId: this.obterUsuarioId(usuario),
+          usuarioCriacaoId: usuarioId,
 
           status: StatusCaixa.FECHADO,
           saldoAtual: 0,
@@ -287,18 +259,13 @@ export class CaixasService {
     }
   }
 
-  async listar(usuario: AuthenticatedUser, filtros: FiltroCaixasDto) {
+  async listar(empresaId: string, filtros: FiltroCaixasDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
 
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: Prisma.CaixaWhereInput =
-      usuario.tipo === 'SUPER_ADMIN'
-        ? {}
-        : {
-            empresaId: this.obterEmpresaId(usuario),
-          };
+    const where: Prisma.CaixaWhereInput = { empresaId };
 
     if (filtros.status) {
       where.status = filtros.status;
@@ -368,11 +335,9 @@ export class CaixasService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuario: AuthenticatedUser) {
-    const caixa = await this.prisma.caixa.findUnique({
-      where: {
-        id,
-      },
+  async buscarPorId(empresaId: string, id: string) {
+    const caixa = await this.prisma.caixa.findFirst({
+      where: { id, empresaId },
 
       include: {
         usuarioCriacao: {
@@ -423,66 +388,78 @@ export class CaixasService {
       throw new NotFoundException('Caixa não encontrado');
     }
 
-    if (
-      usuario.tipo !== 'SUPER_ADMIN' &&
-      caixa.empresaId !== this.obterEmpresaId(usuario)
-    ) {
-      throw new ForbiddenException('Caixa pertence a outra empresa');
-    }
-
     return caixa;
   }
 
   async atualizar(
+    empresaId: string,
     id: string,
+    usuarioId: string,
     dados: AtualizarCaixaDto,
-    usuario: AuthenticatedUser,
   ) {
-    const caixa = await this.validarCaixa(id, usuario);
-
-    if (dados.ativo === false && caixa.status === StatusCaixa.ABERTO) {
-      throw new BadRequestException('Um caixa aberto não pode ser desativado');
-    }
-
     try {
-      return await this.prisma.caixa.update({
-        where: {
-          id,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        await this.bloquearCaixa(tx, empresaId, id);
+        const caixa = await this.validarCaixa(empresaId, id, tx);
+        if (dados.ativo === false && caixa.status === StatusCaixa.ABERTO) {
+          throw new BadRequestException(
+            'Um caixa aberto não pode ser desativado',
+          );
+        }
 
-        data: {
-          nome: dados.nome !== undefined ? dados.nome.trim() : undefined,
-
-          codigo:
-            dados.codigo !== undefined
-              ? dados.codigo.trim().toUpperCase()
-              : undefined,
-
-          descricao:
-            dados.descricao !== undefined ? dados.descricao.trim() : undefined,
-
-          ativo: dados.ativo,
-
-          status:
-            dados.ativo === false
-              ? StatusCaixa.INATIVO
-              : dados.ativo === true && caixa.status === StatusCaixa.INATIVO
-                ? StatusCaixa.FECHADO
+        const atualizacao = await tx.caixa.updateMany({
+          where: { id, empresaId, status: caixa.status },
+          data: {
+            nome: dados.nome !== undefined ? dados.nome.trim() : undefined,
+            codigo:
+              dados.codigo !== undefined
+                ? dados.codigo.trim().toUpperCase()
                 : undefined,
-        },
-
-        include: this.includeCaixa,
+            descricao:
+              dados.descricao !== undefined
+                ? dados.descricao.trim()
+                : undefined,
+            ativo: dados.ativo,
+            status:
+              dados.ativo === false
+                ? StatusCaixa.INATIVO
+                : dados.ativo === true && caixa.status === StatusCaixa.INATIVO
+                  ? StatusCaixa.FECHADO
+                  : undefined,
+          },
+        });
+        if (atualizacao.count !== 1) {
+          throw new ConflictException(
+            'O caixa foi alterado por outra operação. Recarregue e tente novamente.',
+          );
+        }
+        await this.registrarHistorico(
+          tx,
+          id,
+          empresaId,
+          'Dados do caixa atualizados.',
+          usuarioId,
+        );
+        return tx.caixa.findFirstOrThrow({
+          where: { id, empresaId },
+          include: this.includeCaixa,
+        });
       });
     } catch (error) {
       this.tratarErroPrisma(error);
     }
   }
 
-  async abrir(id: string, dados: AbrirCaixaDto, usuario: AuthenticatedUser) {
+  async abrir(
+    empresaId: string,
+    id: string,
+    usuarioId: string,
+    dados: AbrirCaixaDto,
+  ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.bloquearCaixaPorId(tx, id);
-        const caixa = await this.validarCaixa(id, usuario, tx);
+        await this.bloquearCaixa(tx, empresaId, id);
+        const caixa = await this.validarCaixa(empresaId, id, tx);
 
         if (!caixa.ativo) {
           throw new BadRequestException('Caixa inativo não pode ser aberto');
@@ -490,7 +467,7 @@ export class CaixasService {
         if (caixa.status === StatusCaixa.ABERTO) {
           throw new BadRequestException('Este caixa já está aberto');
         }
-        if (await this.buscarAberturaAtual(id, tx)) {
+        if (await this.buscarAberturaAtual(empresaId, id, tx)) {
           throw new BadRequestException(
             'Já existe uma abertura ativa para este caixa',
           );
@@ -519,7 +496,7 @@ export class CaixasService {
             aberto: true,
             empresaId: caixa.empresaId,
             caixaId: caixa.id,
-            usuarioAberturaId: this.obterUsuarioId(usuario),
+            usuarioAberturaId: usuarioId,
           },
           include: this.includeAbertura,
         });
@@ -529,11 +506,11 @@ export class CaixasService {
           caixa.id,
           caixa.empresaId,
           `Caixa aberto com saldo inicial de R$ ${saldoInicial.toFixed(2)}.`,
-          usuario,
+          usuarioId,
         );
 
-        const caixaAtualizado = await tx.caixa.findUniqueOrThrow({
-          where: { id: caixa.id },
+        const caixaAtualizado = await tx.caixa.findFirstOrThrow({
+          where: { id: caixa.id, empresaId },
           include: this.includeCaixa,
         });
         return { abertura, caixa: caixaAtualizado };
@@ -632,7 +609,7 @@ export class CaixasService {
       );
     }
 
-    const caixaAtualizado = await tx.caixa.findUniqueOrThrow({
+    const caixaAtualizado = await tx.caixa.findFirstOrThrow({
       where: { id: caixa.id, empresaId },
     });
 
@@ -694,7 +671,7 @@ export class CaixasService {
         ' referente a ' +
         dados.descricao +
         '.',
-      { id: dados.usuarioId },
+      dados.usuarioId,
     );
 
     return {
@@ -704,13 +681,22 @@ export class CaixasService {
   }
 
   async criarMovimentacao(
+    empresaId: string,
     caixaId: string,
+    usuarioId: string,
     dados: CriarMovimentacaoCaixaDto,
-    usuario: AuthenticatedUser,
   ) {
+    if (
+      dados.origem !== undefined &&
+      dados.origem !== OrigemMovimentacaoCaixa.MANUAL
+    ) {
+      throw new BadRequestException(
+        'A origem da movimentação manual deve ser MANUAL',
+      );
+    }
     return this.prisma.$transaction(async (tx) => {
-      await this.bloquearCaixaPorId(tx, caixaId);
-      const caixa = await this.validarCaixa(caixaId, usuario, tx);
+      await this.bloquearCaixa(tx, empresaId, caixaId);
+      const caixa = await this.validarCaixa(empresaId, caixaId, tx);
 
       if (!caixa.ativo) {
         throw new BadRequestException('Caixa inativo não aceita movimentações');
@@ -721,7 +707,7 @@ export class CaixasService {
         );
       }
 
-      const abertura = await this.buscarAberturaAtual(caixaId, tx);
+      const abertura = await this.buscarAberturaAtual(empresaId, caixaId, tx);
       if (!abertura) {
         throw new BadRequestException(
           'Nenhuma abertura ativa foi encontrada para este caixa',
@@ -749,8 +735,8 @@ export class CaixasService {
       });
 
       if (alteracao.count !== 1) {
-        const atual = await tx.caixa.findUnique({
-          where: { id: caixa.id },
+        const atual = await tx.caixa.findFirst({
+          where: { id: caixa.id, empresaId },
           select: { saldoAtual: true },
         });
         if (dados.tipo === TipoMovimentacaoCaixa.SAIDA) {
@@ -763,8 +749,8 @@ export class CaixasService {
         );
       }
 
-      const caixaAtualizado = await tx.caixa.findUniqueOrThrow({
-        where: { id: caixa.id },
+      const caixaAtualizado = await tx.caixa.findFirstOrThrow({
+        where: { id: caixa.id, empresaId },
       });
       const saldoPosterior = Number(caixaAtualizado.saldoAtual);
       const saldoAnterior =
@@ -788,7 +774,7 @@ export class CaixasService {
           empresaId: caixa.empresaId,
           caixaId: caixa.id,
           aberturaCaixaId: abertura.id,
-          usuarioId: this.obterUsuarioId(usuario),
+          usuarioId,
         },
         include: {
           caixa: true,
@@ -802,21 +788,26 @@ export class CaixasService {
         caixa.id,
         caixa.empresaId,
         `${dados.tipo === TipoMovimentacaoCaixa.ENTRADA ? 'Entrada' : 'Saída'} manual de R$ ${valor.toFixed(2)} registrada.`,
-        usuario,
+        usuarioId,
       );
       return { movimentacao, caixa: caixaAtualizado };
     });
   }
 
-  async fechar(id: string, dados: FecharCaixaDto, usuario: AuthenticatedUser) {
+  async fechar(
+    empresaId: string,
+    id: string,
+    usuarioId: string,
+    dados: FecharCaixaDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
-      await this.bloquearCaixaPorId(tx, id);
-      const caixa = await this.validarCaixa(id, usuario, tx);
+      await this.bloquearCaixa(tx, empresaId, id);
+      const caixa = await this.validarCaixa(empresaId, id, tx);
 
       if (caixa.status !== StatusCaixa.ABERTO) {
         throw new BadRequestException('Este caixa não está aberto');
       }
-      const abertura = await this.buscarAberturaAtual(id, tx);
+      const abertura = await this.buscarAberturaAtual(empresaId, id, tx);
       if (!abertura) {
         throw new BadRequestException('Nenhuma abertura ativa foi encontrada');
       }
@@ -840,7 +831,7 @@ export class CaixasService {
           saldoInformado,
           diferenca,
           observacaoFechamento: dados.observacao?.trim(),
-          usuarioFechamentoId: this.obterUsuarioId(usuario),
+          usuarioFechamentoId: usuarioId,
         },
       });
       if (transicaoAbertura.count !== 1) {
@@ -865,25 +856,25 @@ export class CaixasService {
         caixa.id,
         caixa.empresaId,
         `Caixa fechado com saldo de sistema de R$ ${saldoSistema.toFixed(2)} e saldo informado de R$ ${saldoInformado.toFixed(2)}.`,
-        usuario,
+        usuarioId,
       );
 
-      const fechamento = await tx.aberturaCaixa.findUniqueOrThrow({
-        where: { id: abertura.id },
+      const fechamento = await tx.aberturaCaixa.findFirstOrThrow({
+        where: { id: abertura.id, empresaId },
         include: this.includeAbertura,
       });
-      const caixaAtualizado = await tx.caixa.findUniqueOrThrow({
-        where: { id: caixa.id },
+      const caixaAtualizado = await tx.caixa.findFirstOrThrow({
+        where: { id: caixa.id, empresaId },
         include: this.includeCaixa,
       });
       return { fechamento, caixa: caixaAtualizado };
     });
   }
 
-  async buscarAberturaAtiva(caixaId: string, usuario: AuthenticatedUser) {
-    await this.validarCaixa(caixaId, usuario);
+  async buscarAberturaAtiva(empresaId: string, caixaId: string) {
+    await this.validarCaixa(empresaId, caixaId);
 
-    const abertura = await this.buscarAberturaAtual(caixaId);
+    const abertura = await this.buscarAberturaAtual(empresaId, caixaId);
 
     if (!abertura) {
       throw new NotFoundException('Nenhuma abertura ativa encontrada');
@@ -893,7 +884,7 @@ export class CaixasService {
   }
 
   async listarMovimentacoes(
-    usuario: AuthenticatedUser,
+    empresaId: string,
     filtros: FiltroMovimentacoesCaixaDto,
   ) {
     const page = filtros.page ?? 1;
@@ -901,12 +892,7 @@ export class CaixasService {
 
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: Prisma.MovimentacaoCaixaWhereInput =
-      usuario.tipo === 'SUPER_ADMIN'
-        ? {}
-        : {
-            empresaId: this.obterEmpresaId(usuario),
-          };
+    const where: Prisma.MovimentacaoCaixaWhereInput = { empresaId };
 
     if (filtros.caixaId) {
       where.caixaId = filtros.caixaId;
@@ -1056,12 +1042,13 @@ export class CaixasService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async listarAberturas(caixaId: string, usuario: AuthenticatedUser) {
-    const caixa = await this.validarCaixa(caixaId, usuario);
+  async listarAberturas(empresaId: string, caixaId: string) {
+    const caixa = await this.validarCaixa(empresaId, caixaId);
 
     return this.prisma.aberturaCaixa.findMany({
       where: {
         caixaId: caixa.id,
+        empresaId,
       },
 
       include: {
@@ -1086,24 +1073,10 @@ export class CaixasService {
     });
   }
 
-  async resumo(usuario: AuthenticatedUser, filtros: FiltroResumoCaixasDto) {
-    const empresaId =
-      usuario.tipo === 'SUPER_ADMIN' ? undefined : this.obterEmpresaId(usuario);
-
-    const whereCaixas: Prisma.CaixaWhereInput = {
-      ...(empresaId
-        ? {
-            empresaId,
-          }
-        : {}),
-    };
-
+  async resumo(empresaId: string, filtros: FiltroResumoCaixasDto) {
+    const whereCaixas: Prisma.CaixaWhereInput = { empresaId };
     const whereMovimentacoes: Prisma.MovimentacaoCaixaWhereInput = {
-      ...(empresaId
-        ? {
-            empresaId,
-          }
-        : {}),
+      empresaId,
     };
 
     if (filtros.caixaId) {
