@@ -1,6 +1,7 @@
 import {
   IsDateString,
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -16,6 +17,9 @@ export class CriarMovimentacaoCaixaDto {
 
   @IsOptional()
   @IsEnum(OrigemMovimentacaoCaixa)
+  @IsIn([OrigemMovimentacaoCaixa.MANUAL], {
+    message: 'A origem da movimentação manual deve ser MANUAL',
+  })
   origem?: OrigemMovimentacaoCaixa;
 
   @IsString()
