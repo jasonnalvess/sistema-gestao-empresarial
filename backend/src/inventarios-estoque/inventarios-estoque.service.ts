@@ -214,6 +214,11 @@ export class InventariosEstoqueService {
       const estoques = await tx.estoqueProduto.findMany({
         where: { empresaId, depositoId: deposito.id },
       });
+      if (estoques.length === 0) {
+        throw new BadRequestException(
+          'Não existem itens de estoque cadastrados neste depósito para realizar o inventário.',
+        );
+      }
       await this.validarProdutos(
         tx,
         empresaId,

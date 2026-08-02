@@ -59,15 +59,71 @@ describe('InventariosEstoqueService hardening', () => {
     custoMedio: new Prisma.Decimal('3.33'),
     ultimoCusto: new Prisma.Decimal('3.33'),
   });
+  type EstoqueMock = ReturnType<typeof estoque>;
+  type InventarioMock = ReturnType<typeof inventario>;
+  type CriarInventarioArgs = {
+    data: {
+      itens: {
+        create: Array<{
+          produtoId: string;
+          quantidadeSistema: Prisma.Decimal;
+          status: StatusItemInventario;
+        }>;
+      };
+    };
+    include: unknown;
+  };
+
+  let executarRawMock: jest.MockedFunction<
+    (query: Prisma.Sql) => Promise<number>
+  >;
+  let buscarDepositoMock: jest.MockedFunction<
+    (args: {
+      where: { id: string; empresaId: string };
+    }) => Promise<typeof deposito | null>
+  >;
+  let buscarInventarioMock: jest.MockedFunction<
+    (args?: unknown) => Promise<InventarioMock | null>
+  >;
+  let criarInventarioMock: jest.MockedFunction<
+    (args: CriarInventarioArgs) => Promise<InventarioMock>
+  >;
+  let buscarEstoquesMock: jest.MockedFunction<
+    (args: {
+      where: { empresaId: string; depositoId: string };
+    }) => Promise<EstoqueMock[]>
+  >;
   let tx: any;
   let prisma: any;
   let service: InventariosEstoqueService;
 
   beforeEach(() => {
+    executarRawMock = jest
+      .fn<Promise<number>, [Prisma.Sql]>()
+      .mockResolvedValue(1);
+    buscarDepositoMock = jest
+      .fn<
+        Promise<typeof deposito | null>,
+        [{ where: { id: string; empresaId: string } }]
+      >()
+      .mockResolvedValue(deposito);
+    buscarInventarioMock = jest
+      .fn<Promise<InventarioMock | null>, [unknown?]>()
+      .mockResolvedValue(inventario());
+    criarInventarioMock = jest
+      .fn<Promise<InventarioMock>, [CriarInventarioArgs]>()
+      .mockResolvedValue(inventario(StatusInventarioEstoque.ABERTO));
+    buscarEstoquesMock = jest
+      .fn<
+        Promise<EstoqueMock[]>,
+        [{ where: { empresaId: string; depositoId: string } }]
+      >()
+      .mockResolvedValue([estoque()]);
+
     tx = {
       $queryRaw: jest.fn().mockResolvedValue([{ id: 'inv1' }]),
-      $executeRaw: jest.fn().mockResolvedValue(1),
-      deposito: { findFirst: jest.fn().mockResolvedValue(deposito) },
+      $executeRaw: executarRawMock,
+      deposito: { findFirst: buscarDepositoMock },
       produto: {
         findMany: jest
           .fn()
@@ -77,15 +133,13 @@ describe('InventariosEstoqueService hardening', () => {
           ),
       },
       inventarioEstoque: {
-        findFirst: jest.fn().mockResolvedValue(inventario()),
+        findFirst: buscarInventarioMock,
         findFirstOrThrow: jest
           .fn()
           .mockResolvedValue(inventario(StatusInventarioEstoque.FINALIZADO)),
         findMany: jest.fn(),
         count: jest.fn(),
-        create: jest
-          .fn()
-          .mockResolvedValue(inventario(StatusInventarioEstoque.ABERTO)),
+        create: criarInventarioMock,
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       inventarioEstoqueItem: {
@@ -94,7 +148,7 @@ describe('InventariosEstoqueService hardening', () => {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       estoqueProduto: {
-        findMany: jest.fn().mockResolvedValue([estoque()]),
+        findMany: buscarEstoquesMock,
         findUnique: jest.fn().mockResolvedValue(estoque()),
         create: jest.fn().mockImplementation(({ data }: any) => ({
           id: `s-${data.produtoId}`,
@@ -130,6 +184,55 @@ describe('InventariosEstoqueService hardening', () => {
     expect(tx.$executeRaw.mock.invocationCallOrder[1]).toBeLessThan(
       tx.inventarioEstoque.findFirst.mock.invocationCallOrder[0],
     );
+  });
+
+  it('rejeita snapshot vazio antes de criar inventário ou itens', async () => {
+    buscarInventarioMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    buscarEstoquesMock.mockResolvedValue([]);
+
+    const criacao = service.criar('e1', { depositoId: 'd1' }, usuario);
+    await expect(criacao).rejects.toBeInstanceOf(BadRequestException);
+    await expect(criacao).rejects.toThrow(
+      'Não existem itens de estoque cadastrados neste depósito para realizar o inventário.',
+    );
+
+    expect(buscarEstoquesMock).toHaveBeenCalledWith({
+      where: { empresaId: 'e1', depositoId: 'd1' },
+    });
+    expect(criarInventarioMock).not.toHaveBeenCalled();
+  });
+
+  it('preserva itens com saldo zero no snapshot', async () => {
+    buscarInventarioMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    buscarEstoquesMock.mockResolvedValue([estoque('p1', '0')]);
+
+    await service.criar('e1', { depositoId: 'd1' }, usuario);
+
+    const chamadaCriacao = criarInventarioMock.mock.calls[0];
+    expect(chamadaCriacao).toBeDefined();
+    const [argumentosCriacao] = chamadaCriacao;
+    const itensCriados = argumentosCriacao.data.itens.create;
+    expect(itensCriados).toHaveLength(1);
+    const itemCriado = itensCriados[0];
+    expect(itemCriado.produtoId).toBe('p1');
+    expect(itemCriado.quantidadeSistema).toBeInstanceOf(Prisma.Decimal);
+    expect(itemCriado.quantidadeSistema.eq(0)).toBe(true);
+  });
+
+  it('preserva rejeição de depósito inativo antes dos locks', async () => {
+    buscarDepositoMock.mockResolvedValue({ ...deposito, ativo: false });
+
+    await expect(
+      service.criar('e1', { depositoId: 'd1' }, usuario),
+    ).rejects.toThrow('Não é possível abrir inventário em depósito inativo');
+
+    expect(buscarEstoquesMock).not.toHaveBeenCalled();
+    expect(criarInventarioMock).not.toHaveBeenCalled();
+    expect(executarRawMock).not.toHaveBeenCalled();
   });
 
   it('serializa criação e rejeita inventário ativo duplicado', async () => {
@@ -494,7 +597,7 @@ describe('InventariosEstoqueService hardening', () => {
     tx.inventarioEstoque.findFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
-    tx.estoqueProduto.findMany.mockResolvedValue([]);
+    tx.estoqueProduto.findMany.mockResolvedValue([estoque()]);
     tx.inventarioEstoque.create.mockResolvedValue(
       inventario(StatusInventarioEstoque.ABERTO),
     );
@@ -535,7 +638,7 @@ describe('InventariosEstoqueService hardening', () => {
       tx.inventarioEstoque.findFirst
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
-      tx.estoqueProduto.findMany.mockResolvedValue([]);
+      tx.estoqueProduto.findMany.mockResolvedValue([estoque()]);
       tx.inventarioEstoque.create.mockRejectedValue(erro);
       await expect(
         service.criar('e1', { depositoId: 'd1' }, usuario),
