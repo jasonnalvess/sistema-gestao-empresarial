@@ -224,9 +224,17 @@ async function main() {
       modulo: 'sistema',
     },
     {
-      nome: 'Visualizar auditoria',
+      nome: 'Visualizar Auditoria Global',
       chave: 'sistema.auditoria.visualizar',
-      descricao: 'Permite consultar registros de auditoria do sistema',
+      descricao:
+        'Permite consultar registros administrativos e empresariais de Auditoria em escopo global.',
+      modulo: 'sistema',
+    },
+    {
+      nome: 'Visualizar Auditoria da Empresa',
+      chave: 'auditoria.empresa.visualizar',
+      descricao:
+        'Permite consultar os registros de Auditoria da empresa atual.',
       modulo: 'sistema',
     },
 
@@ -943,6 +951,7 @@ async function main() {
       'fiscal',
     ],
     chavesAdicionais: [
+      'auditoria.empresa.visualizar',
       'empresas.visualizar',
       'empresas.editar',
       'empresas.modulos.gerenciar',
