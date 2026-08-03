@@ -186,6 +186,12 @@ async function main() {
         'Gerenciamento de ordens de serviço, acompanhamento de status e histórico.',
     },
     {
+      nome: 'Vendas',
+      chave: 'vendas',
+      descricao:
+        'Gerenciamento de vendas, aprovação, faturamento, histórico e cancelamentos.',
+    },
+    {
       nome: 'Funcionários',
       chave: 'funcionarios',
       descricao: 'Cadastro e controle de funcionários',
@@ -434,6 +440,53 @@ async function main() {
       chave: 'agenda.cancelar',
       descricao: 'Permite cancelar compromissos e atendimentos',
       modulo: 'agenda',
+    },
+
+    // Vendas
+    {
+      nome: 'Visualizar Vendas',
+      chave: 'vendas.visualizar',
+      descricao:
+        'Permite listar, detalhar, consultar o dashboard e visualizar o histórico das Vendas.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Criar Vendas',
+      chave: 'vendas.criar',
+      descricao: 'Permite cadastrar novas Vendas.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Editar Vendas',
+      chave: 'vendas.editar',
+      descricao:
+        'Permite alterar Vendas em estados editáveis e enviá-las para aprovação.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Aprovar Vendas',
+      chave: 'vendas.aprovar',
+      descricao: 'Permite aprovar Vendas pendentes de aprovação.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Faturar Vendas',
+      chave: 'vendas.faturar',
+      descricao: 'Permite faturar Vendas aprovadas.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Cancelar Vendas',
+      chave: 'vendas.cancelar',
+      descricao:
+        'Permite cancelar Vendas conforme as regras de estado e recebimento.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Adicionar histórico de Vendas',
+      chave: 'vendas.historico.adicionar',
+      descricao: 'Permite incluir registros manuais no histórico das Vendas.',
+      modulo: 'vendas',
     },
 
     // Funcionários
@@ -881,6 +934,7 @@ async function main() {
       'fornecedores',
       'pedidos_compra',
       'agenda',
+      'vendas',
       'ordens_servico',
       'funcionarios',
       'estoque',
@@ -906,6 +960,10 @@ async function main() {
       'caixa',
     ],
     chavesAdicionais: [
+      'vendas.visualizar',
+      'vendas.aprovar',
+      'vendas.faturar',
+      'vendas.historico.adicionar',
       'funcionarios.visualizar',
       'financeiro.contas_pagar.visualizar',
       'financeiro.contas_pagar.criar',
@@ -935,6 +993,9 @@ async function main() {
 
   const permissoesColaborador = selecionarPermissoes({
     chavesAdicionais: [
+      'vendas.visualizar',
+      'vendas.criar',
+      'vendas.editar',
       'clientes.visualizar',
       'fornecedores.visualizar',
       'pedidos_compra.visualizar',

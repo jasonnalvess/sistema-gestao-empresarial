@@ -842,6 +842,7 @@ describe('ContasReceberService', () => {
     );
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     expect(vendas.concluirSeQuitada).toHaveBeenCalledWith(
+      'empresa-1',
       'venda-1',
       'usuario-1',
       prisma,

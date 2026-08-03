@@ -1,5 +1,14 @@
 import { permissoes } from "./permissoes";
 
+export const PERMISSAO_VENDAS_VISUALIZAR = "vendas.visualizar";
+export const PERMISSAO_VENDAS_CRIAR = "vendas.criar";
+export const PERMISSAO_VENDAS_EDITAR = "vendas.editar";
+export const PERMISSAO_VENDAS_APROVAR = "vendas.aprovar";
+export const PERMISSAO_VENDAS_FATURAR = "vendas.faturar";
+export const PERMISSAO_VENDAS_CANCELAR = "vendas.cancelar";
+export const PERMISSAO_VENDAS_HISTORICO_ADICIONAR =
+  "vendas.historico.adicionar";
+
 export const PERMISSAO_ORDENS_SERVICO_VISUALIZAR = "ordens_servico.visualizar";
 export const PERMISSAO_ORDENS_SERVICO_CRIAR = "ordens_servico.criar";
 export const PERMISSAO_ORDENS_SERVICO_HISTORICO_ADICIONAR =
