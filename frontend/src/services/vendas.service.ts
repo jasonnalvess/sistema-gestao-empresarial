@@ -1,16 +1,9 @@
 import { api } from "./api";
 
 export type StatusVenda =
-  | "RASCUNHO"
-  | "PENDENTE"
-  | "APROVADA"
-  | "FATURADA"
-  | "CONCLUIDA"
-  | "CANCELADA";
+  "RASCUNHO" | "PENDENTE" | "APROVADA" | "FATURADA" | "CONCLUIDA" | "CANCELADA";
 
-export type CondicaoPagamentoVenda =
-  | "AVISTA"
-  | "APRAZO";
+export type CondicaoPagamentoVenda = "AVISTA" | "APRAZO";
 
 export type FormaPagamentoVenda =
   | "DINHEIRO"
@@ -19,6 +12,56 @@ export type FormaPagamentoVenda =
   | "CARTAO_DEBITO"
   | "BOLETO"
   | "TRANSFERENCIA";
+
+export type FiltrosVendas = {
+  search?: string;
+  status?: StatusVenda;
+  clienteId?: string;
+  depositoId?: string;
+  dataInicio?: string;
+  dataFim?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  order?: "asc" | "desc";
+};
+
+export type FiltrosDashboardVendas = Pick<
+  FiltrosVendas,
+  "clienteId" | "depositoId" | "dataInicio" | "dataFim"
+>;
+
+export type VendaItemPayload = {
+  produtoId: string;
+  quantidade: number;
+  valorUnitario: number;
+  valorDesconto?: number;
+  observacao?: string;
+};
+export type CriarVendaPayload = {
+  clienteId: string;
+  depositoId: string;
+  dataVenda?: string;
+  observacao?: string;
+  observacaoInterna?: string;
+  condicaoPagamento: CondicaoPagamentoVenda;
+  formaPagamento?: FormaPagamentoVenda;
+  quantidadeParcelas?: number;
+  intervaloParcelas?: number;
+  primeiroVencimento?: string;
+  valorDesconto?: number;
+  valorFrete?: number;
+  valorOutros?: number;
+  itens: VendaItemPayload[];
+};
+export type AtualizarVendaPayload = Partial<CriarVendaPayload>;
+export type FaturarVendaPayload = {
+  primeiroVencimento?: string;
+  caixaId?: string;
+  documento?: string;
+  observacao?: string;
+};
+export type CancelarVendaPayload = { motivo?: string };
 
 export interface Venda {
   id: string;
@@ -63,12 +106,55 @@ export interface VendaDetalhada extends Venda {
   dataCancelamento?: string;
   dataConclusao?: string;
 
-  itens: any[];
-
-  historicos: any[];
-
-  contasReceber: any[];
+  quantidadeParcelas: number;
+  intervaloParcelas: number;
+  primeiroVencimento?: string | null;
+  usuarioCriacao?: { nome: string } | null;
+  usuarioAprovacao?: { nome: string } | null;
+  usuarioCancelamento?: { nome: string } | null;
+  usuarioConclusao?: { nome: string } | null;
+  itens: VendaItemDetalhado[];
+  historicos: VendaHistorico[];
+  contasReceber: VendaContaReceber[];
 }
+
+export type VendaItemDetalhado = {
+  id: string;
+  produtoId: string;
+  quantidade: string;
+  valorUnitario: string;
+  valorDesconto: string;
+  valorTotal: string;
+  observacao?: string | null;
+  status: string;
+  produto?: {
+    id: string;
+    nome: string;
+    codigo?: string | null;
+    categoria?: { nome: string } | null;
+    marca?: { nome: string } | null;
+    unidadeMedida?: { sigla: string } | null;
+  };
+};
+export type VendaHistorico = {
+  id: string;
+  descricao: string;
+  createdAt: string;
+  usuario?: { nome: string } | null;
+};
+export type VendaContaReceber = {
+  id: string;
+  numero: number;
+  parcelaAtual: number;
+  totalParcelas: number;
+  status: string;
+  valorOriginal: string;
+  valor?: string;
+  valorAberto: string;
+  valorRecebido?: string;
+  dataVencimento: string;
+  dataRecebimento?: string | null;
+};
 
 export interface DashboardProdutoMaisVendido {
   produtoId: string;
@@ -144,131 +230,62 @@ export interface ListarVendasResponse {
   };
 }
 
-export async function listarVendas(params?: {
-  search?: string;
-
-  status?: StatusVenda;
-
-  clienteId?: string;
-
-  depositoId?: string;
-
-  dataInicio?: string;
-
-  dataFim?: string;
-
-  page?: number;
-
-  limit?: number;
-
-  sortBy?: string;
-
-  order?: "asc" | "desc";
-}) {
-  const { data } =
-    await api.get<ListarVendasResponse>(
-      "/vendas",
-      {
-        params,
-      },
-    );
+export async function listarVendas(params?: FiltrosVendas) {
+  const { data } = await api.get<ListarVendasResponse>("/vendas", {
+    params,
+  });
 
   return data;
 }
 
-export async function buscarVenda(
-  id: string,
-) {
-  const { data } =
-    await api.get<{
-      success: boolean;
+export async function buscarVenda(id: string) {
+  const { data } = await api.get<{
+    success: boolean;
 
-      data: VendaDetalhada;
-    }>(`/vendas/${id}`);
+    data: VendaDetalhada;
+  }>(`/vendas/${id}`);
 
   return data.data;
 }
 
-export async function criarVenda(
-  body: any,
-) {
-  const { data } =
-    await api.post(
-      "/vendas",
-      body,
-    );
+export async function criarVenda(body: CriarVendaPayload) {
+  const { data } = await api.post("/vendas", body);
 
   return data;
 }
 
-export async function atualizarVenda(
-  id: string,
-  body: any,
-) {
-  const { data } =
-    await api.patch(
-      `/vendas/${id}`,
-      body,
-    );
+export async function atualizarVenda(id: string, body: AtualizarVendaPayload) {
+  const { data } = await api.patch(`/vendas/${id}`, body);
 
   return data;
 }
 
-export async function enviarParaAprovacao(
-  id: string,
-) {
-  const { data } =
-    await api.patch(
-      `/vendas/${id}/enviar-aprovacao`,
-    );
+export async function enviarParaAprovacao(id: string) {
+  const { data } = await api.patch(`/vendas/${id}/enviar-aprovacao`);
 
   return data;
 }
 
-export async function aprovarVenda(
-  id: string,
-) {
-  const { data } =
-    await api.patch(
-      `/vendas/${id}/aprovar`,
-    );
+export async function aprovarVenda(id: string) {
+  const { data } = await api.patch(`/vendas/${id}/aprovar`);
 
   return data;
 }
 
-export async function faturarVenda(
-  id: string,
-  body: any,
-) {
-  const { data } =
-    await api.patch(
-      `/vendas/${id}/faturar`,
-      body,
-    );
+export async function faturarVenda(id: string, body: FaturarVendaPayload) {
+  const { data } = await api.patch(`/vendas/${id}/faturar`, body);
 
   return data;
 }
 
-export async function cancelarVenda(
-  id: string,
-  body: any,
-) {
-  const { data } =
-    await api.patch(
-      `/vendas/${id}/cancelar`,
-      body,
-    );
+export async function cancelarVenda(id: string, body: CancelarVendaPayload) {
+  const { data } = await api.patch(`/vendas/${id}/cancelar`, body);
 
   return data;
 }
 
-export async function listarHistoricoVenda(
-  id: string,
-) {
-  const { data } =
-    await api.get(
-      `/vendas/${id}/historico`,
-    );
+export async function listarHistoricoVenda(id: string) {
+  const { data } = await api.get(`/vendas/${id}/historico`);
 
   return data;
 }
@@ -279,21 +296,14 @@ export async function adicionarHistoricoVenda(
     descricao: string;
   },
 ) {
-  const { data } =
-    await api.post(
-      `/vendas/${id}/historico`,
-      body,
-    );
+  const { data } = await api.post(`/vendas/${id}/historico`, body);
 
   return data;
 }
 
-export async function dashboardVendas(params?: {
-  clienteId?: string;
-  depositoId?: string;
-  dataInicio?: string;
-  dataFim?: string;
-}): Promise<DashboardVendasResponse> {
+export async function dashboardVendas(
+  params?: FiltrosDashboardVendas,
+): Promise<DashboardVendasResponse> {
   const response = await api.get<
     | DashboardVendasResponse
     | {
@@ -322,7 +332,5 @@ export async function dashboardVendas(params?: {
     return resultado.data;
   }
 
-  throw new Error(
-    "Formato inválido na resposta do dashboard de vendas.",
-  );
+  throw new Error("Formato inválido na resposta do dashboard de vendas.");
 }
