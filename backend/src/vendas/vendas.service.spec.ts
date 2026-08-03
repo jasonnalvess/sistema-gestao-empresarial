@@ -158,6 +158,66 @@ describe('VendasService', () => {
       });
     });
 
+    it('bloqueia a numeração por empresa antes de ler o último número', async () => {
+      await service.criar('empresa-1', dtoCriacao(), usuario.id);
+      const sql = prisma.$executeRaw.mock.calls[0][0] as Prisma.Sql;
+      expect(sql.sql).toContain('pg_advisory_xact_lock');
+      expect(sql.sql).toContain('hashtextextended');
+      expect(sql.values).toEqual(['venda-numero:empresa-1']);
+      expect(prisma.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.venda.findFirst.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('interrompe sem persistência quando o lock de numeração falha', async () => {
+      const erro = new Error('falha no lock');
+      prisma.$executeRaw.mockRejectedValueOnce(erro);
+      await expect(
+        service.criar('empresa-1', dtoCriacao(), usuario.id),
+      ).rejects.toBe(erro);
+      expect(prisma.venda.findFirst).not.toHaveBeenCalled();
+      expect(prisma.venda.create).not.toHaveBeenCalled();
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
+    });
+    it('estrutura duas criações simultâneas com números distintos na mesma empresa', async () => {
+      prisma.venda.findFirst
+        .mockResolvedValueOnce({ numero: 9 })
+        .mockResolvedValueOnce({ numero: 10 });
+      prisma.venda.create.mockImplementation(({ data }) =>
+        Promise.resolve({ id: `venda-${data.numero}`, numero: data.numero }),
+      );
+
+      const resultados = await Promise.all([
+        service.criar('empresa-1', dtoCriacao(), usuario.id),
+        service.criar('empresa-1', dtoCriacao(), usuario.id),
+      ]);
+
+      expect(resultados.map((resultado) => resultado.numero)).toEqual([10, 11]);
+      expect(prisma.vendaHistorico.create).toHaveBeenCalledTimes(2);
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('usa locks e sequências independentes para empresas diferentes', async () => {
+      prisma.venda.findFirst.mockResolvedValue(null);
+      prisma.venda.create.mockImplementation(({ data }) =>
+        Promise.resolve({ id: `venda-${data.empresaId}`, numero: data.numero }),
+      );
+
+      const resultados = await Promise.all([
+        service.criar('empresa-1', dtoCriacao(), usuario.id),
+        service.criar('empresa-2', dtoCriacao(), usuario.id),
+      ]);
+      const chaves = prisma.$executeRaw.mock.calls.map(
+        ([sql]) => (sql as Prisma.Sql).values[0],
+      );
+
+      expect(resultados.map((resultado) => resultado.numero)).toEqual([1, 1]);
+      expect(chaves).toEqual([
+        'venda-numero:empresa-1',
+        'venda-numero:empresa-2',
+      ]);
+    });
+
     it('rejeita produtos duplicados', async () => {
       const itens = [
         { produtoId: 'produto-1', quantidade: 1, valorUnitario: 10 },
@@ -225,6 +285,46 @@ describe('VendasService', () => {
           }),
         }),
       );
+    });
+    it.each([
+      [['empresaId', 'numero']],
+      [['numero', 'empresaId']],
+      ['Venda_empresaId_numero_key'],
+    ])('converte P2002 exato da Venda para conflito: %p', async (target) => {
+      const erro = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        { code: 'P2002', clientVersion: '6.19.3', meta: { target } },
+      );
+      prisma.venda.create.mockRejectedValueOnce(erro);
+      await expect(
+        service.criar('empresa-1', dtoCriacao(), usuario.id),
+      ).rejects.toThrow('Conflito ao gerar a numeração da venda');
+    });
+
+    it.each([
+      ['campos adicionais', { target: ['empresaId', 'numero', 'id'] }, 'P2002'],
+      ['nome parcial', { target: 'Venda_empresaId_numero' }, 'P2002'],
+      ['target ausente', {}, 'P2002'],
+      ['meta ausente', undefined, 'P2002'],
+      ['outro código', { target: ['empresaId', 'numero'] }, 'P2003'],
+    ])('relança P2002 não exato: %s', async (_nome, meta, code) => {
+      const erro = new Prisma.PrismaClientKnownRequestError('Erro Prisma', {
+        code,
+        clientVersion: '6.19.3',
+        ...(meta ? { meta } : {}),
+      });
+      prisma.venda.create.mockRejectedValueOnce(erro);
+      await expect(
+        service.criar('empresa-1', dtoCriacao(), usuario.id),
+      ).rejects.toBe(erro);
+    });
+
+    it('relança erro não Prisma e falha posterior sem converter', async () => {
+      const erro = new Error('falha de histórico');
+      prisma.vendaHistorico.create.mockRejectedValueOnce(erro);
+      await expect(
+        service.criar('empresa-1', dtoCriacao(), usuario.id),
+      ).rejects.toBe(erro);
     });
   });
 
@@ -396,6 +496,16 @@ describe('VendasService', () => {
     it('gera saída, um conjunto de contas, distribui centavos e marca FATURADA', async () => {
       await service.faturar('empresa-1', 'venda-1', {}, usuario.id);
 
+      const sqlLockVenda = prisma.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+      expect(sqlLockVenda.sql).toContain('FOR UPDATE');
+      expect(sqlLockVenda.sql).toContain('"empresaId"');
+      expect(sqlLockVenda.values).toEqual(['venda-1', 'empresa-1']);
+
+      const locks = prisma.$executeRaw.mock.calls.map(
+        ([sql]) => (sql as Prisma.Sql).values[0],
+      );
+      expect(locks.at(-1)).toBe('conta-receber-numero:empresa-1');
+
       expect(prisma.venda.findFirst).toHaveBeenCalledWith({
         where: { id: 'venda-1', empresaId: 'empresa-1' },
         select: { id: true, empresaId: true, status: true },
@@ -534,7 +644,7 @@ describe('VendasService', () => {
       );
     });
 
-    it('não converte P2002 de outra constraint em erro de parcelas', async () => {
+    it('converte P2002 exato da numeração de Conta a Receber', async () => {
       const erro = new Prisma.PrismaClientKnownRequestError(
         'Unique constraint failed',
         {
@@ -548,7 +658,7 @@ describe('VendasService', () => {
 
       await expect(
         service.faturar('empresa-1', 'venda-1', {}, usuario.id),
-      ).rejects.toBe(erro);
+      ).rejects.toThrow('Conflito ao gerar a numeração da conta a receber');
     });
 
     it('opera estoque e financeiro somente pela empresa contextual', async () => {

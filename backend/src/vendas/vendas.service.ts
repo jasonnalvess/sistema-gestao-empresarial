@@ -126,20 +126,7 @@ export class VendasService {
     },
   };
 
-  private tratarErroPrisma(error: unknown): never {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
-      throw new ConflictException(
-        'Conflito ao gerar a numeração ou salvar os itens da venda',
-      );
-    }
-
-    throw error;
-  }
-
-  private isContaVendaParcelaDuplicada(error: unknown): boolean {
+  private alvoP2002(error: unknown, campos: readonly string[], indice: string) {
     if (
       !(error instanceof Prisma.PrismaClientKnownRequestError) ||
       error.code !== 'P2002'
@@ -148,14 +135,93 @@ export class VendasService {
     }
 
     const target = error.meta?.target;
+    return Array.isArray(target)
+      ? target.length === campos.length &&
+          campos.every((campo) => target.includes(campo))
+      : target === indice;
+  }
 
-    if (Array.isArray(target)) {
-      return target.includes('vendaId') && target.includes('parcelaAtual');
+  private tratarErroCriacao(error: unknown): never {
+    if (
+      this.alvoP2002(
+        error,
+        ['empresaId', 'numero'],
+        'Venda_empresaId_numero_key',
+      )
+    ) {
+      throw new ConflictException('Conflito ao gerar a numeração da venda');
     }
 
-    return (
-      typeof target === 'string' &&
-      target.includes('ContaReceber_vendaId_parcelaAtual_key')
+    if (
+      this.alvoP2002(
+        error,
+        ['vendaId', 'produtoId'],
+        'VendaItem_vendaId_produtoId_key',
+      )
+    ) {
+      throw new ConflictException(
+        'O mesmo produto não pode aparecer mais de uma vez na venda',
+      );
+    }
+
+    throw error;
+  }
+
+  private tratarErroFaturamento(error: unknown): never {
+    if (
+      this.alvoP2002(
+        error,
+        ['vendaId', 'parcelaAtual'],
+        'ContaReceber_vendaId_parcelaAtual_key',
+      )
+    ) {
+      throw new ConflictException(
+        'As contas a receber desta venda já foram geradas',
+      );
+    }
+
+    if (
+      this.alvoP2002(
+        error,
+        ['empresaId', 'numero'],
+        'ContaReceber_empresaId_numero_key',
+      )
+    ) {
+      throw new ConflictException(
+        'Conflito ao gerar a numeração da conta a receber',
+      );
+    }
+
+    throw error;
+  }
+
+  private async bloquearNumeracaoVenda(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+  ) {
+    const chave = `venda-numero:${empresaId}`;
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))`,
+    );
+  }
+
+  private async bloquearNumeracaoContaReceber(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+  ) {
+    const chave = `conta-receber-numero:${empresaId}`;
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))`,
+    );
+  }
+
+  private async bloquearVenda(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    id: string,
+  ) {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "Venda" WHERE "id" = ${id} AND "empresaId" = ${empresaId} FOR UPDATE`,
     );
   }
 
@@ -385,6 +451,8 @@ export class VendasService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await this.bloquearNumeracaoVenda(tx, empresaId);
+
         const ultimaVenda = await tx.venda.findFirst({
           where: {
             empresaId,
@@ -467,7 +535,7 @@ export class VendasService {
         return venda;
       });
     } catch (error) {
-      this.tratarErroPrisma(error);
+      this.tratarErroCriacao(error);
     }
   }
 
@@ -694,6 +762,8 @@ export class VendasService {
     });
 
     return this.prisma.$transaction(async (tx) => {
+      await this.bloquearVenda(tx, empresaId, id);
+
       if (dados.itens) {
         await tx.vendaItem.deleteMany({
           where: {
@@ -787,6 +857,8 @@ export class VendasService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await this.bloquearVenda(tx, empresaId, id);
+
       const transicao = await tx.venda.updateMany({
         where: { id, empresaId, status: StatusVenda.RASCUNHO },
         data: { status: StatusVenda.PENDENTE },
@@ -872,6 +944,8 @@ export class VendasService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await this.bloquearVenda(tx, empresaId, id);
+
       const transicao = await tx.venda.updateMany({
         where: { id, empresaId, status: StatusVenda.PENDENTE },
         data: {
@@ -911,7 +985,7 @@ export class VendasService {
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const vendaMinima = await tx.venda.findFirst({
+        let vendaMinima = await tx.venda.findFirst({
           where: {
             id,
             empresaId,
@@ -922,6 +996,16 @@ export class VendasService {
             empresaId: true,
             status: true,
           },
+        });
+
+        if (!vendaMinima) {
+          throw new NotFoundException('Venda não encontrada');
+        }
+
+        await this.bloquearVenda(tx, empresaId, id);
+        vendaMinima = await tx.venda.findFirst({
+          where: { id, empresaId },
+          select: { id: true, empresaId: true, status: true },
         });
 
         if (!vendaMinima) {
@@ -1149,6 +1233,8 @@ export class VendasService {
          * Obtém uma única vez o último número.
          * As parcelas recebem números sequenciais.
          */
+        await this.bloquearNumeracaoContaReceber(tx, empresaId);
+
         const ultimaConta = await tx.contaReceber.findFirst({
           where: {
             empresaId: empresaId,
@@ -1285,13 +1371,7 @@ export class VendasService {
         };
       });
     } catch (error) {
-      if (this.isContaVendaParcelaDuplicada(error)) {
-        throw new ConflictException(
-          'As contas a receber desta venda já foram geradas',
-        );
-      }
-
-      throw error;
+      this.tratarErroFaturamento(error);
     }
   }
 
@@ -1704,7 +1784,7 @@ export class VendasService {
     usuarioId: string | undefined,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const vendaMinima = await tx.venda.findFirst({
+      let vendaMinima = await tx.venda.findFirst({
         where: {
           id,
           empresaId,
@@ -1715,6 +1795,16 @@ export class VendasService {
           empresaId: true,
           status: true,
         },
+      });
+
+      if (!vendaMinima) {
+        throw new NotFoundException('Venda não encontrada');
+      }
+
+      await this.bloquearVenda(tx, empresaId, id);
+      vendaMinima = await tx.venda.findFirst({
+        where: { id, empresaId },
+        select: { id: true, empresaId: true, status: true },
       });
 
       if (!vendaMinima) {
