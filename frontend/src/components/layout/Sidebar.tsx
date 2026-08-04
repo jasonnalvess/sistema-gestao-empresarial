@@ -24,6 +24,8 @@ import {
   PERMISSAO_CAIXA_VISUALIZAR,
   PERMISSAO_VENDAS_VISUALIZAR,
   PERMISSAO_FINANCEIRO_VISUALIZAR,
+  PERMISSAO_AUDITORIA_EMPRESA_VISUALIZAR,
+  PERMISSAO_AUDITORIA_GLOBAL_VISUALIZAR,
   possuiPermissao,
 } from "@/lib/auth";
 import { X } from "lucide-react";
@@ -59,6 +61,13 @@ export function Sidebar({ aberto, aoFechar }: SidebarProps) {
   };
 
   const menuPermitido = menu.filter((item) => {
+    if (item.href === "/auditoria") {
+      return (
+        temPermissao(PERMISSAO_AUDITORIA_EMPRESA_VISUALIZAR) ||
+        temPermissao(PERMISSAO_AUDITORIA_GLOBAL_VISUALIZAR)
+      );
+    }
+
     const permissao = permissoesPorRota[item.href];
     if (permissao) return temPermissao(permissao);
 
