@@ -224,9 +224,24 @@ async function main() {
       modulo: 'sistema',
     },
     {
-      nome: 'Visualizar auditoria',
+      nome: 'Visualizar Auditoria Global',
       chave: 'sistema.auditoria.visualizar',
-      descricao: 'Permite consultar registros de auditoria do sistema',
+      descricao:
+        'Permite consultar registros administrativos e empresariais de Auditoria em escopo global.',
+      modulo: 'sistema',
+    },
+    {
+      nome: 'Visualizar Auditoria da Empresa',
+      chave: 'auditoria.empresa.visualizar',
+      descricao:
+        'Permite consultar os registros de Auditoria da empresa atual.',
+      modulo: 'sistema',
+    },
+    {
+      nome: 'Visualizar Dashboard',
+      chave: 'dashboard.visualizar',
+      descricao:
+        'Permite visualizar os indicadores operacionais da empresa selecionada.',
       modulo: 'sistema',
     },
 
@@ -943,6 +958,8 @@ async function main() {
       'fiscal',
     ],
     chavesAdicionais: [
+      'dashboard.visualizar',
+      'auditoria.empresa.visualizar',
       'empresas.visualizar',
       'empresas.editar',
       'empresas.modulos.gerenciar',
@@ -960,6 +977,7 @@ async function main() {
       'caixa',
     ],
     chavesAdicionais: [
+      'dashboard.visualizar',
       'vendas.visualizar',
       'vendas.aprovar',
       'vendas.faturar',
@@ -987,12 +1005,13 @@ async function main() {
 
   const permissoesRh = selecionarPermissoes({
     modulos: ['funcionarios', 'agenda'],
-    chavesAdicionais: ['clientes.visualizar'],
+    chavesAdicionais: ['clientes.visualizar', 'dashboard.visualizar'],
     chavesExcluidas: ['agenda.excluir'],
   });
 
   const permissoesColaborador = selecionarPermissoes({
     chavesAdicionais: [
+      'dashboard.visualizar',
       'vendas.visualizar',
       'vendas.criar',
       'vendas.editar',
