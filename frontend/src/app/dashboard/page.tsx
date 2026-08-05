@@ -1,31 +1,160 @@
 "use client";
+
 import { useQuery } from "@tanstack/react-query";
-import { AppLayout } from "@/components/layout/AppLayout";
-import { PageHeader } from "@/components/common/PageHeader";
+
+import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { PageHeader } from "@/components/common/PageHeader";
 import { CrudLoading } from "@/components/crud/CrudLoading";
-import { DashboardStats } from "@/components/dashboard/DashboardStats";
-import { DashboardWelcome } from "@/components/dashboard/DashboardWelcome";
-import { DashboardRecentMovements } from "@/components/dashboard/DashboardRecentMovements";
 import { DashboardLowStock } from "@/components/dashboard/DashboardLowStock";
 import { DashboardMovementsChart } from "@/components/dashboard/DashboardMovementsChart";
 import { DashboardQuickActions } from "@/components/dashboard/DashboardQuickActions";
+import { DashboardRecentMovements } from "@/components/dashboard/DashboardRecentMovements";
+import { DashboardStats } from "@/components/dashboard/DashboardStats";
+import { DashboardWelcome } from "@/components/dashboard/DashboardWelcome";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
-import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import {
+  PERMISSAO_DASHBOARD_VISUALIZAR,
+  PERMISSAO_ESTOQUE_VISUALIZAR,
+  PERMISSAO_MOVIMENTACOES_VISUALIZAR,
+} from "@/lib/auth";
+import { dashboardQueryKeys } from "@/lib/dashboard-query-keys";
 import { obterResumoDashboard } from "@/services/dashboard.service";
-import { listarMovimentacoes } from "@/services/movimentacoes.service";
 import { listarEstoque } from "@/services/estoque.service";
+import { listarMovimentacoes } from "@/services/movimentacoes.service";
+
+const filtrosMovimentacoes = {
+  page: 1,
+  limit: 5,
+  sortBy: "createdAt",
+  order: "desc" as const,
+};
+
+const filtrosEstoqueBaixo = {
+  page: 1,
+  limit: 10,
+  sortBy: "quantidadeAtual",
+  order: "asc" as const,
+};
 
 export default function DashboardPage() {
-  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } = useEmpresaSelecionada();
+  const { temPermissao } = useAuth();
+  const {
+    empresaSelecionadaId,
+    empresaEfetivaId,
+    carregando,
+    requerSelecao,
+  } = useEmpresaSelecionada();
+  const podeVisualizar = temPermissao(PERMISSAO_DASHBOARD_VISUALIZAR);
+  const podeVisualizarMovimentacoes = temPermissao(
+    PERMISSAO_MOVIMENTACOES_VISUALIZAR,
+  );
+  const podeVisualizarEstoque = temPermissao(PERMISSAO_ESTOQUE_VISUALIZAR);
   const possuiEmpresa = !requerSelecao || Boolean(empresaSelecionadaId);
-  const enabled = possuiEmpresa && Boolean(empresaEfetivaId) && !carregando;
-  const { data: resumo, isLoading, error } = useQuery({ queryKey: estoqueQueryKeys.dashboardResumo(empresaEfetivaId ?? ""), queryFn: obterResumoDashboard, enabled });
-  const { data: movimentacoesResponse } = useQuery({ queryKey: estoqueQueryKeys.dashboardMovimentacoes(empresaEfetivaId ?? ""), queryFn: () => listarMovimentacoes({ page: 1, limit: 5, sortBy: "createdAt", order: "desc" }), enabled });
-  const { data: estoqueResponse } = useQuery({ queryKey: estoqueQueryKeys.dashboardEstoqueBaixo(empresaEfetivaId ?? ""), queryFn: () => listarEstoque({ page: 1, limit: 10, sortBy: "quantidadeAtual", order: "asc" }), enabled });
-  if (carregando) return <AppLayout><CrudLoading /></AppLayout>;
-  if (!possuiEmpresa) return <AppLayout><EmpresaNaoSelecionada /></AppLayout>;
-  if (isLoading) return <AppLayout><p className="text-slate-600">Carregando dashboard...</p></AppLayout>;
-  if (error) return <AppLayout><div className="rounded-xl bg-red-50 p-4 text-red-700">Erro ao carregar dashboard.</div></AppLayout>;
-  return <AppLayout><div className="space-y-6"><PageHeader title="Dashboard" description="Resumo geral do Sistema de Gestão Empresarial." /><DashboardWelcome /><DashboardQuickActions />{resumo && <DashboardStats resumo={resumo} />}<div className="grid grid-cols-1 gap-6 lg:grid-cols-2"><DashboardRecentMovements movimentacoes={movimentacoesResponse?.data ?? []} /><DashboardLowStock itens={estoqueResponse?.data ?? []} /></div><DashboardMovementsChart movimentacoes={movimentacoesResponse?.data ?? []} /></div></AppLayout>;
+  const contextoPronto =
+    !carregando && possuiEmpresa && Boolean(empresaEfetivaId);
+
+  const {
+    data: resumo,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: dashboardQueryKeys.resumo(empresaEfetivaId ?? ""),
+    queryFn: obterResumoDashboard,
+    enabled: podeVisualizar && contextoPronto,
+  });
+  const { data: movimentacoesResponse } = useQuery({
+    queryKey: dashboardQueryKeys.movimentacoes(
+      empresaEfetivaId ?? "",
+      filtrosMovimentacoes.page,
+      filtrosMovimentacoes.limit,
+      filtrosMovimentacoes.sortBy,
+      filtrosMovimentacoes.order,
+    ),
+    queryFn: () => listarMovimentacoes(filtrosMovimentacoes),
+    enabled:
+      podeVisualizar && podeVisualizarMovimentacoes && contextoPronto,
+  });
+  const { data: estoqueResponse } = useQuery({
+    queryKey: dashboardQueryKeys.estoqueBaixo(
+      empresaEfetivaId ?? "",
+      filtrosEstoqueBaixo.page,
+      filtrosEstoqueBaixo.limit,
+      filtrosEstoqueBaixo.sortBy,
+      filtrosEstoqueBaixo.order,
+    ),
+    queryFn: () => listarEstoque(filtrosEstoqueBaixo),
+    enabled: podeVisualizar && podeVisualizarEstoque && contextoPronto,
+  });
+
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+  if (!podeVisualizar) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+  if (!possuiEmpresa || !empresaEfetivaId) {
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+  }
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <p className="text-slate-600">Carregando dashboard...</p>
+      </AppLayout>
+    );
+  }
+  if (error) {
+    return (
+      <AppLayout>
+        <div className="rounded-xl bg-red-50 p-4 text-red-700">
+          Erro ao carregar dashboard.
+        </div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout>
+      <div className="space-y-6">
+        <PageHeader
+          title="Dashboard"
+          description="Resumo geral do Sistema de Gestão Empresarial."
+        />
+        <DashboardWelcome />
+        <DashboardQuickActions />
+        {resumo && <DashboardStats resumo={resumo} />}
+        {(podeVisualizarMovimentacoes || podeVisualizarEstoque) && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {podeVisualizarMovimentacoes && (
+              <DashboardRecentMovements
+                movimentacoes={movimentacoesResponse?.data ?? []}
+              />
+            )}
+            {podeVisualizarEstoque && (
+              <DashboardLowStock itens={estoqueResponse?.data ?? []} />
+            )}
+          </div>
+        )}
+        {podeVisualizarMovimentacoes && (
+          <DashboardMovementsChart
+            movimentacoes={movimentacoesResponse?.data ?? []}
+          />
+        )}
+      </div>
+    </AppLayout>
+  );
 }

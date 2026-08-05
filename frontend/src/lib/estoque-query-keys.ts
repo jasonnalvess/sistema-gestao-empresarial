@@ -17,13 +17,6 @@ export const estoqueQueryKeys = {
   inventarios: (empresaId: string) => ["inventarios", empresaId] as const,
   inventario: (empresaId: string, inventarioId: string) =>
     ["inventario", empresaId, inventarioId] as const,
-  dashboard: (empresaId: string) => ["dashboard", empresaId] as const,
-  dashboardResumo: (empresaId: string) =>
-    ["dashboard", empresaId, "resumo"] as const,
-  dashboardMovimentacoes: (empresaId: string) =>
-    ["dashboard", empresaId, "movimentacoes"] as const,
-  dashboardEstoqueBaixo: (empresaId: string) =>
-    ["dashboard", empresaId, "estoque-baixo"] as const,
   categoriasSelect: (empresaId: string) =>
     ["categorias-produtos-select", empresaId] as const,
   marcasSelect: (empresaId: string) =>

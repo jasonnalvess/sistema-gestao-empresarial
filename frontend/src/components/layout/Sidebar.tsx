@@ -26,6 +26,7 @@ import {
   PERMISSAO_FINANCEIRO_VISUALIZAR,
   PERMISSAO_AUDITORIA_EMPRESA_VISUALIZAR,
   PERMISSAO_AUDITORIA_GLOBAL_VISUALIZAR,
+  PERMISSAO_DASHBOARD_VISUALIZAR,
   possuiPermissao,
 } from "@/lib/auth";
 import { X } from "lucide-react";
@@ -40,6 +41,7 @@ export function Sidebar({ aberto, aoFechar }: SidebarProps) {
   const { usuario, temPermissao } = useAuth();
 
   const permissoesPorRota: Partial<Record<string, string>> = {
+    "/dashboard": PERMISSAO_DASHBOARD_VISUALIZAR,
     "/clientes": PERMISSAO_CLIENTES_VISUALIZAR,
     "/fornecedores": PERMISSAO_FORNECEDORES_VISUALIZAR,
     "/pedidos-compra": PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,

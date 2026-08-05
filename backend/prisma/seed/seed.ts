@@ -237,6 +237,13 @@ async function main() {
         'Permite consultar os registros de Auditoria da empresa atual.',
       modulo: 'sistema',
     },
+    {
+      nome: 'Visualizar Dashboard',
+      chave: 'dashboard.visualizar',
+      descricao:
+        'Permite visualizar os indicadores operacionais da empresa selecionada.',
+      modulo: 'sistema',
+    },
 
     // Empresas
     {
@@ -951,6 +958,7 @@ async function main() {
       'fiscal',
     ],
     chavesAdicionais: [
+      'dashboard.visualizar',
       'auditoria.empresa.visualizar',
       'empresas.visualizar',
       'empresas.editar',
@@ -969,6 +977,7 @@ async function main() {
       'caixa',
     ],
     chavesAdicionais: [
+      'dashboard.visualizar',
       'vendas.visualizar',
       'vendas.aprovar',
       'vendas.faturar',
@@ -996,12 +1005,13 @@ async function main() {
 
   const permissoesRh = selecionarPermissoes({
     modulos: ['funcionarios', 'agenda'],
-    chavesAdicionais: ['clientes.visualizar'],
+    chavesAdicionais: ['clientes.visualizar', 'dashboard.visualizar'],
     chavesExcluidas: ['agenda.excluir'],
   });
 
   const permissoesColaborador = selecionarPermissoes({
     chavesAdicionais: [
+      'dashboard.visualizar',
       'vendas.visualizar',
       'vendas.criar',
       'vendas.editar',

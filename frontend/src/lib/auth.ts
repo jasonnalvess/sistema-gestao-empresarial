@@ -4,6 +4,7 @@ export const PERMISSAO_AUDITORIA_GLOBAL_VISUALIZAR =
   "sistema.auditoria.visualizar";
 export const PERMISSAO_AUDITORIA_EMPRESA_VISUALIZAR =
   "auditoria.empresa.visualizar";
+export const PERMISSAO_DASHBOARD_VISUALIZAR = "dashboard.visualizar";
 
 export const PERMISSAO_VENDAS_VISUALIZAR = "vendas.visualizar";
 export const PERMISSAO_VENDAS_CRIAR = "vendas.criar";

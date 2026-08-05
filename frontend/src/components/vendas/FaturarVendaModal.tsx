@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { PERMISSAO_VENDAS_FATURAR } from "@/lib/auth";
 import { obterMensagemErro } from "@/lib/api-error";
+import { dashboardQueryKeys } from "@/lib/dashboard-query-keys";
 import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 import { financeiroQueryKeys } from "@/lib/financeiro-query-keys";
 import { vendasQueryKeys } from "@/lib/vendas-query-keys";
@@ -68,7 +69,7 @@ export function FaturarVendaModal({ vendaId, open, onOpenChange }: Props) {
           queryKey: estoqueQueryKeys.produtosDetalhes(empresaEfetivaId),
         }),
         queryClient.invalidateQueries({
-          queryKey: estoqueQueryKeys.dashboard(empresaEfetivaId),
+          queryKey: dashboardQueryKeys.root(empresaEfetivaId),
         }),
         queryClient.invalidateQueries({
           queryKey: contasReceberQueryKeys.listas(empresaEfetivaId),
