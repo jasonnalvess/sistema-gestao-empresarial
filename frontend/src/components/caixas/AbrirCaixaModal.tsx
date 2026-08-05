@@ -9,39 +9,42 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CAIXA_ABRIR } from "@/lib/auth";
+import { caixasQueryKeys } from "@/lib/caixas-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
-import {
-  abrirCaixa,
-  Caixa,
-} from "@/services/caixas.service";
+import { abrirCaixa, Caixa } from "@/services/caixas.service";
 
 type Props = {
   caixa: Caixa;
 };
 
-export function AbrirCaixaModal({
-  caixa,
-}: Props) {
+export function AbrirCaixaModal({ caixa }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeAbrir = temPermissao(PERMISSAO_CAIXA_ABRIR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  const [saldoInicial, setSaldoInicial] =
-    useState(
-      Number(caixa.saldoAtual).toFixed(2)
-    );
+  const [saldoInicial, setSaldoInicial] = useState(
+    Number(caixa.saldoAtual).toFixed(2),
+  );
 
-  const [observacao, setObservacao] =
-    useState("");
+  const [observacao, setObservacao] = useState("");
 
   async function salvar() {
+    if (!podeAbrir || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     const saldo = Number(saldoInicial);
 
     if (saldo < 0) {
-      toast.error(
-        "O saldo inicial não pode ser negativo."
-      );
+      toast.error("O saldo inicial não pode ser negativo.");
       return;
     }
 
@@ -51,40 +54,48 @@ export function AbrirCaixaModal({
       await abrirCaixa(caixa.id, {
         saldoInicial: saldo,
 
-        observacao:
-          observacao.trim() || undefined,
+        observacao: observacao.trim() || undefined,
       });
 
-      toast.success(
-        "Caixa aberto com sucesso!"
-      );
+      toast.success("Caixa aberto com sucesso!");
 
       setAberto(false);
 
       await queryClient.invalidateQueries({
-        queryKey: ["caixa", caixa.id],
+        queryKey: caixasQueryKeys.detalhe(empresaEfetivaId, caixa.id),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["caixas"],
+        queryKey: caixasQueryKeys.listas(empresaEfetivaId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: caixasQueryKeys.resumo(empresaEfetivaId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: caixasQueryKeys.movimentacoes(empresaEfetivaId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: caixasQueryKeys.aberturaAtual(empresaEfetivaId, caixa.id),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: caixasQueryKeys.aberturas(empresaEfetivaId, caixa.id),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["caixas-abertos-pagamento"],
+        queryKey: caixasQueryKeys.abertosPagamento(empresaEfetivaId),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["caixas-abertos-recebimento"],
+        queryKey: caixasQueryKeys.abertosRecebimento(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          "Erro ao abrir caixa"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao abrir caixa"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeAbrir || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -93,10 +104,7 @@ export function AbrirCaixaModal({
       title={`Abrir ${caixa.nome}`}
       trigger={
         <Button>
-          <LockKeyholeOpen
-            size={16}
-            className="mr-2"
-          />
+          <LockKeyholeOpen size={16} className="mr-2" />
           Abrir caixa
         </Button>
       }
@@ -122,9 +130,7 @@ export function AbrirCaixaModal({
             min="0"
             step="0.01"
             value={saldoInicial}
-            onChange={(event) =>
-              setSaldoInicial(event.target.value)
-            }
+            onChange={(event) => setSaldoInicial(event.target.value)}
           />
         </div>
 
@@ -135,9 +141,7 @@ export function AbrirCaixaModal({
 
           <Textarea
             value={observacao}
-            onChange={(event) =>
-              setObservacao(event.target.value)
-            }
+            onChange={(event) => setObservacao(event.target.value)}
           />
         </div>
 
@@ -150,13 +154,8 @@ export function AbrirCaixaModal({
             Cancelar
           </Button>
 
-          <Button
-            onClick={salvar}
-            disabled={salvando}
-          >
-            {salvando
-              ? "Abrindo..."
-              : "Confirmar abertura"}
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? "Abrindo..." : "Confirmar abertura"}
           </Button>
         </div>
       </div>
@@ -164,14 +163,9 @@ export function AbrirCaixaModal({
   );
 }
 
-function formatarMoeda(
-  valor: string | number
-) {
-  return Number(valor).toLocaleString(
-    "pt-BR",
-    {
-      style: "currency",
-      currency: "BRL",
-    }
-  );
+function formatarMoeda(valor: string | number) {
+  return Number(valor).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }

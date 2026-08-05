@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { PERMISSAO_PEDIDOS_COMPRA_EDITAR } from "@/lib/auth";
+import { dashboardQueryKeys } from "@/lib/dashboard-query-keys";
 import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 import { Button } from "@/components/ui/button";
@@ -193,7 +194,7 @@ export function ReceberPedidoCompraModal({ pedido }: Props) {
       });
 
       await queryClient.invalidateQueries({
-        queryKey: estoqueQueryKeys.dashboardResumo(empresaEfetivaId),
+        queryKey: dashboardQueryKeys.resumo(empresaEfetivaId),
       });
     } catch (error: unknown) {
       toast.error(

@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,7 +17,6 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
 
@@ -128,32 +126,7 @@ export class VendasService {
     },
   };
 
-  private obterEmpresaId(usuario: AuthenticatedUser): string {
-    if (!usuario.empresaId) {
-      throw new BadRequestException('O usuário não possui empresa vinculada');
-    }
-
-    return usuario.empresaId;
-  }
-
-  private obterUsuarioId(usuario: AuthenticatedUser): string | undefined {
-    return usuario.id;
-  }
-
-  private tratarErroPrisma(error: unknown): never {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
-      throw new ConflictException(
-        'Conflito ao gerar a numeração ou salvar os itens da venda',
-      );
-    }
-
-    throw error;
-  }
-
-  private isContaVendaParcelaDuplicada(error: unknown): boolean {
+  private alvoP2002(error: unknown, campos: readonly string[], indice: string) {
     if (
       !(error instanceof Prisma.PrismaClientKnownRequestError) ||
       error.code !== 'P2002'
@@ -162,14 +135,93 @@ export class VendasService {
     }
 
     const target = error.meta?.target;
+    return Array.isArray(target)
+      ? target.length === campos.length &&
+          campos.every((campo) => target.includes(campo))
+      : target === indice;
+  }
 
-    if (Array.isArray(target)) {
-      return target.includes('vendaId') && target.includes('parcelaAtual');
+  private tratarErroCriacao(error: unknown): never {
+    if (
+      this.alvoP2002(
+        error,
+        ['empresaId', 'numero'],
+        'Venda_empresaId_numero_key',
+      )
+    ) {
+      throw new ConflictException('Conflito ao gerar a numeração da venda');
     }
 
-    return (
-      typeof target === 'string' &&
-      target.includes('ContaReceber_vendaId_parcelaAtual_key')
+    if (
+      this.alvoP2002(
+        error,
+        ['vendaId', 'produtoId'],
+        'VendaItem_vendaId_produtoId_key',
+      )
+    ) {
+      throw new ConflictException(
+        'O mesmo produto não pode aparecer mais de uma vez na venda',
+      );
+    }
+
+    throw error;
+  }
+
+  private tratarErroFaturamento(error: unknown): never {
+    if (
+      this.alvoP2002(
+        error,
+        ['vendaId', 'parcelaAtual'],
+        'ContaReceber_vendaId_parcelaAtual_key',
+      )
+    ) {
+      throw new ConflictException(
+        'As contas a receber desta venda já foram geradas',
+      );
+    }
+
+    if (
+      this.alvoP2002(
+        error,
+        ['empresaId', 'numero'],
+        'ContaReceber_empresaId_numero_key',
+      )
+    ) {
+      throw new ConflictException(
+        'Conflito ao gerar a numeração da conta a receber',
+      );
+    }
+
+    throw error;
+  }
+
+  private async bloquearNumeracaoVenda(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+  ) {
+    const chave = `venda-numero:${empresaId}`;
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))`,
+    );
+  }
+
+  private async bloquearNumeracaoContaReceber(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+  ) {
+    const chave = `conta-receber-numero:${empresaId}`;
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))`,
+    );
+  }
+
+  private async bloquearVenda(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    id: string,
+  ) {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "Venda" WHERE "id" = ${id} AND "empresaId" = ${empresaId} FOR UPDATE`,
     );
   }
 
@@ -289,18 +341,15 @@ export class VendasService {
   }
 
   private async validarCliente(clienteId: string, empresaId: string) {
-    const cliente = await this.prisma.cliente.findUnique({
+    const cliente = await this.prisma.cliente.findFirst({
       where: {
         id: clienteId,
+        empresaId,
       },
     });
 
     if (!cliente) {
       throw new NotFoundException('Cliente não encontrado');
-    }
-
-    if (cliente.empresaId !== empresaId) {
-      throw new ForbiddenException('Cliente pertence a outra empresa');
     }
 
     if (!cliente.ativo) {
@@ -313,18 +362,15 @@ export class VendasService {
   }
 
   private async validarDeposito(depositoId: string, empresaId: string) {
-    const deposito = await this.prisma.deposito.findUnique({
+    const deposito = await this.prisma.deposito.findFirst({
       where: {
         id: depositoId,
+        empresaId,
       },
     });
 
     if (!deposito) {
       throw new NotFoundException('Depósito não encontrado');
-    }
-
-    if (deposito.empresaId !== empresaId) {
-      throw new ForbiddenException('Depósito pertence a outra empresa');
     }
 
     if (!deposito.ativo) {
@@ -371,7 +417,7 @@ export class VendasService {
   private async registrarHistorico(
     vendaId: string,
     descricao: string,
-    usuario: AuthenticatedUser,
+    usuarioId: string | undefined,
     tx?: Prisma.TransactionClient,
   ) {
     const cliente = tx ?? this.prisma;
@@ -381,14 +427,16 @@ export class VendasService {
         vendaId,
         descricao,
 
-        usuarioId: this.obterUsuarioId(usuario),
+        usuarioId,
       },
     });
   }
 
-  async criar(dados: CriarVendaDto, usuario: AuthenticatedUser) {
-    const empresaId = this.obterEmpresaId(usuario);
-
+  async criar(
+    empresaId: string,
+    dados: CriarVendaDto,
+    usuarioId: string | undefined,
+  ) {
     this.validarCondicaoPagamento(dados);
 
     await Promise.all([
@@ -403,6 +451,8 @@ export class VendasService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await this.bloquearNumeracaoVenda(tx, empresaId);
+
         const ultimaVenda = await tx.venda.findFirst({
           where: {
             empresaId,
@@ -461,7 +511,7 @@ export class VendasService {
 
             depositoId: dados.depositoId,
 
-            usuarioCriacaoId: this.obterUsuarioId(usuario),
+            usuarioCriacaoId: usuarioId,
 
             itens: {
               create: valores.itensCalculados,
@@ -478,27 +528,24 @@ export class VendasService {
             2,
           )}.`,
 
-          usuario,
+          usuarioId,
           tx,
         );
 
         return venda;
       });
     } catch (error) {
-      this.tratarErroPrisma(error);
+      this.tratarErroCriacao(error);
     }
   }
 
-  async listar(usuario: AuthenticatedUser, filtros: FiltroVendasDto) {
+  async listar(empresaId: string, filtros: FiltroVendasDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
 
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const empresaId =
-      usuario.tipo === 'SUPER_ADMIN' ? undefined : this.obterEmpresaId(usuario);
-
-    const where: Prisma.VendaWhereInput = empresaId ? { empresaId } : {};
+    const where: Prisma.VendaWhereInput = { empresaId };
 
     if (filtros.status) {
       where.status = filtros.status;
@@ -630,10 +677,11 @@ export class VendasService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuario: AuthenticatedUser) {
-    const venda = await this.prisma.venda.findUnique({
+  async buscarPorId(empresaId: string, id: string) {
+    const venda = await this.prisma.venda.findFirst({
       where: {
         id,
+        empresaId,
       },
 
       include: this.includeVenda,
@@ -643,22 +691,16 @@ export class VendasService {
       throw new NotFoundException('Venda não encontrada');
     }
 
-    if (
-      usuario.tipo !== 'SUPER_ADMIN' &&
-      venda.empresaId !== usuario.empresaId
-    ) {
-      throw new ForbiddenException('Acesso negado a venda de outra empresa');
-    }
-
     return venda;
   }
 
   async atualizar(
+    empresaId: string,
     id: string,
     dados: AtualizarVendaDto,
-    usuario: AuthenticatedUser,
+    usuarioId: string | undefined,
   ) {
-    const venda = await this.buscarPorId(id, usuario);
+    const venda = await this.buscarPorId(empresaId, id);
 
     if (venda.status !== StatusVenda.RASCUNHO) {
       throw new BadRequestException(
@@ -690,9 +732,9 @@ export class VendasService {
     });
 
     await Promise.all([
-      this.validarCliente(clienteId, venda.empresaId),
+      this.validarCliente(clienteId, empresaId),
 
-      this.validarDeposito(depositoId, venda.empresaId),
+      this.validarDeposito(depositoId, empresaId),
     ]);
 
     const itens =
@@ -709,7 +751,7 @@ export class VendasService {
         observacao: item.observacao ?? undefined,
       }));
 
-    await this.validarProdutos(itens, venda.empresaId);
+    await this.validarProdutos(itens, empresaId);
 
     const valores = this.calcularValores(itens, {
       valorDesconto: dados.valorDesconto ?? Number(venda.valorDesconto),
@@ -720,6 +762,8 @@ export class VendasService {
     });
 
     return this.prisma.$transaction(async (tx) => {
+      await this.bloquearVenda(tx, empresaId, id);
+
       if (dados.itens) {
         await tx.vendaItem.deleteMany({
           where: {
@@ -731,6 +775,8 @@ export class VendasService {
       const atualizada = await tx.venda.update({
         where: {
           id,
+          empresaId,
+          status: StatusVenda.RASCUNHO,
         },
 
         data: {
@@ -785,14 +831,18 @@ export class VendasService {
         include: this.includeVenda,
       });
 
-      await this.registrarHistorico(id, 'Venda atualizada.', usuario, tx);
+      await this.registrarHistorico(id, 'Venda atualizada.', usuarioId, tx);
 
       return atualizada;
     });
   }
 
-  async enviarParaAprovacao(id: string, usuario: AuthenticatedUser) {
-    const venda = await this.buscarPorId(id, usuario);
+  async enviarParaAprovacao(
+    empresaId: string,
+    id: string,
+    usuarioId: string | undefined,
+  ) {
+    const venda = await this.buscarPorId(empresaId, id);
 
     if (venda.status !== StatusVenda.RASCUNHO) {
       throw new BadRequestException(
@@ -807,22 +857,28 @@ export class VendasService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const atualizada = await tx.venda.update({
-        where: {
-          id,
-        },
+      await this.bloquearVenda(tx, empresaId, id);
 
-        data: {
-          status: StatusVenda.PENDENTE,
-        },
+      const transicao = await tx.venda.updateMany({
+        where: { id, empresaId, status: StatusVenda.RASCUNHO },
+        data: { status: StatusVenda.PENDENTE },
+      });
 
+      if (transicao.count !== 1) {
+        throw new BadRequestException(
+          'Somente vendas em rascunho podem ser enviadas para aprovação',
+        );
+      }
+
+      const atualizada = await tx.venda.findUniqueOrThrow({
+        where: { id, empresaId },
         include: this.includeVenda,
       });
 
       await this.registrarHistorico(
         id,
         'Venda enviada para aprovação.',
-        usuario,
+        usuarioId,
         tx,
       );
 
@@ -830,8 +886,8 @@ export class VendasService {
     });
   }
 
-  async aprovar(id: string, usuario: AuthenticatedUser) {
-    const venda = await this.buscarPorId(id, usuario);
+  async aprovar(empresaId: string, id: string, usuarioId: string | undefined) {
+    const venda = await this.buscarPorId(empresaId, id);
 
     if (venda.status !== StatusVenda.PENDENTE) {
       throw new BadRequestException(
@@ -859,7 +915,7 @@ export class VendasService {
       const estoque = await this.prisma.estoqueProduto.findUnique({
         where: {
           empresaId_produtoId_depositoId: {
-            empresaId: venda.empresaId,
+            empresaId: empresaId,
             produtoId: item.produtoId,
             depositoId: venda.depositoId,
           },
@@ -888,26 +944,32 @@ export class VendasService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const atualizada = await tx.venda.update({
-        where: {
-          id,
-        },
+      await this.bloquearVenda(tx, empresaId, id);
 
+      const transicao = await tx.venda.updateMany({
+        where: { id, empresaId, status: StatusVenda.PENDENTE },
         data: {
           status: StatusVenda.APROVADA,
-
           dataAprovacao: new Date(),
-
-          usuarioAprovacaoId: this.obterUsuarioId(usuario),
+          usuarioAprovacaoId: usuarioId,
         },
+      });
 
+      if (transicao.count !== 1) {
+        throw new BadRequestException(
+          'Somente vendas pendentes podem ser aprovadas',
+        );
+      }
+
+      const atualizada = await tx.venda.findUniqueOrThrow({
+        where: { id, empresaId },
         include: this.includeVenda,
       });
 
       await this.registrarHistorico(
         id,
         'Venda aprovada após validação do estoque.',
-        usuario,
+        usuarioId,
         tx,
       );
 
@@ -916,15 +978,17 @@ export class VendasService {
   }
 
   async faturar(
+    empresaId: string,
     id: string,
     dados: FaturarVendaDto,
-    usuario: AuthenticatedUser,
+    usuarioId: string | undefined,
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const vendaMinima = await tx.venda.findUnique({
+        let vendaMinima = await tx.venda.findFirst({
           where: {
             id,
+            empresaId,
           },
 
           select: {
@@ -938,13 +1002,14 @@ export class VendasService {
           throw new NotFoundException('Venda não encontrada');
         }
 
-        if (
-          usuario.tipo !== 'SUPER_ADMIN' &&
-          vendaMinima.empresaId !== usuario.empresaId
-        ) {
-          throw new ForbiddenException(
-            'Acesso negado a venda de outra empresa',
-          );
+        await this.bloquearVenda(tx, empresaId, id);
+        vendaMinima = await tx.venda.findFirst({
+          where: { id, empresaId },
+          select: { id: true, empresaId: true, status: true },
+        });
+
+        if (!vendaMinima) {
+          throw new NotFoundException('Venda não encontrada');
         }
 
         if (vendaMinima.status !== StatusVenda.APROVADA) {
@@ -957,7 +1022,7 @@ export class VendasService {
         const transicao = await tx.venda.updateMany({
           where: {
             id,
-            empresaId: vendaMinima.empresaId,
+            empresaId: empresaId,
             status: StatusVenda.APROVADA,
           },
 
@@ -976,7 +1041,7 @@ export class VendasService {
         const venda = await tx.venda.findUniqueOrThrow({
           where: {
             id,
-            empresaId: vendaMinima.empresaId,
+            empresaId: empresaId,
           },
 
           include: this.includeVenda,
@@ -1056,7 +1121,7 @@ export class VendasService {
         const contaExistente = await tx.contaReceber.findFirst({
           where: {
             vendaId: id,
-            empresaId: venda.empresaId,
+            empresaId: empresaId,
           },
 
           select: {
@@ -1072,9 +1137,9 @@ export class VendasService {
 
         await bloquearEstoques(
           tx,
-          venda.empresaId,
+          empresaId,
           venda.itens.map((item) =>
-            chaveLockEstoque(venda.empresaId, item.produtoId, venda.depositoId),
+            chaveLockEstoque(empresaId, item.produtoId, venda.depositoId),
           ),
         );
 
@@ -1087,7 +1152,7 @@ export class VendasService {
 
           const baixa = await tx.estoqueProduto.updateMany({
             where: {
-              empresaId: venda.empresaId,
+              empresaId: empresaId,
 
               produtoId: item.produtoId,
 
@@ -1114,7 +1179,7 @@ export class VendasService {
           const estoque = await tx.estoqueProduto.findUniqueOrThrow({
             where: {
               empresaId_produtoId_depositoId: {
-                empresaId: venda.empresaId,
+                empresaId: empresaId,
 
                 produtoId: item.produtoId,
 
@@ -1143,13 +1208,13 @@ export class VendasService {
 
               custoUnitario: estoque.custoMedio,
 
-              empresaId: venda.empresaId,
+              empresaId: empresaId,
 
               produtoId: item.produtoId,
 
               depositoId: venda.depositoId,
 
-              usuarioId: this.obterUsuarioId(usuario),
+              usuarioId,
             },
           });
 
@@ -1168,9 +1233,11 @@ export class VendasService {
          * Obtém uma única vez o último número.
          * As parcelas recebem números sequenciais.
          */
+        await this.bloquearNumeracaoContaReceber(tx, empresaId);
+
         const ultimaConta = await tx.contaReceber.findFirst({
           where: {
-            empresaId: venda.empresaId,
+            empresaId: empresaId,
           },
 
           orderBy: {
@@ -1253,13 +1320,13 @@ export class VendasService {
 
               valorAberto: valorParcela,
 
-              empresaId: venda.empresaId,
+              empresaId: empresaId,
 
               clienteId: venda.clienteId,
 
               vendaId: venda.id,
 
-              usuarioCriacaoId: this.obterUsuarioId(usuario),
+              usuarioCriacaoId: usuarioId,
             },
           });
 
@@ -1269,7 +1336,7 @@ export class VendasService {
 
               descricao: `Conta a receber nº ${numero} gerada automaticamente pela venda nº ${venda.numero}, parcela ${parcelaAtual}/${totalParcelas}.`,
 
-              usuarioId: this.obterUsuarioId(usuario),
+              usuarioId,
             },
           });
 
@@ -1283,7 +1350,7 @@ export class VendasService {
         const vendaAtualizada = await tx.venda.findUniqueOrThrow({
           where: {
             id,
-            empresaId: venda.empresaId,
+            empresaId: empresaId,
           },
 
           include: this.includeVenda,
@@ -1294,7 +1361,7 @@ export class VendasService {
 
           `Venda faturada, estoque baixado no depósito ${venda.deposito.nome} e ${totalParcelas} conta(s) a receber gerada(s).`,
 
-          usuario,
+          usuarioId,
           tx,
         );
 
@@ -1304,26 +1371,22 @@ export class VendasService {
         };
       });
     } catch (error) {
-      if (this.isContaVendaParcelaDuplicada(error)) {
-        throw new ConflictException(
-          'As contas a receber desta venda já foram geradas',
-        );
-      }
-
-      throw error;
+      this.tratarErroFaturamento(error);
     }
   }
 
   async concluirSeQuitada(
+    empresaId: string,
     vendaId: string,
     usuarioId: string | undefined,
     tx?: Prisma.TransactionClient,
   ) {
     const prisma = tx ?? this.prisma;
 
-    const venda = await prisma.venda.findUnique({
+    const venda = await prisma.venda.findFirst({
       where: {
         id: vendaId,
+        empresaId,
       },
       include: {
         contasReceber: {
@@ -1368,9 +1431,11 @@ export class VendasService {
 
     const dataConclusao = new Date();
 
-    await prisma.venda.update({
+    const transicao = await prisma.venda.updateMany({
       where: {
         id: vendaId,
+        empresaId,
+        status: StatusVenda.FATURADA,
       },
       data: {
         status: StatusVenda.CONCLUIDA,
@@ -1378,6 +1443,13 @@ export class VendasService {
         ...(usuarioId ? { usuarioConclusaoId: usuarioId } : {}),
       },
     });
+
+    if (transicao.count !== 1) {
+      return prisma.venda.findFirst({
+        where: { id: vendaId, empresaId },
+        include: this.includeVenda,
+      });
+    }
 
     await prisma.vendaHistorico.create({
       data: {
@@ -1388,22 +1460,17 @@ export class VendasService {
       },
     });
 
-    return prisma.venda.findUnique({
+    return prisma.venda.findFirst({
       where: {
         id: vendaId,
+        empresaId,
       },
       include: this.includeVenda,
     });
   }
 
-  async dashboard(
-    usuario: AuthenticatedUser,
-    filtros: FiltroDashboardVendasDto,
-  ) {
-    const empresaId =
-      usuario.tipo === 'SUPER_ADMIN' ? undefined : this.obterEmpresaId(usuario);
-
-    const where: Prisma.VendaWhereInput = empresaId ? { empresaId } : {};
+  async dashboard(empresaId: string, filtros: FiltroDashboardVendasDto) {
+    const where: Prisma.VendaWhereInput = { empresaId };
 
     if (filtros.clienteId) {
       where.clienteId = filtros.clienteId;
@@ -1711,14 +1778,16 @@ export class VendasService {
   }
 
   async cancelar(
+    empresaId: string,
     id: string,
     dados: CancelarVendaDto,
-    usuario: AuthenticatedUser,
+    usuarioId: string | undefined,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const vendaMinima = await tx.venda.findUnique({
+      let vendaMinima = await tx.venda.findFirst({
         where: {
           id,
+          empresaId,
         },
 
         select: {
@@ -1732,11 +1801,14 @@ export class VendasService {
         throw new NotFoundException('Venda não encontrada');
       }
 
-      if (
-        usuario.tipo !== 'SUPER_ADMIN' &&
-        vendaMinima.empresaId !== usuario.empresaId
-      ) {
-        throw new ForbiddenException('Acesso negado a venda de outra empresa');
+      await this.bloquearVenda(tx, empresaId, id);
+      vendaMinima = await tx.venda.findFirst({
+        where: { id, empresaId },
+        select: { id: true, empresaId: true, status: true },
+      });
+
+      if (!vendaMinima) {
+        throw new NotFoundException('Venda não encontrada');
       }
 
       if (vendaMinima.status === StatusVenda.CANCELADA) {
@@ -1768,7 +1840,7 @@ export class VendasService {
       const transicao = await tx.venda.updateMany({
         where: {
           id,
-          empresaId: vendaMinima.empresaId,
+          empresaId: empresaId,
           status: statusAnterior,
         },
 
@@ -1777,7 +1849,7 @@ export class VendasService {
 
           dataCancelamento,
 
-          usuarioCancelamentoId: this.obterUsuarioId(usuario),
+          usuarioCancelamentoId: usuarioId,
         },
       });
 
@@ -1790,7 +1862,7 @@ export class VendasService {
       const venda = await tx.venda.findUniqueOrThrow({
         where: {
           id,
-          empresaId: vendaMinima.empresaId,
+          empresaId: empresaId,
         },
 
         include: this.includeVenda,
@@ -1810,14 +1882,14 @@ export class VendasService {
         await this.registrarHistorico(
           id,
           `Venda cancelada antes do faturamento. Motivo: ${motivo}`,
-          usuario,
+          usuarioId,
           tx,
         );
 
         return tx.venda.findUniqueOrThrow({
           where: {
             id,
-            empresaId: venda.empresaId,
+            empresaId: empresaId,
           },
 
           include: this.includeVenda,
@@ -1831,7 +1903,7 @@ export class VendasService {
       const contasReceber = await tx.contaReceber.findMany({
         where: {
           vendaId: id,
-          empresaId: venda.empresaId,
+          empresaId: empresaId,
         },
 
         include: {
@@ -1867,9 +1939,9 @@ export class VendasService {
 
       await bloquearEstoques(
         tx,
-        venda.empresaId,
+        empresaId,
         venda.itens.map((item) =>
-          chaveLockEstoque(venda.empresaId, item.produtoId, venda.depositoId),
+          chaveLockEstoque(empresaId, item.produtoId, venda.depositoId),
         ),
       );
 
@@ -1882,7 +1954,7 @@ export class VendasService {
 
         const devolucao = await tx.estoqueProduto.updateMany({
           where: {
-            empresaId: venda.empresaId,
+            empresaId: empresaId,
 
             produtoId: item.produtoId,
 
@@ -1905,7 +1977,7 @@ export class VendasService {
         const estoque = await tx.estoqueProduto.findUniqueOrThrow({
           where: {
             empresaId_produtoId_depositoId: {
-              empresaId: venda.empresaId,
+              empresaId: empresaId,
 
               produtoId: item.produtoId,
 
@@ -1933,13 +2005,13 @@ export class VendasService {
 
             custoUnitario: estoque.custoMedio,
 
-            empresaId: venda.empresaId,
+            empresaId: empresaId,
 
             produtoId: item.produtoId,
 
             depositoId: venda.depositoId,
 
-            usuarioId: this.obterUsuarioId(usuario),
+            usuarioId,
           },
         });
 
@@ -1969,7 +2041,7 @@ export class VendasService {
 
             dataCancelamento,
 
-            usuarioCancelamentoId: this.obterUsuarioId(usuario),
+            usuarioCancelamentoId: usuarioId,
 
             valorAberto: 0,
           },
@@ -1981,7 +2053,7 @@ export class VendasService {
 
             descricao: `Conta a receber nº ${conta.numero} cancelada automaticamente devido ao cancelamento da venda nº ${venda.numero}. Motivo: ${motivo}`,
 
-            usuarioId: this.obterUsuarioId(usuario),
+            usuarioId,
           },
         });
       }
@@ -1991,14 +2063,14 @@ export class VendasService {
 
         `Venda faturada cancelada, estoque estornado e ${contasReceber.length} conta(s) a receber cancelada(s). Motivo: ${motivo}`,
 
-        usuario,
+        usuarioId,
         tx,
       );
 
       return tx.venda.findUniqueOrThrow({
         where: {
           id,
-          empresaId: venda.empresaId,
+          empresaId: empresaId,
         },
 
         include: this.includeVenda,
@@ -2007,11 +2079,12 @@ export class VendasService {
   }
 
   async adicionarHistorico(
+    empresaId: string,
     vendaId: string,
     dados: CriarVendaHistoricoDto,
-    usuario: AuthenticatedUser,
+    usuarioId: string | undefined,
   ) {
-    await this.buscarPorId(vendaId, usuario);
+    await this.buscarPorId(empresaId, vendaId);
 
     return this.prisma.vendaHistorico.create({
       data: {
@@ -2019,7 +2092,7 @@ export class VendasService {
 
         descricao: dados.descricao.trim(),
 
-        usuarioId: this.obterUsuarioId(usuario),
+        usuarioId,
       },
 
       include: {
@@ -2030,8 +2103,8 @@ export class VendasService {
     });
   }
 
-  async listarHistorico(vendaId: string, usuario: AuthenticatedUser) {
-    await this.buscarPorId(vendaId, usuario);
+  async listarHistorico(empresaId: string, vendaId: string) {
+    await this.buscarPorId(empresaId, vendaId);
 
     return this.prisma.vendaHistorico.findMany({
       where: {

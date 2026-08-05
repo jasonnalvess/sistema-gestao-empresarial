@@ -2,6 +2,7 @@ import { AgendaEvento } from "@/services/agenda.service";
 import { EditarEventoModal } from "./EditarEventoModal";
 import { AgendaStatusBadge } from "./AgendaStatusBadge";
 import { AgendaHistoricoModal } from "./AgendaHistoricoModal";
+import { CancelarEventoButton } from "./CancelarEventoButton";
 
 type Props = {
   eventos: AgendaEvento[];
@@ -22,7 +23,7 @@ export function AgendaDayView({ eventos }: Props) {
     .filter((evento) => mesmoDia(new Date(evento.dataInicio), hoje))
     .sort(
       (a, b) =>
-        new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime()
+        new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime(),
     );
 
   const horas = Array.from({ length: 14 }).map((_, index) => index + 7);
@@ -36,7 +37,7 @@ export function AgendaDayView({ eventos }: Props) {
       <div className="space-y-3">
         {horas.map((hora) => {
           const eventosDaHora = eventosHoje.filter(
-            (evento) => new Date(evento.dataInicio).getHours() === hora
+            (evento) => new Date(evento.dataInicio).getHours() === hora,
           );
 
           return (
@@ -54,9 +55,7 @@ export function AgendaDayView({ eventos }: Props) {
                     key={evento.id}
                     className="rounded-lg border border-blue-200 bg-blue-50 p-3"
                   >
-                    <p className="font-medium text-blue-900">
-                      {evento.titulo}
-                    </p>
+                    <p className="font-medium text-blue-900">{evento.titulo}</p>
 
                     <p className="text-sm text-blue-700">
                       {new Date(evento.dataInicio).toLocaleTimeString("pt-BR", {
@@ -74,16 +73,17 @@ export function AgendaDayView({ eventos }: Props) {
                       <AgendaStatusBadge status={evento.status} />
                     </div>
 
-                   {(evento.cliente?.nome || evento.clienteNome) && (
-  <p className="mt-1 text-sm text-slate-600">
-    Cliente: {evento.cliente?.nome || evento.clienteNome}
-  </p>
-)}
+                    {(evento.cliente?.nome || evento.clienteNome) && (
+                      <p className="mt-1 text-sm text-slate-600">
+                        Cliente: {evento.cliente?.nome || evento.clienteNome}
+                      </p>
+                    )}
 
                     <div className="mt-3">
                       <div className="flex gap-2">
                         <EditarEventoModal evento={evento} />
                         <AgendaHistoricoModal evento={evento} />
+                        <CancelarEventoButton evento={evento} />
                       </div>
                     </div>
                   </div>

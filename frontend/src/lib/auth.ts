@@ -1,5 +1,31 @@
 import { permissoes } from "./permissoes";
 
+export const PERMISSAO_AUDITORIA_GLOBAL_VISUALIZAR =
+  "sistema.auditoria.visualizar";
+export const PERMISSAO_AUDITORIA_EMPRESA_VISUALIZAR =
+  "auditoria.empresa.visualizar";
+export const PERMISSAO_DASHBOARD_VISUALIZAR = "dashboard.visualizar";
+
+export const PERMISSAO_VENDAS_VISUALIZAR = "vendas.visualizar";
+export const PERMISSAO_VENDAS_CRIAR = "vendas.criar";
+export const PERMISSAO_VENDAS_EDITAR = "vendas.editar";
+export const PERMISSAO_VENDAS_APROVAR = "vendas.aprovar";
+export const PERMISSAO_VENDAS_FATURAR = "vendas.faturar";
+export const PERMISSAO_VENDAS_CANCELAR = "vendas.cancelar";
+export const PERMISSAO_VENDAS_HISTORICO_ADICIONAR =
+  "vendas.historico.adicionar";
+
+export const PERMISSAO_ORDENS_SERVICO_VISUALIZAR = "ordens_servico.visualizar";
+export const PERMISSAO_ORDENS_SERVICO_CRIAR = "ordens_servico.criar";
+export const PERMISSAO_ORDENS_SERVICO_HISTORICO_ADICIONAR =
+  "ordens_servico.historico.adicionar";
+export const PERMISSAO_ORDENS_SERVICO_STATUS_ALTERAR =
+  "ordens_servico.status.alterar";
+export const PERMISSAO_AGENDA_VISUALIZAR = "agenda.visualizar";
+export const PERMISSAO_AGENDA_CRIAR = "agenda.criar";
+export const PERMISSAO_AGENDA_EDITAR = "agenda.editar";
+export const PERMISSAO_AGENDA_CANCELAR = "agenda.cancelar";
+
 export const PERMISSAO_CLIENTES_VISUALIZAR = "clientes.visualizar";
 export const PERMISSAO_CLIENTES_CRIAR = "clientes.criar";
 export const PERMISSAO_CLIENTES_EDITAR = "clientes.editar";
@@ -18,8 +44,7 @@ export const PERMISSAO_CONTAS_PAGAR_CANCELAR =
   "financeiro.contas_pagar.cancelar";
 export const PERMISSAO_CONTAS_RECEBER_VISUALIZAR =
   "financeiro.contas_receber.visualizar";
-export const PERMISSAO_CONTAS_RECEBER_CRIAR =
-  "financeiro.contas_receber.criar";
+export const PERMISSAO_CONTAS_RECEBER_CRIAR = "financeiro.contas_receber.criar";
 export const PERMISSAO_CONTAS_RECEBER_EDITAR =
   "financeiro.contas_receber.editar";
 export const PERMISSAO_CONTAS_RECEBER_RECEBER =
@@ -53,10 +78,18 @@ export const PERMISSAO_INVENTARIOS_VISUALIZAR =
   "estoque.inventarios.visualizar";
 export const PERMISSAO_INVENTARIOS_CRIAR = "estoque.inventarios.criar";
 export const PERMISSAO_INVENTARIOS_EDITAR = "estoque.inventarios.editar";
-export const PERMISSAO_INVENTARIOS_FINALIZAR =
-  "estoque.inventarios.finalizar";
-export const PERMISSAO_INVENTARIOS_CANCELAR =
-  "estoque.inventarios.cancelar";
+export const PERMISSAO_INVENTARIOS_FINALIZAR = "estoque.inventarios.finalizar";
+export const PERMISSAO_INVENTARIOS_CANCELAR = "estoque.inventarios.cancelar";
+export const PERMISSAO_CAIXA_VISUALIZAR = "caixa.visualizar";
+export const PERMISSAO_CAIXA_CRIAR = "caixa.criar";
+export const PERMISSAO_CAIXA_EDITAR = "caixa.editar";
+export const PERMISSAO_CAIXA_ABRIR = "caixa.abrir";
+export const PERMISSAO_CAIXA_FECHAR = "caixa.fechar";
+export const PERMISSAO_CAIXA_MOVIMENTACOES_REGISTRAR =
+  "caixa.movimentacoes.registrar";
+export const PERMISSAO_CAIXA_MOVIMENTACOES_CANCELAR =
+  "caixa.movimentacoes.cancelar";
+export const PERMISSAO_FINANCEIRO_VISUALIZAR = "financeiro.visualizar";
 
 export type Usuario = {
   id: string;

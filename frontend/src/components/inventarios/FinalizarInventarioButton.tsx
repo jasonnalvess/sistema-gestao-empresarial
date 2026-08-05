@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { PERMISSAO_INVENTARIOS_FINALIZAR } from "@/lib/auth";
 import { obterMensagemErro } from "@/lib/api-error";
+import { dashboardQueryKeys } from "@/lib/dashboard-query-keys";
 import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 import { finalizarInventario, InventarioEstoque } from "@/services/inventarios.service";
 
@@ -28,7 +29,7 @@ export function FinalizarInventarioButton({ inventario }: { inventario: Inventar
         queryClient.invalidateQueries({ queryKey: estoqueQueryKeys.inventarios(empresaEfetivaId) }),
         queryClient.invalidateQueries({ queryKey: estoqueQueryKeys.estoque(empresaEfetivaId) }),
         queryClient.invalidateQueries({ queryKey: estoqueQueryKeys.movimentacoes(empresaEfetivaId) }),
-        queryClient.invalidateQueries({ queryKey: estoqueQueryKeys.dashboard(empresaEfetivaId) }),
+        queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.root(empresaEfetivaId) }),
         queryClient.invalidateQueries({ queryKey: estoqueQueryKeys.produtos(empresaEfetivaId) }),
         queryClient.invalidateQueries({ queryKey: estoqueQueryKeys.produtosDetalhes(empresaEfetivaId) }),
         ...itens.map((item) => queryClient.invalidateQueries({ queryKey: estoqueQueryKeys.produto(empresaEfetivaId, item.produtoId) })),

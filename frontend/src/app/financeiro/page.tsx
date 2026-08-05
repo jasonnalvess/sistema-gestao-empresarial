@@ -16,6 +16,12 @@ import {
 } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_FINANCEIRO_VISUALIZAR } from "@/lib/auth";
+import { financeiroQueryKeys } from "@/lib/financeiro-query-keys";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudLoading } from "@/components/crud/CrudLoading";
@@ -25,59 +31,51 @@ import { Input } from "@/components/ui/input";
 import { buscarResumoFinanceiro } from "@/services/financeiro.service";
 
 export default function FinanceiroPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresa = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_FINANCEIRO_VISUALIZAR);
   const hoje = new Date();
 
-  const primeiroDiaMes =
-    new Date(
-      hoje.getFullYear(),
-      hoje.getMonth(),
-      1
-    )
-      .toISOString()
-      .slice(0, 10);
+  const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
 
-  const ultimoDiaMes =
-    new Date(
-      hoje.getFullYear(),
-      hoje.getMonth() + 1,
-      0
-    )
-      .toISOString()
-      .slice(0, 10);
+  const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
+    .toISOString()
+    .slice(0, 10);
 
-  const [vencimentoInicio, setVencimentoInicio] =
-    useState(primeiroDiaMes);
+  const [vencimentoInicio, setVencimentoInicio] = useState(primeiroDiaMes);
 
-  const [vencimentoFim, setVencimentoFim] =
-    useState(ultimoDiaMes);
+  const [vencimentoFim, setVencimentoFim] = useState(ultimoDiaMes);
 
-  const [filtrosAplicados, setFiltrosAplicados] =
-    useState({
-      vencimentoInicio: primeiroDiaMes,
-      vencimentoFim: ultimoDiaMes,
-    });
+  const [filtrosAplicados, setFiltrosAplicados] = useState({
+    vencimentoInicio: primeiroDiaMes,
+    vencimentoFim: ultimoDiaMes,
+  });
 
   const {
     data: resumo,
     isLoading,
     error,
   } = useQuery({
-    queryKey: [
-      "financeiro-resumo",
-      filtrosAplicados.vencimentoInicio,
-      filtrosAplicados.vencimentoFim,
-    ],
+    queryKey: financeiroQueryKeys.resumo(empresaEfetivaId ?? "", {
+      vencimentoInicio: filtrosAplicados.vencimentoInicio || undefined,
+      vencimentoFim: filtrosAplicados.vencimentoFim || undefined,
+    }),
 
     queryFn: () =>
       buscarResumoFinanceiro({
-        vencimentoInicio:
-          filtrosAplicados.vencimentoInicio ||
-          undefined,
+        vencimentoInicio: filtrosAplicados.vencimentoInicio || undefined,
 
-        vencimentoFim:
-          filtrosAplicados.vencimentoFim ||
-          undefined,
+        vencimentoFim: filtrosAplicados.vencimentoFim || undefined,
       }),
+    enabled:
+      !carregando &&
+      possuiEmpresa &&
+      podeVisualizar &&
+      Boolean(empresaEfetivaId),
   });
 
   function aplicarPeriodo() {
@@ -97,6 +95,25 @@ export default function FinanceiroPage() {
     });
   }
 
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  if (!podeVisualizar)
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  if (!possuiEmpresa)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -107,20 +124,14 @@ export default function FinanceiroPage() {
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" asChild>
                 <Link href="/contas-pagar">
-                  <ArrowDownCircle
-                    size={16}
-                    className="mr-2"
-                  />
+                  <ArrowDownCircle size={16} className="mr-2" />
                   Contas a pagar
                 </Link>
               </Button>
 
               <Button variant="outline" asChild>
                 <Link href="/contas-receber">
-                  <ArrowUpCircle
-                    size={16}
-                    className="mr-2"
-                  />
+                  <ArrowUpCircle size={16} className="mr-2" />
                   Contas a receber
                 </Link>
               </Button>
@@ -138,11 +149,7 @@ export default function FinanceiroPage() {
               <Input
                 type="date"
                 value={vencimentoInicio}
-                onChange={(event) =>
-                  setVencimentoInicio(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => setVencimentoInicio(event.target.value)}
               />
             </div>
 
@@ -154,26 +161,16 @@ export default function FinanceiroPage() {
               <Input
                 type="date"
                 value={vencimentoFim}
-                onChange={(event) =>
-                  setVencimentoFim(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => setVencimentoFim(event.target.value)}
               />
             </div>
 
             <Button onClick={aplicarPeriodo}>
-              <CalendarRange
-                size={16}
-                className="mr-2"
-              />
+              <CalendarRange size={16} className="mr-2" />
               Aplicar período
             </Button>
 
-            <Button
-              variant="outline"
-              onClick={limparPeriodo}
-            >
+            <Button variant="outline" onClick={limparPeriodo}>
               Todo o período
             </Button>
           </div>
@@ -192,45 +189,29 @@ export default function FinanceiroPage() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <ResumoCard
                 titulo="Saldo projetado"
-                valor={
-                  resumo.consolidado
-                    .saldoProjetado
-                }
+                valor={resumo.consolidado.saldoProjetado}
                 descricao="A receber menos a pagar"
-                icone={
-                  <CircleDollarSign
-                    size={20}
-                  />
-                }
+                icone={<CircleDollarSign size={20} />}
                 destaque
               />
 
               <ResumoCard
                 titulo="Resultado realizado"
-                valor={
-                  resumo.consolidado
-                    .resultadoRealizado
-                }
+                valor={resumo.consolidado.resultadoRealizado}
                 descricao="Recebido menos pago"
                 icone={<WalletCards size={20} />}
               />
 
               <ResumoCard
                 titulo="Contas em aberto"
-                valorTexto={String(
-                  resumo.consolidado
-                    .contasEmAberto
-                )}
+                valorTexto={String(resumo.consolidado.contasEmAberto)}
                 descricao="Pagar e receber"
                 icone={<Clock3 size={20} />}
               />
 
               <ResumoCard
                 titulo="Contas vencidas"
-                valorTexto={String(
-                  resumo.consolidado
-                    .contasVencidas
-                )}
+                valorTexto={String(resumo.consolidado.contasVencidas)}
                 descricao="Obrigações em atraso"
                 icone={<CalendarRange size={20} />}
               />
@@ -257,53 +238,38 @@ export default function FinanceiroPage() {
                 <div className="space-y-3">
                   <LinhaValor
                     label="Valor lançado"
-                    valor={
-                      resumo.pagar.valorOriginal
-                    }
+                    valor={resumo.pagar.valorOriginal}
                   />
 
                   <LinhaValor
                     label="Valor pago"
-                    valor={
-                      resumo.pagar.valorPago
-                    }
+                    valor={resumo.pagar.valorPago}
                   />
 
                   <LinhaValor
                     label="Saldo em aberto"
-                    valor={
-                      resumo.pagar.valorAberto
-                    }
+                    valor={resumo.pagar.valorAberto}
                     destaque
                   />
 
                   <LinhaValor
                     label="Valor vencido"
-                    valor={
-                      resumo.pagar.valorVencido
-                    }
+                    valor={resumo.pagar.valorVencido}
                   />
 
                   <LinhaQuantidade
                     label="Total de contas"
-                    valor={
-                      resumo.pagar.quantidade
-                    }
+                    valor={resumo.pagar.quantidade}
                   />
 
                   <LinhaQuantidade
                     label="Contas em aberto"
-                    valor={
-                      resumo.pagar.quantidadeEmAberto
-                    }
+                    valor={resumo.pagar.quantidadeEmAberto}
                   />
 
                   <LinhaQuantidade
                     label="Contas vencidas"
-                    valor={
-                      resumo.pagar
-                        .quantidadeVencidas
-                    }
+                    valor={resumo.pagar.quantidadeVencidas}
                   />
                 </div>
               </CrudCard>
@@ -328,58 +294,38 @@ export default function FinanceiroPage() {
                 <div className="space-y-3">
                   <LinhaValor
                     label="Valor lançado"
-                    valor={
-                      resumo.receber
-                        .valorOriginal
-                    }
+                    valor={resumo.receber.valorOriginal}
                   />
 
                   <LinhaValor
                     label="Valor recebido"
-                    valor={
-                      resumo.receber
-                        .valorRecebido
-                    }
+                    valor={resumo.receber.valorRecebido}
                   />
 
                   <LinhaValor
                     label="Saldo em aberto"
-                    valor={
-                      resumo.receber
-                        .valorAberto
-                    }
+                    valor={resumo.receber.valorAberto}
                     destaque
                   />
 
                   <LinhaValor
                     label="Valor vencido"
-                    valor={
-                      resumo.receber
-                        .valorVencido
-                    }
+                    valor={resumo.receber.valorVencido}
                   />
 
                   <LinhaQuantidade
                     label="Total de contas"
-                    valor={
-                      resumo.receber.quantidade
-                    }
+                    valor={resumo.receber.quantidade}
                   />
 
                   <LinhaQuantidade
                     label="Contas em aberto"
-                    valor={
-                      resumo.receber
-                        .quantidadeEmAberto
-                    }
+                    valor={resumo.receber.quantidadeEmAberto}
                   />
 
                   <LinhaQuantidade
                     label="Contas vencidas"
-                    valor={
-                      resumo.receber
-                        .quantidadeVencidas
-                    }
+                    valor={resumo.receber.quantidadeVencidas}
                   />
                 </div>
               </CrudCard>
@@ -393,16 +339,12 @@ export default function FinanceiroPage() {
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <Indicador
                   titulo="Descontos concedidos"
-                  valor={
-                    resumo.receber.descontos
-                  }
+                  valor={resumo.receber.descontos}
                 />
 
                 <Indicador
                   titulo="Descontos obtidos"
-                  valor={
-                    resumo.pagar.descontos
-                  }
+                  valor={resumo.pagar.descontos}
                 />
 
                 <Indicador
@@ -410,20 +352,14 @@ export default function FinanceiroPage() {
                   valor={resumo.receber.juros}
                 />
 
-                <Indicador
-                  titulo="Juros pagos"
-                  valor={resumo.pagar.juros}
-                />
+                <Indicador titulo="Juros pagos" valor={resumo.pagar.juros} />
 
                 <Indicador
                   titulo="Multas recebidas"
                   valor={resumo.receber.multas}
                 />
 
-                <Indicador
-                  titulo="Multas pagas"
-                  valor={resumo.pagar.multas}
-                />
+                <Indicador titulo="Multas pagas" valor={resumo.pagar.multas} />
               </div>
             </CrudCard>
           </>
@@ -452,9 +388,7 @@ function ResumoCard({
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-slate-500">
-            {titulo}
-          </p>
+          <p className="text-sm text-slate-500">{titulo}</p>
 
           <p
             className={
@@ -463,13 +397,10 @@ function ResumoCard({
                 : "mt-2 text-2xl font-semibold text-slate-900"
             }
           >
-            {valorTexto ??
-              formatarMoeda(valor ?? 0)}
+            {valorTexto ?? formatarMoeda(valor ?? 0)}
           </p>
 
-          <p className="mt-1 text-xs text-slate-500">
-            {descricao}
-          </p>
+          <p className="mt-1 text-xs text-slate-500">{descricao}</p>
         </div>
 
         <div className="rounded-lg bg-slate-100 p-2 text-slate-700">
@@ -491,15 +422,11 @@ function LinhaValor({
 }) {
   return (
     <div className="flex justify-between gap-4">
-      <span className="text-sm text-slate-600">
-        {label}
-      </span>
+      <span className="text-sm text-slate-600">{label}</span>
 
       <span
         className={
-          destaque
-            ? "font-bold text-slate-900"
-            : "font-medium text-slate-900"
+          destaque ? "font-bold text-slate-900" : "font-medium text-slate-900"
         }
       >
         {formatarMoeda(valor)}
@@ -508,38 +435,20 @@ function LinhaValor({
   );
 }
 
-function LinhaQuantidade({
-  label,
-  valor,
-}: {
-  label: string;
-  valor: number;
-}) {
+function LinhaQuantidade({ label, valor }: { label: string; valor: number }) {
   return (
     <div className="flex justify-between gap-4">
-      <span className="text-sm text-slate-600">
-        {label}
-      </span>
+      <span className="text-sm text-slate-600">{label}</span>
 
-      <span className="font-medium text-slate-900">
-        {valor}
-      </span>
+      <span className="font-medium text-slate-900">{valor}</span>
     </div>
   );
 }
 
-function Indicador({
-  titulo,
-  valor,
-}: {
-  titulo: string;
-  valor: number;
-}) {
+function Indicador({ titulo, valor }: { titulo: string; valor: number }) {
   return (
     <div className="rounded-lg border border-slate-200 p-4">
-      <p className="text-sm text-slate-500">
-        {titulo}
-      </p>
+      <p className="text-sm text-slate-500">{titulo}</p>
 
       <p className="mt-2 text-lg font-semibold text-slate-900">
         {formatarMoeda(valor)}

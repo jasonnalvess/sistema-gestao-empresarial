@@ -12,6 +12,7 @@ import { FormDialog } from "@/components/forms/FormDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { PERMISSAO_CONTAS_PAGAR_PAGAR } from "@/lib/auth";
+import { caixasQueryKeys } from "@/lib/caixas-query-keys";
 
 import {
   ContaPagarDetalhada,
@@ -52,7 +53,7 @@ export function RegistrarPagamentoModal({ conta }: Props) {
   const [caixaId, setCaixaId] = useState("");
 
   const { data: caixasResponse } = useQuery({
-    queryKey: ["caixas-abertos-pagamento", empresaEfetivaId],
+    queryKey: caixasQueryKeys.abertosPagamento(empresaEfetivaId ?? ""),
     queryFn: listarCaixasAbertos,
     enabled: aberto && podePagar && Boolean(empresaEfetivaId) && !carregando,
   });
@@ -126,21 +127,26 @@ export function RegistrarPagamentoModal({ conta }: Props) {
         queryKey: contasPagarQueryKeys.resumo(empresaEfetivaId),
       });
 
-      await queryClient.invalidateQueries({
-        queryKey: ["caixas-abertos-pagamento", empresaEfetivaId],
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["caixas"],
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["caixa"],
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["movimentacoes-caixa"],
-      });
+      if (caixaId) {
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.listas(empresaEfetivaId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.detalhe(empresaEfetivaId, caixaId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.resumo(empresaEfetivaId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.movimentacoes(empresaEfetivaId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.abertosPagamento(empresaEfetivaId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: caixasQueryKeys.abertosRecebimento(empresaEfetivaId),
+        });
+      }
     } catch (error: unknown) {
       toast.error(
         obterMensagemErroContasPagar(error, "Erro ao registrar pagamento"),

@@ -11,10 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { listarClientes } from "@/services/clientes.service";
 import { listarDepositos } from "@/services/depositos.service";
-import {
-  listarProdutos,
-  Produto,
-} from "@/services/produtos.service";
+import { listarProdutos, Produto } from "@/services/produtos.service";
 
 import {
   CondicaoPagamentoVenda,
@@ -23,8 +20,13 @@ import {
 } from "@/services/vendas.service";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
-import { PERMISSAO_CLIENTES_VISUALIZAR, PERMISSAO_DEPOSITOS_VISUALIZAR, PERMISSAO_PRODUTOS_VISUALIZAR } from "@/lib/auth";
+import {
+  PERMISSAO_CLIENTES_VISUALIZAR,
+  PERMISSAO_DEPOSITOS_VISUALIZAR,
+  PERMISSAO_PRODUTOS_VISUALIZAR,
+} from "@/lib/auth";
 import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { vendasQueryKeys } from "@/lib/vendas-query-keys";
 
 export type VendaFormPayload = Parameters<typeof criarVenda>[0];
 
@@ -66,6 +68,7 @@ type ItemFormulario = {
 };
 
 type VendaFormProps = {
+  ativo?: boolean;
   initialData?: VendaFormInitialData;
   salvando?: boolean;
   textoBotao?: string;
@@ -74,9 +77,7 @@ type VendaFormProps = {
 };
 
 function gerarIdTemporario() {
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .substring(2, 9)}`;
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
 function criarItemVazio(): ItemFormulario {
@@ -91,7 +92,7 @@ function criarItemVazio(): ItemFormulario {
 }
 
 function converterItensIniciais(
-  itens?: VendaFormInitialData["itens"]
+  itens?: VendaFormInitialData["itens"],
 ): ItemFormulario[] {
   if (!itens?.length) {
     return [criarItemVazio()];
@@ -108,6 +109,7 @@ function converterItensIniciais(
 }
 
 export function VendaForm({
+  ativo = true,
   initialData,
   salvando = false,
   textoBotao = "Salvar",
@@ -116,21 +118,17 @@ export function VendaForm({
 }: VendaFormProps) {
   const { temPermissao } = useAuth();
   const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
-  const [clienteId, setClienteId] = useState(
-    initialData?.clienteId ?? ""
-  );
+  const [clienteId, setClienteId] = useState(initialData?.clienteId ?? "");
 
-  const [depositoId, setDepositoId] = useState(
-    initialData?.depositoId ?? ""
-  );
+  const [depositoId, setDepositoId] = useState(initialData?.depositoId ?? "");
 
   const [dataVenda, setDataVenda] = useState(
-    normalizarDataInput(initialData?.dataVenda)
+    normalizarDataInput(initialData?.dataVenda),
   );
 
   const [condicaoPagamento, setCondicaoPagamento] =
     useState<CondicaoPagamentoVenda>(
-      initialData?.condicaoPagamento ?? "AVISTA"
+      initialData?.condicaoPagamento ?? "AVISTA",
     );
 
   const [formaPagamento, setFormaPagamento] = useState<
@@ -138,54 +136,59 @@ export function VendaForm({
   >(initialData?.formaPagamento ?? "");
 
   const [quantidadeParcelas, setQuantidadeParcelas] = useState(
-    String(initialData?.quantidadeParcelas ?? 1)
+    String(initialData?.quantidadeParcelas ?? 1),
   );
 
   const [intervaloParcelas, setIntervaloParcelas] = useState(
-    String(initialData?.intervaloParcelas ?? 30)
+    String(initialData?.intervaloParcelas ?? 30),
   );
 
   const [primeiroVencimento, setPrimeiroVencimento] = useState(
-    normalizarDataInput(initialData?.primeiroVencimento)
+    normalizarDataInput(initialData?.primeiroVencimento),
   );
 
   const [valorDesconto, setValorDesconto] = useState(
-    String(initialData?.valorDesconto ?? "")
+    String(initialData?.valorDesconto ?? ""),
   );
 
   const [valorFrete, setValorFrete] = useState(
-    String(initialData?.valorFrete ?? "")
+    String(initialData?.valorFrete ?? ""),
   );
 
   const [valorOutros, setValorOutros] = useState(
-    String(initialData?.valorOutros ?? "")
+    String(initialData?.valorOutros ?? ""),
   );
 
-  const [observacao, setObservacao] = useState(
-    initialData?.observacao ?? ""
-  );
+  const [observacao, setObservacao] = useState(initialData?.observacao ?? "");
 
   const [observacaoInterna, setObservacaoInterna] = useState(
-    initialData?.observacaoInterna ?? ""
+    initialData?.observacaoInterna ?? "",
   );
 
   const [itens, setItens] = useState<ItemFormulario[]>(() =>
-    converterItensIniciais(initialData?.itens)
+    converterItensIniciais(initialData?.itens),
   );
 
   const { data: clientesResponse } = useQuery({
-    queryKey: ["clientes-select-venda-form", empresaEfetivaId],
+    queryKey: vendasQueryKeys.clientesSelect(empresaEfetivaId ?? ""),
     queryFn: () =>
       listarClientes({
         ativo: "true",
         page: 1,
         limit: 100,
       }),
-    enabled: temPermissao(PERMISSAO_CLIENTES_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
+    enabled:
+      ativo &&
+      temPermissao(PERMISSAO_CLIENTES_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: estoqueQueryKeys.depositosSelect(empresaEfetivaId ?? "", "venda-form"),
+    queryKey: estoqueQueryKeys.depositosSelect(
+      empresaEfetivaId ?? "",
+      "venda-form",
+    ),
     queryFn: () =>
       listarDepositos({
         ativo: true,
@@ -194,11 +197,18 @@ export function VendaForm({
         sortBy: "nome",
         order: "asc",
       }),
-    enabled: temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
+    enabled:
+      ativo &&
+      temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: produtosResponse } = useQuery({
-    queryKey: estoqueQueryKeys.produtosSelect(empresaEfetivaId ?? "", "venda-form"),
+    queryKey: estoqueQueryKeys.produtosSelect(
+      empresaEfetivaId ?? "",
+      "venda-form",
+    ),
     queryFn: () =>
       listarProdutos({
         ativo: true,
@@ -207,7 +217,11 @@ export function VendaForm({
         sortBy: "nome",
         order: "asc",
       }),
-    enabled: temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
+    enabled:
+      ativo &&
+      temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const clientes = clientesResponse?.data ?? [];
@@ -220,13 +234,7 @@ export function VendaForm({
       const valorUnitario = Number(item.valorUnitario || 0);
       const desconto = Number(item.valorDesconto || 0);
 
-      return (
-        total +
-        Math.max(
-          quantidade * valorUnitario - desconto,
-          0
-        )
-      );
+      return total + Math.max(quantidade * valorUnitario - desconto, 0);
     }, 0);
 
     const descontoGeral = Number(valorDesconto || 0);
@@ -235,37 +243,29 @@ export function VendaForm({
 
     return {
       valorProdutos,
-      valorTotal:
-        valorProdutos - descontoGeral + frete + outros,
+      valorTotal: valorProdutos - descontoGeral + frete + outros,
     };
   }, [itens, valorDesconto, valorFrete, valorOutros]);
 
   function adicionarItem() {
-    setItens((estadoAtual) => [
-      ...estadoAtual,
-      criarItemVazio(),
-    ]);
+    setItens((estadoAtual) => [...estadoAtual, criarItemVazio()]);
   }
 
   function removerItem(idTemporario: string) {
     if (itens.length === 1) {
-      toast.error(
-        "A venda precisa possuir pelo menos um item."
-      );
+      toast.error("A venda precisa possuir pelo menos um item.");
       return;
     }
 
     setItens((estadoAtual) =>
-      estadoAtual.filter(
-        (item) => item.idTemporario !== idTemporario
-      )
+      estadoAtual.filter((item) => item.idTemporario !== idTemporario),
     );
   }
 
   function atualizarItem(
     idTemporario: string,
     campo: keyof Omit<ItemFormulario, "idTemporario">,
-    valor: string
+    valor: string,
   ) {
     setItens((estadoAtual) =>
       estadoAtual.map((item) =>
@@ -274,18 +274,13 @@ export function VendaForm({
               ...item,
               [campo]: valor,
             }
-          : item
-      )
+          : item,
+      ),
     );
   }
 
-  function selecionarProduto(
-    idTemporario: string,
-    produtoId: string
-  ) {
-    const produto = produtos.find(
-      (item) => item.id === produtoId
-    );
+  function selecionarProduto(idTemporario: string, produtoId: string) {
+    const produto = produtos.find((item) => item.id === produtoId);
 
     setItens((estadoAtual) =>
       estadoAtual.map((item) =>
@@ -293,30 +288,23 @@ export function VendaForm({
           ? {
               ...item,
               produtoId,
-              valorUnitario: produto
-                ? String(produto.precoVenda)
-                : "",
+              valorUnitario: produto ? String(produto.precoVenda) : "",
             }
-          : item
-      )
+          : item,
+      ),
     );
   }
 
-  function obterEstoqueProduto(
-    produto: Produto | undefined
-  ) {
+  function obterEstoqueProduto(produto: Produto | undefined) {
     if (!produto?.estoques?.length || !depositoId) {
       return 0;
     }
 
     return produto.estoques
-      .filter(
-        (estoque) => estoque.depositoId === depositoId
-      )
+      .filter((estoque) => estoque.depositoId === depositoId)
       .reduce(
-        (total, estoque) =>
-          total + Number(estoque.quantidadeAtual || 0),
-        0
+        (total, estoque) => total + Number(estoque.quantidadeAtual || 0),
+        0,
       );
   }
 
@@ -336,30 +324,17 @@ export function VendaForm({
       return false;
     }
 
-    if (
-      condicaoPagamento === "APRAZO" &&
-      Number(quantidadeParcelas) < 1
-    ) {
-      toast.error(
-        "Informe uma quantidade válida de parcelas."
-      );
+    if (condicaoPagamento === "APRAZO" && Number(quantidadeParcelas) < 1) {
+      toast.error("Informe uma quantidade válida de parcelas.");
       return false;
     }
 
-    if (
-      condicaoPagamento === "APRAZO" &&
-      Number(intervaloParcelas) < 1
-    ) {
-      toast.error(
-        "Informe um intervalo válido entre as parcelas."
-      );
+    if (condicaoPagamento === "APRAZO" && Number(intervaloParcelas) < 1) {
+      toast.error("Informe um intervalo válido entre as parcelas.");
       return false;
     }
 
-    if (
-      condicaoPagamento === "APRAZO" &&
-      !primeiroVencimento
-    ) {
+    if (condicaoPagamento === "APRAZO" && !primeiroVencimento) {
       toast.error("Informe o primeiro vencimento.");
       return false;
     }
@@ -369,41 +344,29 @@ export function VendaForm({
         !item.produtoId ||
         Number(item.quantidade) <= 0 ||
         Number(item.valorUnitario) < 0 ||
-        Number(item.valorDesconto || 0) < 0
+        Number(item.valorDesconto || 0) < 0,
     );
 
     if (itemInvalido) {
-      toast.error(
-        "Preencha corretamente todos os itens da venda."
-      );
+      toast.error("Preencha corretamente todos os itens da venda.");
       return false;
     }
 
     const descontoItemInvalido = itens.some(
       (item) =>
         Number(item.valorDesconto || 0) >
-        Number(item.quantidade || 0) *
-          Number(item.valorUnitario || 0)
+        Number(item.quantidade || 0) * Number(item.valorUnitario || 0),
     );
 
     if (descontoItemInvalido) {
-      toast.error(
-        "O desconto do item não pode superar seu valor bruto."
-      );
+      toast.error("O desconto do item não pode superar seu valor bruto.");
       return false;
     }
 
-    const produtosSelecionados = itens.map(
-      (item) => item.produtoId
-    );
+    const produtosSelecionados = itens.map((item) => item.produtoId);
 
-    if (
-      new Set(produtosSelecionados).size !==
-      produtosSelecionados.length
-    ) {
-      toast.error(
-        "O mesmo produto não pode aparecer duas vezes."
-      );
+    if (new Set(produtosSelecionados).size !== produtosSelecionados.length) {
+      toast.error("O mesmo produto não pode aparecer duas vezes.");
       return false;
     }
 
@@ -412,16 +375,12 @@ export function VendaForm({
       Number(valorFrete || 0) < 0 ||
       Number(valorOutros || 0) < 0
     ) {
-      toast.error(
-        "Os valores adicionais não podem ser negativos."
-      );
+      toast.error("Os valores adicionais não podem ser negativos.");
       return false;
     }
 
     if (totais.valorTotal <= 0) {
-      toast.error(
-        "O valor total da venda precisa ser maior que zero."
-      );
+      toast.error("O valor total da venda precisa ser maior que zero.");
       return false;
     }
 
@@ -429,6 +388,7 @@ export function VendaForm({
   }
 
   async function salvarFormulario() {
+    if (!ativo || !empresaEfetivaId || carregando) return;
     if (!validarFormulario()) {
       return;
     }
@@ -444,14 +404,10 @@ export function VendaForm({
       formaPagamento: formaPagamento || undefined,
 
       quantidadeParcelas:
-        condicaoPagamento === "AVISTA"
-          ? 1
-          : Number(quantidadeParcelas),
+        condicaoPagamento === "AVISTA" ? 1 : Number(quantidadeParcelas),
 
       intervaloParcelas:
-        condicaoPagamento === "AVISTA"
-          ? 30
-          : Number(intervaloParcelas),
+        condicaoPagamento === "AVISTA" ? 30 : Number(intervaloParcelas),
 
       primeiroVencimento:
         condicaoPagamento === "APRAZO"
@@ -464,18 +420,14 @@ export function VendaForm({
 
       observacao: observacao.trim() || undefined,
 
-      observacaoInterna:
-        observacaoInterna.trim() || undefined,
+      observacaoInterna: observacaoInterna.trim() || undefined,
 
       itens: itens.map((item) => ({
         produtoId: item.produtoId,
         quantidade: Number(item.quantidade),
         valorUnitario: Number(item.valorUnitario),
-        valorDesconto: Number(
-          item.valorDesconto || 0
-        ),
-        observacao:
-          item.observacao.trim() || undefined,
+        valorDesconto: Number(item.valorDesconto || 0),
+        observacao: item.observacao.trim() || undefined,
       })),
     };
 
@@ -486,9 +438,7 @@ export function VendaForm({
     <div className="max-h-[78vh] space-y-6 overflow-y-auto pr-2">
       <section className="space-y-4">
         <div>
-          <h3 className="font-semibold text-slate-900">
-            Dados gerais
-          </h3>
+          <h3 className="font-semibold text-slate-900">Dados gerais</h3>
 
           <p className="text-sm text-slate-500">
             Informe o cliente e o depósito de saída.
@@ -503,20 +453,13 @@ export function VendaForm({
 
             <select
               value={clienteId}
-              onChange={(event) =>
-                setClienteId(event.target.value)
-              }
+              onChange={(event) => setClienteId(event.target.value)}
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="">
-                Selecione um cliente
-              </option>
+              <option value="">Selecione um cliente</option>
 
               {clientes.map((cliente) => (
-                <option
-                  key={cliente.id}
-                  value={cliente.id}
-                >
+                <option key={cliente.id} value={cliente.id}>
                   {cliente.nome}
                 </option>
               ))}
@@ -530,20 +473,13 @@ export function VendaForm({
 
             <select
               value={depositoId}
-              onChange={(event) =>
-                setDepositoId(event.target.value)
-              }
+              onChange={(event) => setDepositoId(event.target.value)}
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="">
-                Selecione um depósito
-              </option>
+              <option value="">Selecione um depósito</option>
 
               {depositos.map((deposito) => (
-                <option
-                  key={deposito.id}
-                  value={deposito.id}
-                >
+                <option key={deposito.id} value={deposito.id}>
                   {deposito.codigo} - {deposito.nome}
                 </option>
               ))}
@@ -558,9 +494,7 @@ export function VendaForm({
             <Input
               type="date"
               value={dataVenda}
-              onChange={(event) =>
-                setDataVenda(event.target.value)
-              }
+              onChange={(event) => setDataVenda(event.target.value)}
             />
           </div>
         </div>
@@ -568,9 +502,7 @@ export function VendaForm({
 
       <section className="space-y-4 border-t pt-5">
         <div>
-          <h3 className="font-semibold text-slate-900">
-            Pagamento
-          </h3>
+          <h3 className="font-semibold text-slate-900">Pagamento</h3>
 
           <p className="text-sm text-slate-500">
             Defina a condição e a forma de pagamento.
@@ -586,8 +518,7 @@ export function VendaForm({
             <select
               value={condicaoPagamento}
               onChange={(event) => {
-                const valor = event.target
-                  .value as CondicaoPagamentoVenda;
+                const valor = event.target.value as CondicaoPagamentoVenda;
 
                 setCondicaoPagamento(valor);
 
@@ -613,27 +544,18 @@ export function VendaForm({
               value={formaPagamento}
               onChange={(event) =>
                 setFormaPagamento(
-                  event.target
-                    .value as FormaPagamentoVenda | ""
+                  event.target.value as FormaPagamentoVenda | "",
                 )
               }
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="">
-                Selecione a forma
-              </option>
+              <option value="">Selecione a forma</option>
               <option value="DINHEIRO">Dinheiro</option>
               <option value="PIX">PIX</option>
-              <option value="CARTAO_CREDITO">
-                Cartão de crédito
-              </option>
-              <option value="CARTAO_DEBITO">
-                Cartão de débito
-              </option>
+              <option value="CARTAO_CREDITO">Cartão de crédito</option>
+              <option value="CARTAO_DEBITO">Cartão de débito</option>
               <option value="BOLETO">Boleto</option>
-              <option value="TRANSFERENCIA">
-                Transferência
-              </option>
+              <option value="TRANSFERENCIA">Transferência</option>
               <option value="CHEQUE">Cheque</option>
               <option value="OUTRA">Outra</option>
             </select>
@@ -652,9 +574,7 @@ export function VendaForm({
                   step="1"
                   value={quantidadeParcelas}
                   onChange={(event) =>
-                    setQuantidadeParcelas(
-                      event.target.value
-                    )
+                    setQuantidadeParcelas(event.target.value)
                   }
                 />
               </div>
@@ -669,11 +589,7 @@ export function VendaForm({
                   min="1"
                   step="1"
                   value={intervaloParcelas}
-                  onChange={(event) =>
-                    setIntervaloParcelas(
-                      event.target.value
-                    )
-                  }
+                  onChange={(event) => setIntervaloParcelas(event.target.value)}
                 />
               </div>
 
@@ -686,9 +602,7 @@ export function VendaForm({
                   type="date"
                   value={primeiroVencimento}
                   onChange={(event) =>
-                    setPrimeiroVencimento(
-                      event.target.value
-                    )
+                    setPrimeiroVencimento(event.target.value)
                   }
                 />
               </div>
@@ -700,9 +614,7 @@ export function VendaForm({
       <section className="space-y-4 border-t pt-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-semibold text-slate-900">
-              Itens da venda
-            </h3>
+            <h3 className="font-semibold text-slate-900">Itens da venda</h3>
 
             <p className="text-sm text-slate-500">
               Adicione os produtos vendidos.
@@ -723,25 +635,19 @@ export function VendaForm({
         <div className="space-y-4">
           {itens.map((item, indice) => {
             const produtoSelecionado = produtos.find(
-              (produto) =>
-                produto.id === item.produtoId
+              (produto) => produto.id === item.produtoId,
             );
 
             const produtosUtilizados = itens
               .filter(
-                (outroItem) =>
-                  outroItem.idTemporario !==
-                  item.idTemporario
+                (outroItem) => outroItem.idTemporario !== item.idTemporario,
               )
-              .map(
-                (outroItem) => outroItem.produtoId
-              );
+              .map((outroItem) => outroItem.produtoId);
 
             const totalItem = Math.max(
-              Number(item.quantidade || 0) *
-                Number(item.valorUnitario || 0) -
+              Number(item.quantidade || 0) * Number(item.valorUnitario || 0) -
                 Number(item.valorDesconto || 0),
-              0
+              0,
             );
 
             return (
@@ -750,17 +656,13 @@ export function VendaForm({
                 className="rounded-lg border border-slate-200 p-4"
               >
                 <div className="mb-4 flex items-center justify-between">
-                  <strong className="text-sm">
-                    Item {indice + 1}
-                  </strong>
+                  <strong className="text-sm">Item {indice + 1}</strong>
 
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() =>
-                      removerItem(item.idTemporario)
-                    }
+                    onClick={() => removerItem(item.idTemporario)}
                     className="text-red-600"
                   >
                     <Trash2 size={16} />
@@ -776,28 +678,19 @@ export function VendaForm({
                     <select
                       value={item.produtoId}
                       onChange={(event) =>
-                        selecionarProduto(
-                          item.idTemporario,
-                          event.target.value
-                        )
+                        selecionarProduto(item.idTemporario, event.target.value)
                       }
                       className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
                     >
-                      <option value="">
-                        Selecione um produto
-                      </option>
+                      <option value="">Selecione um produto</option>
 
                       {produtos.map((produto) => (
                         <option
                           key={produto.id}
                           value={produto.id}
-                          disabled={produtosUtilizados.includes(
-                            produto.id
-                          )}
+                          disabled={produtosUtilizados.includes(produto.id)}
                         >
-                          {produto.codigo
-                            ? `${produto.codigo} - `
-                            : ""}
+                          {produto.codigo ? `${produto.codigo} - ` : ""}
                           {produto.nome}
                         </option>
                       ))}
@@ -807,9 +700,7 @@ export function VendaForm({
                       <p className="mt-1 text-xs text-slate-500">
                         Estoque no depósito:{" "}
                         {formatarQuantidade(
-                          obterEstoqueProduto(
-                            produtoSelecionado
-                          )
+                          obterEstoqueProduto(produtoSelecionado),
                         )}
                       </p>
                     )}
@@ -829,7 +720,7 @@ export function VendaForm({
                         atualizarItem(
                           item.idTemporario,
                           "quantidade",
-                          event.target.value
+                          event.target.value,
                         )
                       }
                     />
@@ -849,7 +740,7 @@ export function VendaForm({
                         atualizarItem(
                           item.idTemporario,
                           "valorUnitario",
-                          event.target.value
+                          event.target.value,
                         )
                       }
                     />
@@ -869,7 +760,7 @@ export function VendaForm({
                         atualizarItem(
                           item.idTemporario,
                           "valorDesconto",
-                          event.target.value
+                          event.target.value,
                         )
                       }
                     />
@@ -896,7 +787,7 @@ export function VendaForm({
                         atualizarItem(
                           item.idTemporario,
                           "observacao",
-                          event.target.value
+                          event.target.value,
                         )
                       }
                     />
@@ -909,9 +800,7 @@ export function VendaForm({
       </section>
 
       <section className="space-y-4 border-t pt-5">
-        <h3 className="font-semibold text-slate-900">
-          Valores adicionais
-        </h3>
+        <h3 className="font-semibold text-slate-900">Valores adicionais</h3>
 
         <div className="grid gap-4 md:grid-cols-3">
           <div>
@@ -924,25 +813,19 @@ export function VendaForm({
               min="0"
               step="0.01"
               value={valorDesconto}
-              onChange={(event) =>
-                setValorDesconto(event.target.value)
-              }
+              onChange={(event) => setValorDesconto(event.target.value)}
             />
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">
-              Frete
-            </label>
+            <label className="text-sm font-medium text-slate-700">Frete</label>
 
             <Input
               type="number"
               min="0"
               step="0.01"
               value={valorFrete}
-              onChange={(event) =>
-                setValorFrete(event.target.value)
-              }
+              onChange={(event) => setValorFrete(event.target.value)}
             />
           </div>
 
@@ -956,9 +839,7 @@ export function VendaForm({
               min="0"
               step="0.01"
               value={valorOutros}
-              onChange={(event) =>
-                setValorOutros(event.target.value)
-              }
+              onChange={(event) => setValorOutros(event.target.value)}
             />
           </div>
         </div>
@@ -973,9 +854,7 @@ export function VendaForm({
           <Textarea
             rows={4}
             value={observacao}
-            onChange={(event) =>
-              setObservacao(event.target.value)
-            }
+            onChange={(event) => setObservacao(event.target.value)}
           />
         </div>
 
@@ -987,44 +866,27 @@ export function VendaForm({
           <Textarea
             rows={4}
             value={observacaoInterna}
-            onChange={(event) =>
-              setObservacaoInterna(event.target.value)
-            }
+            onChange={(event) => setObservacaoInterna(event.target.value)}
           />
         </div>
       </section>
 
       <section className="rounded-lg border bg-slate-50 p-4">
-        <h3 className="mb-3 font-semibold">
-          Resumo da venda
-        </h3>
+        <h3 className="mb-3 font-semibold">Resumo da venda</h3>
 
-        <LinhaResumo
-          label="Produtos"
-          valor={totais.valorProdutos}
-        />
+        <LinhaResumo label="Produtos" valor={totais.valorProdutos} />
 
         <LinhaResumo
           label="Desconto geral"
           valor={-Number(valorDesconto || 0)}
         />
 
-        <LinhaResumo
-          label="Frete"
-          valor={Number(valorFrete || 0)}
-        />
+        <LinhaResumo label="Frete" valor={Number(valorFrete || 0)} />
 
-        <LinhaResumo
-          label="Outros valores"
-          valor={Number(valorOutros || 0)}
-        />
+        <LinhaResumo label="Outros valores" valor={Number(valorOutros || 0)} />
 
         <div className="mt-2 border-t pt-2">
-          <LinhaResumo
-            label="Total"
-            valor={totais.valorTotal}
-            destaque
-          />
+          <LinhaResumo label="Total" valor={totais.valorTotal} destaque />
         </div>
       </section>
 
@@ -1040,11 +902,7 @@ export function VendaForm({
           </Button>
         )}
 
-        <Button
-          type="button"
-          disabled={salvando}
-          onClick={salvarFormulario}
-        >
+        <Button type="button" disabled={salvando} onClick={salvarFormulario}>
           {salvando ? "Salvando..." : textoBotao}
         </Button>
       </div>
@@ -1065,21 +923,13 @@ function LinhaResumo({
     <div className="flex items-center justify-between py-1">
       <span
         className={
-          destaque
-            ? "font-semibold text-slate-900"
-            : "text-sm text-slate-600"
+          destaque ? "font-semibold text-slate-900" : "text-sm text-slate-600"
         }
       >
         {label}
       </span>
 
-      <span
-        className={
-          destaque
-            ? "text-lg font-bold"
-            : "font-medium"
-        }
-      >
+      <span className={destaque ? "text-lg font-bold" : "font-medium"}>
         {formatarMoeda(valor)}
       </span>
     </div>

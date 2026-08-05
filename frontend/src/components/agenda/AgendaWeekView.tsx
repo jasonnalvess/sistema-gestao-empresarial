@@ -2,6 +2,7 @@ import { AgendaEvento } from "@/services/agenda.service";
 import { EditarEventoModal } from "./EditarEventoModal";
 import { AgendaStatusBadge } from "./AgendaStatusBadge";
 import { AgendaHistoricoModal } from "./AgendaHistoricoModal";
+import { CancelarEventoButton } from "./CancelarEventoButton";
 
 type Props = {
   eventos: AgendaEvento[];
@@ -41,7 +42,7 @@ export function AgendaWeekView({ eventos }: Props) {
       <div className="grid gap-4 md:grid-cols-7">
         {dias.map((dia) => {
           const eventosDoDia = eventos.filter((evento) =>
-            mesmoDia(new Date(evento.dataInicio), dia)
+            mesmoDia(new Date(evento.dataInicio), dia),
           );
 
           return (
@@ -78,6 +79,7 @@ export function AgendaWeekView({ eventos }: Props) {
                       <div className="flex flex-col gap-1">
                         <EditarEventoModal evento={evento} />
                         <AgendaHistoricoModal evento={evento} />
+                        <CancelarEventoButton evento={evento} />
                       </div>
                     </div>
                   </div>

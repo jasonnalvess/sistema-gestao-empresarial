@@ -1,10 +1,112 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
+type SeedConfig = {
+  databaseName: string;
+  adminEmail: string;
+  adminPassword: string;
+  createDemoUsers: boolean;
+  demoAdminEmail?: string;
+  demoUserEmail?: string;
+  demoPassword?: string;
+};
+
+const BANCOS_AUTORIZADOS = new Set(['sistema_gestao_teste']);
+const SENHAS_FRACAS = new Set(['123456', 'password', 'senha', 'admin']);
+
+function exigirEmail(valor: string | undefined, variavel: string): string {
+  const email = valor?.trim().toLowerCase();
+  if (!email || !email.includes('@')) {
+    throw new Error(`${variavel} deve conter um e-mail válido.`);
+  }
+  return email;
+}
+
+function exigirSenha(valor: string | undefined, variavel: string): string {
+  if (!valor) throw new Error(`${variavel} é obrigatória.`);
+  if (valor.length < 12) {
+    throw new Error(`${variavel} deve possuir no mínimo 12 caracteres.`);
+  }
+  const normalizada = valor.trim().toLowerCase();
+  if (
+    [...SENHAS_FRACAS].some((senhaFraca) => normalizada.includes(senhaFraca))
+  ) {
+    throw new Error(`${variavel} não pode utilizar uma senha previsível.`);
+  }
+  return valor;
+}
+
+function carregarConfiguracaoSeed(
+  ambiente: NodeJS.ProcessEnv = process.env,
+): SeedConfig {
+  if (ambiente.ALLOW_DATABASE_SEED !== 'true') {
+    throw new Error(
+      'Seed não autorizado. Defina ALLOW_DATABASE_SEED=true conscientemente.',
+    );
+  }
+  if (ambiente.NODE_ENV?.trim().toLowerCase() === 'production') {
+    throw new Error('Seed bloqueado em ambiente de produção.');
+  }
+
+  const databaseUrl = ambiente.DATABASE_URL?.trim();
+  if (!databaseUrl) throw new Error('DATABASE_URL é obrigatória para o seed.');
+
+  let databaseName: string;
+  try {
+    const url = new URL(databaseUrl);
+    databaseName = decodeURIComponent(url.pathname.replace(/^\//, '')).trim();
+  } catch {
+    throw new Error('DATABASE_URL inválida; não foi possível validar o banco.');
+  }
+  if (!databaseName || !BANCOS_AUTORIZADOS.has(databaseName)) {
+    throw new Error(
+      `Banco não autorizado para seed: ${databaseName || 'não identificado'}.`,
+    );
+  }
+
+  const createDemoUsers = ambiente.SEED_CREATE_DEMO_USERS === 'true';
+  const config: SeedConfig = {
+    databaseName,
+    adminEmail: exigirEmail(ambiente.SEED_ADMIN_EMAIL, 'SEED_ADMIN_EMAIL'),
+    adminPassword: exigirSenha(
+      ambiente.SEED_ADMIN_PASSWORD,
+      'SEED_ADMIN_PASSWORD',
+    ),
+    createDemoUsers,
+  };
+
+  if (createDemoUsers) {
+    config.demoAdminEmail = exigirEmail(
+      ambiente.SEED_DEMO_ADMIN_EMAIL,
+      'SEED_DEMO_ADMIN_EMAIL',
+    );
+    config.demoUserEmail = exigirEmail(
+      ambiente.SEED_DEMO_USER_EMAIL,
+      'SEED_DEMO_USER_EMAIL',
+    );
+    config.demoPassword = exigirSenha(
+      ambiente.SEED_DEMO_PASSWORD,
+      'SEED_DEMO_PASSWORD',
+    );
+    if (
+      new Set([config.adminEmail, config.demoAdminEmail, config.demoUserEmail])
+        .size !== 3
+    ) {
+      throw new Error(
+        'Os e-mails administrativos e demonstrativos devem ser distintos.',
+      );
+    }
+  }
+
+  return config;
+}
+
+const seedConfig = carregarConfiguracaoSeed();
 const prisma = new PrismaClient();
 
 async function main() {
-  const senhaPadrao = await bcrypt.hash('123456', 10);
+  console.log(`Seed autorizado para o banco ${seedConfig.databaseName}.`);
+  const senhaAdministrador = await bcrypt.hash(seedConfig.adminPassword, 10);
 
   const empresa = await prisma.empresa.upsert({
     where: { cnpj: '00000000000100' },
@@ -17,29 +119,44 @@ async function main() {
   });
 
   await prisma.usuario.upsert({
-    where: { email: 'admin@sistema.com' },
-    update: {},
+    where: { email: seedConfig.adminEmail },
+    update: { senha: senhaAdministrador, ativo: true },
     create: {
       nome: 'Super Admin',
-      email: 'admin@sistema.com',
-      senha: senhaPadrao,
+      email: seedConfig.adminEmail,
+      senha: senhaAdministrador,
       tipo: 'SUPER_ADMIN',
       ativo: true,
     },
   });
 
-  await prisma.usuario.upsert({
-    where: { email: 'admin.empresa@sistema.com' },
-    update: {},
-    create: {
-      nome: 'Admin Empresa',
-      email: 'admin.empresa@sistema.com',
-      senha: senhaPadrao,
-      tipo: 'ADMIN_EMPRESA',
-      ativo: true,
-      empresaId: empresa.id,
-    },
-  });
+  if (seedConfig.createDemoUsers) {
+    const senhaDemonstracao = await bcrypt.hash(seedConfig.demoPassword!, 10);
+    await prisma.usuario.upsert({
+      where: { email: seedConfig.demoAdminEmail! },
+      update: { senha: senhaDemonstracao, ativo: true },
+      create: {
+        nome: 'Admin Empresa',
+        email: seedConfig.demoAdminEmail!,
+        senha: senhaDemonstracao,
+        tipo: 'ADMIN_EMPRESA',
+        ativo: true,
+        empresaId: empresa.id,
+      },
+    });
+    await prisma.usuario.upsert({
+      where: { email: seedConfig.demoUserEmail! },
+      update: { senha: senhaDemonstracao, ativo: true },
+      create: {
+        nome: 'Usuário Demonstração',
+        email: seedConfig.demoUserEmail!,
+        senha: senhaDemonstracao,
+        tipo: 'USUARIO_EMPRESA',
+        ativo: true,
+        empresaId: empresa.id,
+      },
+    });
+  }
 
   const modulos = [
     {
@@ -61,6 +178,18 @@ async function main() {
       nome: 'Agenda',
       chave: 'agenda',
       descricao: 'Agenda de clientes e atendimentos',
+    },
+    {
+      nome: 'Ordens de Serviço',
+      chave: 'ordens_servico',
+      descricao:
+        'Gerenciamento de ordens de serviço, acompanhamento de status e histórico.',
+    },
+    {
+      nome: 'Vendas',
+      chave: 'vendas',
+      descricao:
+        'Gerenciamento de vendas, aprovação, faturamento, histórico e cancelamentos.',
     },
     {
       nome: 'Funcionários',
@@ -95,9 +224,24 @@ async function main() {
       modulo: 'sistema',
     },
     {
-      nome: 'Visualizar auditoria',
+      nome: 'Visualizar Auditoria Global',
       chave: 'sistema.auditoria.visualizar',
-      descricao: 'Permite consultar registros de auditoria do sistema',
+      descricao:
+        'Permite consultar registros administrativos e empresariais de Auditoria em escopo global.',
+      modulo: 'sistema',
+    },
+    {
+      nome: 'Visualizar Auditoria da Empresa',
+      chave: 'auditoria.empresa.visualizar',
+      descricao:
+        'Permite consultar os registros de Auditoria da empresa atual.',
+      modulo: 'sistema',
+    },
+    {
+      nome: 'Visualizar Dashboard',
+      chave: 'dashboard.visualizar',
+      descricao:
+        'Permite visualizar os indicadores operacionais da empresa selecionada.',
       modulo: 'sistema',
     },
 
@@ -313,6 +457,53 @@ async function main() {
       modulo: 'agenda',
     },
 
+    // Vendas
+    {
+      nome: 'Visualizar Vendas',
+      chave: 'vendas.visualizar',
+      descricao:
+        'Permite listar, detalhar, consultar o dashboard e visualizar o histórico das Vendas.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Criar Vendas',
+      chave: 'vendas.criar',
+      descricao: 'Permite cadastrar novas Vendas.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Editar Vendas',
+      chave: 'vendas.editar',
+      descricao:
+        'Permite alterar Vendas em estados editáveis e enviá-las para aprovação.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Aprovar Vendas',
+      chave: 'vendas.aprovar',
+      descricao: 'Permite aprovar Vendas pendentes de aprovação.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Faturar Vendas',
+      chave: 'vendas.faturar',
+      descricao: 'Permite faturar Vendas aprovadas.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Cancelar Vendas',
+      chave: 'vendas.cancelar',
+      descricao:
+        'Permite cancelar Vendas conforme as regras de estado e recebimento.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Adicionar histórico de Vendas',
+      chave: 'vendas.historico.adicionar',
+      descricao: 'Permite incluir registros manuais no histórico das Vendas.',
+      modulo: 'vendas',
+    },
+
     // Funcionários
     {
       nome: 'Visualizar funcionários',
@@ -337,6 +528,35 @@ async function main() {
       chave: 'funcionarios.inativar',
       descricao: 'Permite inativar funcionários',
       modulo: 'funcionarios',
+    },
+
+    // Ordens de Serviço
+    {
+      nome: 'Visualizar Ordens de Serviço',
+      chave: 'ordens_servico.visualizar',
+      descricao:
+        'Permite listar, detalhar e consultar o histórico das Ordens de Serviço.',
+      modulo: 'ordens_servico',
+    },
+    {
+      nome: 'Criar Ordens de Serviço',
+      chave: 'ordens_servico.criar',
+      descricao: 'Permite cadastrar novas Ordens de Serviço.',
+      modulo: 'ordens_servico',
+    },
+    {
+      nome: 'Adicionar histórico de Ordens de Serviço',
+      chave: 'ordens_servico.historico.adicionar',
+      descricao:
+        'Permite incluir registros manuais no histórico das Ordens de Serviço.',
+      modulo: 'ordens_servico',
+    },
+    {
+      nome: 'Alterar status de Ordens de Serviço',
+      chave: 'ordens_servico.status.alterar',
+      descricao:
+        'Permite alterar o status das Ordens de Serviço conforme as transições permitidas.',
+      modulo: 'ordens_servico',
     },
 
     // Estoque
@@ -503,6 +723,19 @@ async function main() {
       nome: 'Visualizar caixa',
       chave: 'caixa.visualizar',
       descricao: 'Permite consultar caixas e movimentações',
+      modulo: 'caixa',
+    },
+    {
+      nome: 'Criar Caixas',
+      chave: 'caixa.criar',
+      descricao: 'Permite cadastrar novos Caixas para a empresa.',
+      modulo: 'caixa',
+    },
+    {
+      nome: 'Editar Caixas',
+      chave: 'caixa.editar',
+      descricao:
+        'Permite alterar os dados cadastrais e o estado ativo dos Caixas.',
       modulo: 'caixa',
     },
     {
@@ -716,6 +949,8 @@ async function main() {
       'fornecedores',
       'pedidos_compra',
       'agenda',
+      'vendas',
+      'ordens_servico',
       'funcionarios',
       'estoque',
       'caixa',
@@ -723,6 +958,8 @@ async function main() {
       'fiscal',
     ],
     chavesAdicionais: [
+      'dashboard.visualizar',
+      'auditoria.empresa.visualizar',
       'empresas.visualizar',
       'empresas.editar',
       'empresas.modulos.gerenciar',
@@ -735,10 +972,16 @@ async function main() {
       'fornecedores',
       'pedidos_compra',
       'agenda',
+      'ordens_servico',
       'estoque',
       'caixa',
     ],
     chavesAdicionais: [
+      'dashboard.visualizar',
+      'vendas.visualizar',
+      'vendas.aprovar',
+      'vendas.faturar',
+      'vendas.historico.adicionar',
       'funcionarios.visualizar',
       'financeiro.contas_pagar.visualizar',
       'financeiro.contas_pagar.criar',
@@ -754,18 +997,24 @@ async function main() {
     chavesExcluidas: [
       'clientes.excluir',
       'agenda.excluir',
+      'caixa.criar',
+      'caixa.editar',
       'caixa.movimentacoes.cancelar',
     ],
   });
 
   const permissoesRh = selecionarPermissoes({
     modulos: ['funcionarios', 'agenda'],
-    chavesAdicionais: ['clientes.visualizar'],
+    chavesAdicionais: ['clientes.visualizar', 'dashboard.visualizar'],
     chavesExcluidas: ['agenda.excluir'],
   });
 
   const permissoesColaborador = selecionarPermissoes({
     chavesAdicionais: [
+      'dashboard.visualizar',
+      'vendas.visualizar',
+      'vendas.criar',
+      'vendas.editar',
       'clientes.visualizar',
       'fornecedores.visualizar',
       'pedidos_compra.visualizar',
@@ -783,6 +1032,7 @@ async function main() {
       'estoque.visualizar',
       'estoque.movimentacoes.visualizar',
       'estoque.inventarios.visualizar',
+      'ordens_servico.visualizar',
       'caixa.visualizar',
     ],
   });
@@ -950,18 +1200,23 @@ async function main() {
 
   const vinculosUsuarioPerfilPadrao: VinculoUsuarioPerfilPadrao[] = [
     {
-      emailUsuario: 'admin@sistema.com',
+      emailUsuario: seedConfig.adminEmail,
       chavePerfil: 'super_administrador',
     },
-    {
-      emailUsuario: 'admin.empresa@sistema.com',
-      chavePerfil: 'administrador_empresa',
-    },
-    {
-      emailUsuario: 'teste@sistema.com',
-      chavePerfil: 'colaborador',
-    },
   ];
+
+  if (seedConfig.createDemoUsers) {
+    vinculosUsuarioPerfilPadrao.push(
+      {
+        emailUsuario: seedConfig.demoAdminEmail!,
+        chavePerfil: 'administrador_empresa',
+      },
+      {
+        emailUsuario: seedConfig.demoUserEmail!,
+        chavePerfil: 'colaborador',
+      },
+    );
+  }
 
   for (const vinculoPadrao of vinculosUsuarioPerfilPadrao) {
     const usuario = await prisma.usuario.findUnique({
@@ -1067,12 +1322,21 @@ async function main() {
     );
   }
 
-  console.log('Seed executado com sucesso!');
+  console.log(
+    'Seed executado com sucesso: catálogo, perfis e conta administrativa sincronizados.',
+  );
+  console.log(
+    seedConfig.createDemoUsers
+      ? 'Usuários demonstrativos sincronizados.'
+      : 'Usuários demonstrativos não solicitados.',
+  );
 }
 
 main()
-  .catch((error) => {
-    console.error(error);
+  .catch((error: unknown) => {
+    console.error(
+      error instanceof Error ? error.message : 'Falha ao executar o seed.',
+    );
     process.exit(1);
   })
   .finally(async () => {
