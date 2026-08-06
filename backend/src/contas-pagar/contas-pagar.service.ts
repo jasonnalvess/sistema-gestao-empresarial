@@ -882,7 +882,7 @@ export class ContasPagarService {
           include: { usuario: { select: this.usuarioSelect } },
         });
 
-        let movimentacaoCaixa: Prisma.MovimentacaoCaixaGetPayload<{}> | null =
+        let movimentacaoCaixa: Prisma.MovimentacaoCaixaGetPayload<object> | null =
           null;
 
         if (dados.caixaId) {
