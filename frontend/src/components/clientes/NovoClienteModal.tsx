@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -75,8 +76,8 @@ export function NovoClienteModal() {
       queryClient.invalidateQueries({
         queryKey: ["clientes"],
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao cadastrar cliente");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao cadastrar cliente"));
     } finally {
       setSalvando(false);
     }

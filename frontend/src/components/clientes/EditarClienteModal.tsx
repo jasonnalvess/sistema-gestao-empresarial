@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
@@ -70,8 +71,8 @@ export function EditarClienteModal({ cliente }: Props) {
       queryClient.invalidateQueries({
         queryKey: ["cliente", empresaEfetivaId, cliente.id],
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao atualizar cliente");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar cliente"));
     } finally {
       setSalvando(false);
     }

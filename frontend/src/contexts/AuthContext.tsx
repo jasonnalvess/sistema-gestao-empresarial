@@ -52,23 +52,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    try {
-      const tokenSalvo = localStorage.getItem("token");
-      const usuarioSalvo = localStorage.getItem("usuario");
+    let efeitoAtivo = true;
 
-      if (tokenSalvo && usuarioSalvo) {
-        const usuarioConvertido = normalizarUsuario(JSON.parse(usuarioSalvo));
-
-        setToken(tokenSalvo);
-        setUsuario(usuarioConvertido);
-      } else {
-        limparSessao();
+    queueMicrotask(() => {
+      if (!efeitoAtivo) {
+        return;
       }
-    } catch {
-      limparSessao();
-    } finally {
-      setCarregando(false);
-    }
+
+      try {
+        const tokenSalvo = localStorage.getItem("token");
+        const usuarioSalvo = localStorage.getItem("usuario");
+
+        if (tokenSalvo && usuarioSalvo) {
+          const usuarioConvertido = normalizarUsuario(JSON.parse(usuarioSalvo));
+
+          setToken(tokenSalvo);
+          setUsuario(usuarioConvertido);
+        } else {
+          limparSessao();
+        }
+      } catch {
+        limparSessao();
+      } finally {
+        setCarregando(false);
+      }
+    });
+
+    return () => {
+      efeitoAtivo = false;
+    };
   }, [limparSessao]);
 
   useEffect(() => {
