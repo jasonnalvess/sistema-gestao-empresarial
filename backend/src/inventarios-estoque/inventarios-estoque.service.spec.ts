@@ -61,6 +61,44 @@ describe('InventariosEstoqueService hardening', () => {
   });
   type EstoqueMock = ReturnType<typeof estoque>;
   type InventarioMock = ReturnType<typeof inventario>;
+  type AtualizarInventarioArgs = {
+    where: {
+      id?: string;
+      empresaId?: string;
+      status?: StatusInventarioEstoque;
+    };
+  };
+  type AtualizarItemInventarioArgs = {
+    data: {
+      quantidadeContada: Prisma.Decimal;
+      diferenca: Prisma.Decimal;
+    };
+  };
+  type CriarMovimentacaoArgs = {
+    data: {
+      quantidade: Prisma.Decimal;
+      saldoAnterior: Prisma.Decimal;
+      saldoPosterior: Prisma.Decimal;
+    };
+  };
+  type BuscarEstoqueArgs = {
+    where: {
+      empresaId_produtoId_depositoId: {
+        empresaId: string;
+        produtoId: string;
+        depositoId: string;
+      };
+    };
+  };
+  type BuscarItemArgs = { where: Prisma.InventarioEstoqueItemWhereInput };
+  type ListarInventariosArgs = {
+    where: Prisma.InventarioEstoqueWhereInput;
+    orderBy: Prisma.InventarioEstoqueOrderByWithRelationInput;
+  };
+  type BuscarInventarioDetalheArgs = {
+    where: Prisma.InventarioEstoqueWhereInput;
+  };
+
   type CriarInventarioArgs = {
     data: {
       itens: {
@@ -104,15 +142,20 @@ describe('InventariosEstoqueService hardening', () => {
 
   function criarTransactionMock() {
     return {
-      $queryRaw: jest.fn().mockResolvedValue([{ id: 'inv1' }]),
+      $queryRaw: jest
+        .fn<Promise<Array<{ id: string }>>, [Prisma.Sql]>()
+        .mockResolvedValue([{ id: 'inv1' }]),
       $executeRaw: executarRawMock,
       deposito: { findFirst: buscarDepositoMock },
       produto: {
         findMany: jest
-          .fn()
+          .fn<
+            Promise<Array<{ id: string; ativo: boolean }>>,
+            [{ where: { id: { in: string[] } } }]
+          >()
           .mockImplementation(
             ({ where }: { where: { id: { in: string[] } } }) =>
-              where.id.in.map((id) => ({ id, ativo: true })),
+              Promise.resolve(where.id.in.map((id) => ({ id, ativo: true }))),
           ),
       },
       inventarioEstoque: {
@@ -123,16 +166,24 @@ describe('InventariosEstoqueService hardening', () => {
         findMany: jest.fn(),
         count: jest.fn(),
         create: criarInventarioMock,
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        updateMany: jest
+          .fn<Promise<{ count: number }>, [AtualizarInventarioArgs]>()
+          .mockResolvedValue({ count: 1 }),
       },
       inventarioEstoqueItem: {
-        findFirst: jest.fn().mockResolvedValue(item()),
+        findFirst: jest
+          .fn<Promise<ReturnType<typeof item> | null>, [BuscarItemArgs]>()
+          .mockResolvedValue(item()),
         findFirstOrThrow: jest.fn().mockResolvedValue(item()),
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        updateMany: jest
+          .fn<Promise<{ count: number }>, [AtualizarItemInventarioArgs]>()
+          .mockResolvedValue({ count: 1 }),
       },
       estoqueProduto: {
         findMany: buscarEstoquesMock,
-        findUnique: jest.fn().mockResolvedValue(estoque()),
+        findUnique: jest
+          .fn<Promise<EstoqueMock | null>, [BuscarEstoqueArgs]>()
+          .mockResolvedValue(estoque()),
         create: jest
           .fn()
           .mockImplementation(
@@ -148,7 +199,9 @@ describe('InventariosEstoqueService hardening', () => {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       movimentacaoEstoque: {
-        create: jest.fn().mockResolvedValue({ id: 'm1' }),
+        create: jest
+          .fn<Promise<{ id: string }>, [CriarMovimentacaoArgs]>()
+          .mockResolvedValue({ id: 'm1' }),
       },
     };
   }
@@ -279,7 +332,7 @@ describe('InventariosEstoqueService hardening', () => {
     expect(
       tx.inventarioEstoque.findFirst.mock.invocationCallOrder[0],
     ).toBeLessThan(tx.inventarioEstoque.updateMany.mock.invocationCallOrder[0]);
-    const sql = tx.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+    const sql = tx.$queryRaw.mock.calls[0][0];
     expect(sql.sql).toContain('"empresaId"');
     expect(sql.sql).toContain('FOR UPDATE');
     expect(sql.values).toEqual(['inv1', 'e1']);
@@ -308,12 +361,8 @@ describe('InventariosEstoqueService hardening', () => {
     const data = tx.inventarioEstoqueItem.updateMany.mock.calls[0][0].data;
     expect(data.quantidadeContada).toBeInstanceOf(Prisma.Decimal);
     expect(data.diferenca.eq('0.10')).toBe(true);
-    expect(tx.inventarioEstoque.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          status: StatusInventarioEstoque.ABERTO,
-        }),
-      }),
+    expect(tx.inventarioEstoque.updateMany.mock.calls[0][0].where.status).toBe(
+      StatusInventarioEstoque.ABERTO,
     );
   });
 
@@ -339,15 +388,12 @@ describe('InventariosEstoqueService hardening', () => {
     expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
       tx.inventarioEstoque.findFirst.mock.invocationCallOrder[0],
     );
-    expect(tx.inventarioEstoque.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          id: 'inv1',
-          empresaId: 'e1',
-          status: StatusInventarioEstoque.EM_CONTAGEM,
-        }),
-      }),
-    );
+    const where = tx.inventarioEstoque.updateMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({
+      id: 'inv1',
+      empresaId: 'e1',
+      status: StatusInventarioEstoque.EM_CONTAGEM,
+    });
   });
 
   it('cancelamento concorrente derrotado não consulta resultado final', async () => {
@@ -436,7 +482,9 @@ describe('InventariosEstoqueService hardening', () => {
         inventario(undefined, itens),
       );
       tx.estoqueProduto.findUnique.mockImplementation(({ where }) =>
-        estoque(where.empresaId_produtoId_depositoId.produtoId),
+        Promise.resolve(
+          estoque(where.empresaId_produtoId_depositoId.produtoId),
+        ),
       );
       await service.finalizar('e1', 'inv1', usuario);
       return tx.$executeRaw.mock.calls.map(
@@ -454,7 +502,7 @@ describe('InventariosEstoqueService hardening', () => {
       inventario(StatusInventarioEstoque.FINALIZADO),
     );
     tx.estoqueProduto.findUnique.mockImplementation(({ where }) =>
-      estoque(where.empresaId_produtoId_depositoId.produtoId),
+      Promise.resolve(estoque(where.empresaId_produtoId_depositoId.produtoId)),
     );
     tx.estoqueProduto.updateMany.mockResolvedValue({ count: 1 });
     tx.movimentacaoEstoque.create.mockResolvedValue({ id: 'm' });
@@ -473,7 +521,7 @@ describe('InventariosEstoqueService hardening', () => {
       inventario(undefined, [item('p1'), item('p2')]),
     );
     tx.estoqueProduto.findUnique.mockImplementation(({ where }) =>
-      estoque(where.empresaId_produtoId_depositoId.produtoId),
+      Promise.resolve(estoque(where.empresaId_produtoId_depositoId.produtoId)),
     );
     if (etapa === 'update')
       tx.estoqueProduto.updateMany.mockRejectedValueOnce(new Error('falha'));
@@ -503,7 +551,7 @@ describe('InventariosEstoqueService hardening', () => {
       inventario(undefined, [item('p1'), item('p2')]),
     );
     tx.estoqueProduto.findUnique.mockImplementation(({ where }) =>
-      estoque(where.empresaId_produtoId_depositoId.produtoId),
+      Promise.resolve(estoque(where.empresaId_produtoId_depositoId.produtoId)),
     );
     tx.estoqueProduto.updateMany
       .mockResolvedValueOnce({ count: 1 })
@@ -516,7 +564,9 @@ describe('InventariosEstoqueService hardening', () => {
   });
 
   it('lista com tenant, mesmo where e fallback createdAt', async () => {
-    const findMany = jest.fn().mockResolvedValue([]);
+    const findMany = jest
+      .fn<Promise<unknown[]>, [ListarInventariosArgs]>()
+      .mockResolvedValue([]);
     const count = jest.fn().mockResolvedValue(0);
     const prismaListagem = {
       inventarioEstoque: { findMany, count },
@@ -543,7 +593,9 @@ describe('InventariosEstoqueService hardening', () => {
   });
 
   it('busca detalhe por id + empresaId e retorna 404 para tenant externo', async () => {
-    const findFirst = jest.fn().mockResolvedValue(null);
+    const findFirst = jest
+      .fn<Promise<null>, [BuscarInventarioDetalheArgs]>()
+      .mockResolvedValue(null);
     const servico = new InventariosEstoqueService({
       inventarioEstoque: { findFirst },
     } as unknown as PrismaService);

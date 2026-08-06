@@ -37,6 +37,20 @@ describe('MovimentacoesEstoqueService hardening', () => {
     ativo: true,
     nome: id,
   });
+  type AtualizarEstoqueArgs = {
+    data: {
+      quantidadeAtual: unknown;
+      custoMedio?: unknown;
+    };
+  };
+  type CriarMovimentacaoArgs = {
+    data: { saldoPosterior: Prisma.Decimal };
+  };
+  type ListarMovimentacoesArgs = {
+    where: Prisma.MovimentacaoEstoqueWhereInput;
+    orderBy: Prisma.MovimentacaoEstoqueOrderByWithRelationInput;
+  };
+
   const estoque = (id = 's1', depositoId = 'd1', quantidade = '10.25') => ({
     id,
     empresaId: 'e1',
@@ -47,7 +61,7 @@ describe('MovimentacoesEstoqueService hardening', () => {
     ultimoCusto: new Prisma.Decimal('2.50'),
   });
   let tx: {
-    $executeRaw: jest.Mock;
+    $executeRaw: jest.MockedFunction<(query: Prisma.Sql) => Promise<number>>;
     produto: { findFirst: jest.Mock };
     deposito: { findFirst: jest.Mock };
     estoqueProduto: {
@@ -56,16 +70,24 @@ describe('MovimentacoesEstoqueService hardening', () => {
       findFirstOrThrow: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
-      updateMany: jest.Mock;
+      updateMany: jest.MockedFunction<
+        (args: AtualizarEstoqueArgs) => Promise<{ count: number }>
+      >;
     };
-    movimentacaoEstoque: { create: jest.Mock };
+    movimentacaoEstoque: {
+      create: jest.MockedFunction<
+        (args: CriarMovimentacaoArgs) => Promise<{ id: string }>
+      >;
+    };
   };
   let prisma: { $transaction: jest.Mock };
   let service: MovimentacoesEstoqueService;
 
   beforeEach(() => {
     tx = {
-      $executeRaw: jest.fn().mockResolvedValue(1),
+      $executeRaw: jest
+        .fn<Promise<number>, [Prisma.Sql]>()
+        .mockResolvedValue(1),
       produto: { findFirst: jest.fn().mockResolvedValue(produto) },
       deposito: {
         findFirst: jest.fn(({ where }: { where: { id: string } }) =>
@@ -82,10 +104,14 @@ describe('MovimentacoesEstoqueService hardening', () => {
           .mockResolvedValue(estoque('s1', 'd1', '9.15')),
         create: jest.fn(),
         update: jest.fn().mockResolvedValue(estoque()),
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        updateMany: jest
+          .fn<Promise<{ count: number }>, [AtualizarEstoqueArgs]>()
+          .mockResolvedValue({ count: 1 }),
       },
       movimentacaoEstoque: {
-        create: jest.fn().mockResolvedValue({ id: 'm1' }),
+        create: jest
+          .fn<Promise<{ id: string }>, [CriarMovimentacaoArgs]>()
+          .mockResolvedValue({ id: 'm1' }),
       },
     };
     prisma = {
@@ -104,20 +130,16 @@ describe('MovimentacoesEstoqueService hardening', () => {
       {
         produtoId: 'p1',
         depositoId: 'd1',
-        tipo: TipoMovimentacaoEstoque.ENTRADA,
+        tipo: TipoMovimentacaoEstoqueDto.ENTRADA,
         quantidade: 0.1,
         custoUnitario: 3,
-      } as any,
+      },
       usuario,
     );
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(tx.estoqueProduto.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          quantidadeAtual: { increment: expect.any(Prisma.Decimal) },
-        }),
-      }),
-    );
+    const quantidadeAtual = tx.estoqueProduto.updateMany.mock.calls[0][0].data
+      .quantidadeAtual as { increment: Prisma.Decimal };
+    expect(quantidadeAtual.increment).toBeInstanceOf(Prisma.Decimal);
     expect(tx.movimentacaoEstoque.create).toHaveBeenCalled();
   });
 
@@ -127,10 +149,10 @@ describe('MovimentacoesEstoqueService hardening', () => {
       {
         produtoId: 'p1',
         depositoId: 'd1',
-        tipo: TipoMovimentacaoEstoque.ENTRADA,
+        tipo: TipoMovimentacaoEstoqueDto.ENTRADA,
         quantidade: 0.1,
         custoUnitario: 3,
-      } as any,
+      },
       usuario,
     );
     const data = tx.movimentacaoEstoque.create.mock.calls[0][0].data;
@@ -148,9 +170,9 @@ describe('MovimentacoesEstoqueService hardening', () => {
         {
           produtoId: 'p1',
           depositoId: 'd1',
-          tipo: TipoMovimentacaoEstoque.SAIDA,
+          tipo: TipoMovimentacaoEstoqueDto.SAIDA,
           quantidade: 2,
-        } as any,
+        },
         usuario,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -165,9 +187,9 @@ describe('MovimentacoesEstoqueService hardening', () => {
         {
           produtoId: 'p1',
           depositoId: 'd1',
-          tipo: TipoMovimentacaoEstoque.SAIDA,
+          tipo: TipoMovimentacaoEstoqueDto.SAIDA,
           quantidade: 1,
-        } as any,
+        },
         usuario,
       ),
     ).rejects.toThrow();
@@ -215,14 +237,12 @@ describe('MovimentacoesEstoqueService hardening', () => {
       },
       usuario,
     );
-    expect(
-      tx.estoqueProduto.updateMany.mock.calls[0][0].data.quantidadeAtual
-        .decrement,
-    ).toBeInstanceOf(Prisma.Decimal);
-    expect(
-      tx.estoqueProduto.updateMany.mock.calls[1][0].data.quantidadeAtual
-        .increment,
-    ).toBeInstanceOf(Prisma.Decimal);
+    const atualizacaoOrigem = tx.estoqueProduto.updateMany.mock.calls[0][0].data
+      .quantidadeAtual as { decrement: Prisma.Decimal };
+    const atualizacaoDestino = tx.estoqueProduto.updateMany.mock.calls[1][0]
+      .data.quantidadeAtual as { increment: Prisma.Decimal };
+    expect(atualizacaoOrigem.decrement).toBeInstanceOf(Prisma.Decimal);
+    expect(atualizacaoDestino.increment).toBeInstanceOf(Prisma.Decimal);
     expect(tx.movimentacaoEstoque.create).toHaveBeenCalledTimes(2);
   });
 
@@ -234,9 +254,9 @@ describe('MovimentacoesEstoqueService hardening', () => {
         {
           produtoId: 'p1',
           depositoId: 'd1',
-          tipo: TipoMovimentacaoEstoque.ENTRADA,
+          tipo: TipoMovimentacaoEstoqueDto.ENTRADA,
           quantidade: 1,
-        } as any,
+        },
         usuario,
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
@@ -260,9 +280,9 @@ describe('MovimentacoesEstoqueService hardening', () => {
         {
           produtoId: 'p1',
           depositoId: 'd1',
-          tipo: TipoMovimentacaoEstoque.ENTRADA,
+          tipo: TipoMovimentacaoEstoqueDto.ENTRADA,
           quantidade: 1,
-        } as any,
+        },
         usuario,
       ),
     ).rejects.toBeInstanceOf(ConflictException);
@@ -282,9 +302,9 @@ describe('MovimentacoesEstoqueService hardening', () => {
         {
           produtoId: 'p1',
           depositoId: 'd1',
-          tipo: TipoMovimentacaoEstoque.ENTRADA,
+          tipo: TipoMovimentacaoEstoqueDto.ENTRADA,
           quantidade: 1,
-        } as any,
+        },
         usuario,
       ),
     ).rejects.toBe(erro);
@@ -297,9 +317,9 @@ describe('MovimentacoesEstoqueService hardening', () => {
       {
         produtoId: 'p1',
         depositoId: 'd1',
-        tipo: TipoMovimentacaoEstoque.ENTRADA,
+        tipo: TipoMovimentacaoEstoqueDto.ENTRADA,
         quantidade: 1,
-      } as any,
+      },
       usuario,
     );
     expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
@@ -314,15 +334,14 @@ describe('MovimentacoesEstoqueService hardening', () => {
       {
         produtoId: 'p1',
         depositoId: 'd1',
-        tipo: TipoMovimentacaoEstoque.SAIDA,
+        tipo: TipoMovimentacaoEstoqueDto.SAIDA,
         quantidade: 1.1,
-      } as any,
+      },
       usuario,
     );
-    expect(
-      tx.estoqueProduto.updateMany.mock.calls[0][0].data.quantidadeAtual
-        .decrement,
-    ).toBeInstanceOf(Prisma.Decimal);
+    const atualizacao = tx.estoqueProduto.updateMany.mock.calls[0][0].data
+      .quantidadeAtual as { decrement: Prisma.Decimal };
+    expect(atualizacao.decrement).toBeInstanceOf(Prisma.Decimal);
     expect(
       tx.movimentacaoEstoque.create.mock.calls[0][0].data.saldoPosterior.eq(
         '9.15',
@@ -331,21 +350,22 @@ describe('MovimentacoesEstoqueService hardening', () => {
   });
 
   it.each([
-    ['AJUSTE', '12.5'],
-    ['INVENTARIO', '0.25'],
+    [TipoMovimentacaoEstoqueDto.AJUSTE, 12.5],
+    [TipoMovimentacaoEstoqueDto.INVENTARIO, 0.25],
   ])('%s atribui saldo absoluto sob lock', async (tipo, quantidade) => {
     await service.criar(
       'e1',
-      { produtoId: 'p1', depositoId: 'd1', tipo, quantidade } as any,
+      { produtoId: 'p1', depositoId: 'd1', tipo, quantidade },
       usuario,
     );
     expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
       tx.estoqueProduto.findUnique.mock.invocationCallOrder[0],
     );
     expect(
-      tx.estoqueProduto.updateMany.mock.calls[0][0].data.quantidadeAtual.eq(
-        quantidade,
-      ),
+      (
+        tx.estoqueProduto.updateMany.mock.calls[0][0].data
+          .quantidadeAtual as Prisma.Decimal
+      ).eq(quantidade),
     ).toBe(true);
   });
 
@@ -358,9 +378,9 @@ describe('MovimentacoesEstoqueService hardening', () => {
         {
           produtoId: 'p1',
           depositoId: 'd1',
-          tipo: TipoMovimentacaoEstoque.ENTRADA,
+          tipo: TipoMovimentacaoEstoqueDto.ENTRADA,
           quantidade: 1,
-        } as any,
+        },
         usuario,
       ),
     ).rejects.toBe(erro);
@@ -424,7 +444,9 @@ describe('MovimentacoesEstoqueService hardening', () => {
   });
 
   it('lista com tenant, mesmo where e fallback createdAt', async () => {
-    const findMany = jest.fn().mockResolvedValue([]);
+    const findMany = jest
+      .fn<Promise<unknown[]>, [ListarMovimentacoesArgs]>()
+      .mockResolvedValue([]);
     const count = jest.fn().mockResolvedValue(0);
     const prismaListagem = {
       movimentacaoEstoque: { findMany, count },
@@ -463,7 +485,7 @@ describe('MovimentacoesEstoqueService hardening', () => {
       usuario,
     );
     expect(tx.$executeRaw).toHaveBeenCalled();
-    const sql = tx.$executeRaw.mock.calls[0][0] as Prisma.Sql;
+    const sql = tx.$executeRaw.mock.calls[0][0];
     expect(sql.sql).toContain('pg_advisory_xact_lock');
     expect(sql.values).toEqual(['e1:p1:d1']);
   });
