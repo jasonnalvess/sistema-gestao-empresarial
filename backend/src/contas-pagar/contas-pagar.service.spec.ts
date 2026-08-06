@@ -131,13 +131,12 @@ describe('ContasPagarService', () => {
       },
       usuario,
     );
-    expect(prisma.contaPagar.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          descricao: 'Conta',
-        }),
-      }),
-    );
+    const chamada = (
+      prisma.contaPagar.create.mock.calls as Array<
+        [Prisma.ContaPagarCreateArgs]
+      >
+    )[0][0];
+    expect(chamada.data).toMatchObject({ descricao: 'Conta' });
     expect(prisma.contaPagarHistorico.create).toHaveBeenCalled();
   });
 
@@ -233,15 +232,16 @@ describe('ContasPagarService', () => {
       },
       usuario,
     );
-    expect(prisma.contaPagar.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          pedidoCompraId: 'pedido-1',
-          parcelaAtual: 1,
-          totalParcelas: 1,
-        }),
-      }),
-    );
+    const chamada = (
+      prisma.contaPagar.create.mock.calls as Array<
+        [Prisma.ContaPagarCreateArgs]
+      >
+    )[0][0];
+    expect(chamada.data).toMatchObject({
+      pedidoCompraId: 'pedido-1',
+      parcelaAtual: 1,
+      totalParcelas: 1,
+    });
   });
 
   it('rejeita pedido de outra empresa sem criar conta', async () => {
@@ -325,15 +325,16 @@ describe('ContasPagarService', () => {
       usuario,
     );
     expect(prisma.$queryRaw).toHaveBeenCalled();
-    expect(prisma.contaPagar.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          valorPago: new Prisma.Decimal(40),
-          valorAberto: new Prisma.Decimal(60),
-          status: StatusContaPagar.PARCIALMENTE_PAGA,
-        }),
-      }),
-    );
+    const chamada = (
+      prisma.contaPagar.update.mock.calls as Array<
+        [Prisma.ContaPagarUpdateArgs]
+      >
+    )[0][0];
+    expect(chamada.data).toMatchObject({
+      valorPago: new Prisma.Decimal(40),
+      valorAberto: new Prisma.Decimal(60),
+      status: StatusContaPagar.PARCIALMENTE_PAGA,
+    });
   });
 
   it('registra pagamento total e zera saldo', async () => {
@@ -346,14 +347,15 @@ describe('ContasPagarService', () => {
       },
       usuario,
     );
-    expect(prisma.contaPagar.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          valorAberto: new Prisma.Decimal(0),
-          status: StatusContaPagar.PAGA,
-        }),
-      }),
-    );
+    const chamada = (
+      prisma.contaPagar.update.mock.calls as Array<
+        [Prisma.ContaPagarUpdateArgs]
+      >
+    )[0][0];
+    expect(chamada.data).toMatchObject({
+      valorAberto: new Prisma.Decimal(0),
+      status: StatusContaPagar.PAGA,
+    });
   });
 
   it('preserva juros, multa e desconto no cálculo', async () => {
@@ -369,16 +371,17 @@ describe('ContasPagarService', () => {
       },
       usuario,
     );
-    expect(prisma.contaPagar.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          valorJuros: new Prisma.Decimal(5),
-          valorMulta: new Prisma.Decimal(2),
-          valorDesconto: new Prisma.Decimal(2),
-          valorAberto: new Prisma.Decimal(0),
-        }),
-      }),
-    );
+    const chamada = (
+      prisma.contaPagar.update.mock.calls as Array<
+        [Prisma.ContaPagarUpdateArgs]
+      >
+    )[0][0];
+    expect(chamada.data).toMatchObject({
+      valorJuros: new Prisma.Decimal(5),
+      valorMulta: new Prisma.Decimal(2),
+      valorDesconto: new Prisma.Decimal(2),
+      valorAberto: new Prisma.Decimal(0),
+    });
   });
 
   it.each([0, -1])('rejeita valor inválido %s sem efeitos', async (valor) => {
@@ -572,14 +575,15 @@ describe('ContasPagarService', () => {
 
   it('cancela condicionalmente e registra histórico', async () => {
     await service.cancelar('empresa-1', 'conta-1', usuario);
-    expect(prisma.contaPagar.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          empresaId: 'empresa-1',
-          pagamentos: { none: {} },
-        }),
-      }),
-    );
+    const chamada = (
+      prisma.contaPagar.updateMany.mock.calls as Array<
+        [Prisma.ContaPagarUpdateManyArgs]
+      >
+    )[0][0];
+    expect(chamada.where).toMatchObject({
+      empresaId: 'empresa-1',
+      pagamentos: { none: {} },
+    });
     expect(prisma.contaPagarHistorico.create).toHaveBeenCalled();
   });
 
@@ -620,14 +624,15 @@ describe('ContasPagarService', () => {
       },
       usuario,
     );
-    expect(prisma.contaPagar.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          valorAberto: new Prisma.Decimal('0.01'),
-          status: StatusContaPagar.PARCIALMENTE_PAGA,
-        }),
-      }),
-    );
+    const chamada = (
+      prisma.contaPagar.update.mock.calls as Array<
+        [Prisma.ContaPagarUpdateArgs]
+      >
+    )[0][0];
+    expect(chamada.data).toMatchObject({
+      valorAberto: new Prisma.Decimal('0.01'),
+      status: StatusContaPagar.PARCIALMENTE_PAGA,
+    });
   });
 
   it.each([

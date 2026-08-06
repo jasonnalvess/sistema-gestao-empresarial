@@ -57,8 +57,8 @@ function criarContexto() {
     },
   };
   const prisma = {
-    $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) =>
-      callback(tx),
+    $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
+      Promise.resolve(callback(tx)),
     ),
     ordemServico: {
       findFirst: jest.fn(),
@@ -101,15 +101,16 @@ describe('OrdensServicoService', () => {
         where: { id: 'agenda-1', empresaId: 'empresa-1' },
       });
       expect(tx.ordemServico.create).toHaveBeenCalledTimes(1);
-      expect(tx.ordemServicoHistorico.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            ordemServicoId: 'ordem-1',
-            usuarioId: 'usuario-1',
-            statusNovo: 'ABERTA',
-          }),
-        }),
-      );
+      const chamadaHistorico = (
+        tx.ordemServicoHistorico.create.mock.calls as Array<
+          [Prisma.OrdemServicoHistoricoCreateArgs]
+        >
+      )[0][0];
+      expect(chamadaHistorico.data).toMatchObject({
+        ordemServicoId: 'ordem-1',
+        usuarioId: 'usuario-1',
+        statusNovo: 'ABERTA',
+      });
     });
 
     it('adquire advisory lock de numeração antes de buscar o último número', async () => {
@@ -204,23 +205,27 @@ describe('OrdensServicoService', () => {
       await service.alterarStatus('empresa-1', 'ordem-1', 'usuario-1', {
         status: 'CONCLUIDA',
       });
-      expect(tx.ordemServico.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ status: 'EM_ANDAMENTO' }),
-          data: expect.objectContaining({
-            status: 'CONCLUIDA',
-            dataConclusao: expect.any(Date),
-          }),
-        }),
-      );
-      expect(tx.ordemServicoHistorico.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            statusAnterior: 'EM_ANDAMENTO',
-            statusNovo: 'CONCLUIDA',
-          }),
-        }),
-      );
+      const chamadaAtualizacao = (
+        tx.ordemServico.updateMany.mock.calls as Array<
+          [Prisma.OrdemServicoUpdateManyArgs]
+        >
+      )[0][0];
+      expect(chamadaAtualizacao.where).toMatchObject({
+        status: 'EM_ANDAMENTO',
+      });
+      expect(chamadaAtualizacao.data).toMatchObject({
+        status: 'CONCLUIDA',
+      });
+      expect(chamadaAtualizacao.data.dataConclusao).toBeInstanceOf(Date);
+      const chamadaHistorico = (
+        tx.ordemServicoHistorico.create.mock.calls as Array<
+          [Prisma.OrdemServicoHistoricoCreateArgs]
+        >
+      )[0][0];
+      expect(chamadaHistorico.data).toMatchObject({
+        statusAnterior: 'EM_ANDAMENTO',
+        statusNovo: 'CONCLUIDA',
+      });
     });
 
     it.each([
