@@ -19,6 +19,25 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
   };
   const produto = { id: 'p1', empresaId: 'e1', ativo: true };
   const deposito = { id: 'd1', empresaId: 'e1', ativo: true };
+  type CriarMovimentacaoArgs = {
+    data: {
+      tipo: TipoMovimentacaoEstoque;
+      quantidade: Prisma.Decimal;
+      saldoAnterior: Prisma.Decimal;
+      saldoPosterior: Prisma.Decimal;
+      usuarioId: string;
+      documentoReferencia?: string;
+      observacao?: string;
+    };
+  };
+  type AtualizarEstoqueArgs = {
+    data: { quantidadeAtual?: unknown };
+  };
+  type ListarEstoqueArgs = {
+    where: Prisma.EstoqueProdutoWhereInput;
+    orderBy: Prisma.EstoqueProdutoOrderByWithRelationInput;
+  };
+
   const estoque = (quantidade = '2.50') => ({
     id: 's1',
     empresaId: 'e1',
@@ -41,9 +60,15 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
       findFirst: jest.Mock;
       findFirstOrThrow: jest.Mock;
       create: jest.Mock;
-      updateMany: jest.Mock;
+      updateMany: jest.MockedFunction<
+        (args: AtualizarEstoqueArgs) => Promise<{ count: number }>
+      >;
     };
-    movimentacaoEstoque: { create: jest.Mock };
+    movimentacaoEstoque: {
+      create: jest.MockedFunction<
+        (args: CriarMovimentacaoArgs) => Promise<{ id: string }>
+      >;
+    };
   };
   let prisma: { $transaction: jest.Mock };
   let service: EstoqueService;
@@ -58,10 +83,14 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
         findFirst: jest.fn(),
         findFirstOrThrow: jest.fn().mockResolvedValue(estoque()),
         create: jest.fn().mockResolvedValue(estoque()),
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        updateMany: jest
+          .fn<Promise<{ count: number }>, [AtualizarEstoqueArgs]>()
+          .mockResolvedValue({ count: 1 }),
       },
       movimentacaoEstoque: {
-        create: jest.fn().mockResolvedValue({ id: 'm1' }),
+        create: jest
+          .fn<Promise<{ id: string }>, [CriarMovimentacaoArgs]>()
+          .mockResolvedValue({ id: 'm1' }),
       },
     };
     prisma = {
@@ -186,11 +215,9 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
   it('atualização apenas cadastral não gera movimentação', async () => {
     prepararAtualizacao();
     await service.atualizar('e1', 's1', { estoqueMinimo: 1 }, usuario);
-    expect(tx.estoqueProduto.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ quantidadeAtual: undefined }),
-      }),
-    );
+    expect(
+      tx.estoqueProduto.updateMany.mock.calls[0][0].data.quantidadeAtual,
+    ).toBeUndefined();
     expect(tx.movimentacaoEstoque.create).not.toHaveBeenCalled();
   });
 
@@ -293,7 +320,9 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
   });
 
   it('lista sempre com o mesmo where tenant-aware e fallback updatedAt', async () => {
-    const findMany = jest.fn().mockResolvedValue([]);
+    const findMany = jest
+      .fn<Promise<unknown[]>, [ListarEstoqueArgs]>()
+      .mockResolvedValue([]);
     const count = jest.fn().mockResolvedValue(0);
     const prismaListagem = {
       estoqueProduto: { findMany, count },

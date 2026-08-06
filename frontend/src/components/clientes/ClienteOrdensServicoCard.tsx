@@ -15,12 +15,10 @@ type OrdemServicoResumo = {
 };
 
 type Props = {
-  clienteId: string;
   ordens?: OrdemServicoResumo[];
 };
 
 export function ClienteOrdensServicoCard({
-  clienteId,
   ordens = [],
 }: Props) {
   if (ordens.length === 0) {

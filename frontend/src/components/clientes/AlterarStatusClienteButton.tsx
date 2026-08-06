@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useQueryClient } from "@tanstack/react-query";
 import { Power } from "lucide-react";
 import { toast } from "sonner";
@@ -42,10 +43,8 @@ export function AlterarStatusClienteButton({ cliente }: Props) {
       queryClient.invalidateQueries({
         queryKey: ["clientes"],
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao alterar status do cliente"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao alterar status do cliente"));
     }
   }
 

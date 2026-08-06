@@ -1251,7 +1251,7 @@ export class VendasService {
 
         const primeiroNumero = (ultimaConta?.numero ?? 0) + 1;
 
-        const contasCriadas: Prisma.ContaReceberGetPayload<{}>[] = [];
+        const contasCriadas: Prisma.ContaReceberGetPayload<object>[] = [];
 
         for (let indice = 0; indice < totalParcelas; indice++) {
           const parcelaAtual = indice + 1;

@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -119,11 +120,8 @@ export function NovoFornecedorModal() {
       queryClient.invalidateQueries({
         queryKey: ["fornecedores", empresaEfetivaId],
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          "Erro ao cadastrar fornecedor"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao cadastrar fornecedor"));
     } finally {
       setSalvando(false);
     }

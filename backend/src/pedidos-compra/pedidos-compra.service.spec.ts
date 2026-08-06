@@ -217,21 +217,23 @@ describe('PedidosCompraService hardening', () => {
       usuario,
     );
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(tx.estoqueProduto.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          quantidadeAtual: { increment: new Prisma.Decimal(5) },
-        }),
-      }),
-    );
-    expect(tx.pedidoCompraItem.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          quantidadeRecebida: { increment: new Prisma.Decimal(5) },
-          status: StatusItemPedidoCompra.PARCIALMENTE_RECEBIDO,
-        }),
-      }),
-    );
+    const chamadaEstoque = (
+      tx.estoqueProduto.update.mock.calls as Array<
+        [Prisma.EstoqueProdutoUpdateArgs]
+      >
+    )[0][0];
+    expect(chamadaEstoque.data).toMatchObject({
+      quantidadeAtual: { increment: new Prisma.Decimal(5) },
+    });
+    const chamadaItem = (
+      tx.pedidoCompraItem.update.mock.calls as Array<
+        [Prisma.PedidoCompraItemUpdateArgs]
+      >
+    )[0][0];
+    expect(chamadaItem.data).toMatchObject({
+      quantidadeRecebida: { increment: new Prisma.Decimal(5) },
+      status: StatusItemPedidoCompra.PARCIALMENTE_RECEBIDO,
+    });
     expect(resultado.pedido.status).toBe(
       StatusPedidoCompra.PARCIALMENTE_RECEBIDO,
     );
@@ -256,18 +258,19 @@ describe('PedidosCompraService hardening', () => {
       { itens: [{ itemId: 'item1', quantidadeRecebida: 0.8 }] },
       usuario,
     );
-    const incremento =
-      tx.pedidoCompraItem.update.mock.calls[0][0].data.quantidadeRecebida
-        .increment;
+    const chamadaItem = (
+      tx.pedidoCompraItem.update.mock.calls as Array<
+        [Prisma.PedidoCompraItemUpdateArgs]
+      >
+    )[0][0];
+    const atualizacaoQuantidade = chamadaItem.data
+      .quantidadeRecebida as Prisma.DecimalFieldUpdateOperationsInput;
+    const incremento = atualizacaoQuantidade.increment as Prisma.Decimal;
     expect(incremento).toBeInstanceOf(Prisma.Decimal);
     expect(incremento.eq(new Prisma.Decimal('0.8'))).toBe(true);
-    expect(tx.pedidoCompraItem.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: StatusItemPedidoCompra.RECEBIDO,
-        }),
-      }),
-    );
+    expect(chamadaItem.data).toMatchObject({
+      status: StatusItemPedidoCompra.RECEBIDO,
+    });
   });
 
   it('rejeita recebimento superior ao saldo sem efeitos', async () => {
@@ -306,8 +309,12 @@ describe('PedidosCompraService hardening', () => {
       },
       usuario,
     );
-    const custoMedio =
-      tx.estoqueProduto.update.mock.calls[0][0].data.custoMedio;
+    const chamadaEstoque = (
+      tx.estoqueProduto.update.mock.calls as Array<
+        [Prisma.EstoqueProdutoUpdateArgs]
+      >
+    )[0][0];
+    const custoMedio = chamadaEstoque.data.custoMedio as Prisma.Decimal;
     expect(custoMedio).toBeInstanceOf(Prisma.Decimal);
     expect(
       custoMedio.eq(new Prisma.Decimal(20).div(new Prisma.Decimal('1.5'))),
@@ -612,15 +619,16 @@ describe('PedidosCompraService hardening', () => {
       { itens: [{ itemId: 'item1', quantidadeRecebida: 1 }] },
       usuario,
     );
-    expect(tx.estoqueProduto.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          empresaId: 'e1',
-          produtoId: 'prod1',
-          depositoId: 'd1',
-        }),
-      }),
-    );
+    const chamada = (
+      tx.estoqueProduto.create.mock.calls as Array<
+        [Prisma.EstoqueProdutoCreateArgs]
+      >
+    )[0][0];
+    expect(chamada.data).toMatchObject({
+      empresaId: 'e1',
+      produtoId: 'prod1',
+      depositoId: 'd1',
+    });
     expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
       tx.estoqueProduto.findFirst.mock.invocationCallOrder[0],
     );

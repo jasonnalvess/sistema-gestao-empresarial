@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageSquarePlus } from "lucide-react";
@@ -80,11 +81,8 @@ export function FornecedorHistoricoCard({
       queryClient.invalidateQueries({
         queryKey: ["fornecedor", empresaEfetivaId, fornecedorId],
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          "Erro ao adicionar anotação"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao adicionar anotação"));
     } finally {
       setSalvando(false);
     }
