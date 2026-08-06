@@ -4,7 +4,6 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Mail,
-  MapPin,
   Phone,
   UserRound,
   CalendarDays,
@@ -280,7 +279,6 @@ export default function ClienteDetalhesPage() {
           </h2>
 
           <ClienteOrdensServicoCard
-            clienteId={cliente.id}
             ordens={cliente.ordensServico}
           />
         </CrudCard>

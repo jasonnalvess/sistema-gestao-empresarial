@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -52,10 +53,8 @@ export function ClienteHistoricoCard({ clienteId }: Props) {
       queryClient.invalidateQueries({
         queryKey: ["cliente-historico", empresaEfetivaId, clienteId],
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao adicionar histórico",
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao adicionar histórico"));
     } finally {
       setSalvando(false);
     }

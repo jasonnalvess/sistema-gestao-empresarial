@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -52,8 +53,8 @@ export function NovoUsuarioModal() {
       queryClient.invalidateQueries({
         queryKey: ["usuarios"],
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao cadastrar usuário");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao cadastrar usuário"));
     } finally {
       setSalvando(false);
     }

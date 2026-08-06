@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useQueryClient } from "@tanstack/react-query";
 import { Power } from "lucide-react";
 import { toast } from "sonner";
@@ -52,11 +53,8 @@ export function AlterarStatusFornecedorButton({
       queryClient.invalidateQueries({
         queryKey: ["fornecedor", empresaEfetivaId, fornecedor.id],
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          "Erro ao alterar status do fornecedor"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao alterar status do fornecedor"));
     }
   }
 

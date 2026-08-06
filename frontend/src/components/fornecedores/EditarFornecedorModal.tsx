@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
@@ -127,11 +128,8 @@ export function EditarFornecedorModal({
       queryClient.invalidateQueries({
         queryKey: ["fornecedor", empresaEfetivaId, fornecedor.id],
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          "Erro ao atualizar fornecedor"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar fornecedor"));
     } finally {
       setSalvando(false);
     }

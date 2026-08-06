@@ -34,17 +34,25 @@ export default function LoginPage() {
   }, [autenticado, carregandoSessao, router]);
 
   useEffect(() => {
-    const parametros = new URLSearchParams(window.location.search);
+    let efeitoAtivo = true;
 
-    if (parametros.get("motivo") === "sessao-expirada") {
-      setAviso("Sua sessão expirou. Entre novamente para continuar.");
+    queueMicrotask(() => {
+      if (!efeitoAtivo) {
+        return;
+      }
 
-      window.history.replaceState(
-        {},
-        "",
-        window.location.pathname,
-      );
-    }
+      const parametros = new URLSearchParams(window.location.search);
+
+      if (parametros.get("motivo") === "sessao-expirada") {
+        setAviso("Sua sessão expirou. Entre novamente para continuar.");
+
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    });
+
+    return () => {
+      efeitoAtivo = false;
+    };
   }, []);
 
   if (carregandoSessao || autenticado) {
