@@ -1,49 +1,77 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useState } from "react";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { Sheet } from "@/components/ui/sheet";
 import { Header } from "./Header";
-import { Sidebar } from "./Sidebar";
+import { DesktopSidebar, MobileSidebar } from "./Sidebar";
+
+const SIDEBAR_RECOLHIDA_STORAGE_KEY = "layout.sidebar.recolhida";
+
+function obterPreferenciaSidebarRecolhida(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    return (
+      window.localStorage.getItem(SIDEBAR_RECOLHIDA_STORAGE_KEY) === "true"
+    );
+  } catch {
+    return false;
+  }
+}
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [menuMobileAberto, setMenuMobileAberto] = useState(false);
+  const [sidebarRecolhida, setSidebarRecolhida] = useState(
+    obterPreferenciaSidebarRecolhida,
+  );
 
-  useEffect(() => {
-    if (!menuMobileAberto) {
-      return;
-    }
+  function alternarSidebar() {
+    setSidebarRecolhida((recolhidaAtual) => {
+      const novoEstado = !recolhidaAtual;
 
-    const fecharComEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMenuMobileAberto(false);
+      try {
+        window.localStorage.setItem(
+          SIDEBAR_RECOLHIDA_STORAGE_KEY,
+          String(novoEstado),
+        );
+      } catch {
+        // A preferência visual é opcional; o layout continua funcional sem ela.
       }
-    };
 
-    document.addEventListener("keydown", fecharComEscape);
+      return novoEstado;
+    });
+  }
 
-    return () => {
-      document.removeEventListener("keydown", fecharComEscape);
-    };
-  }, [menuMobileAberto]);
+  function fecharMenuMobile() {
+    setMenuMobileAberto(false);
+  }
 
   return (
     <ProtectedRoute>
-      <div className="flex min-h-screen bg-slate-100">
-        <Sidebar
-          aberto={menuMobileAberto}
-          aoFechar={() => setMenuMobileAberto(false)}
-        />
+      <Sheet open={menuMobileAberto} onOpenChange={setMenuMobileAberto}>
+        <div className="flex min-h-dvh w-full overflow-x-hidden bg-slate-100">
+          <DesktopSidebar recolhida={sidebarRecolhida} />
+          <MobileSidebar aoNavegar={fecharMenuMobile} />
 
-        <div className="flex min-h-screen flex-1 flex-col">
-          <Header
-            menuAberto={menuMobileAberto}
-            aoAbrirMenu={() => setMenuMobileAberto(true)}
-          />
+          <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
+            <Header
+              menuAberto={menuMobileAberto}
+              sidebarRecolhida={sidebarRecolhida}
+              aoAlternarSidebar={alternarSidebar}
+            />
 
-          <main className="flex-1 p-6">{children}</main>
+            <main className="min-w-0 flex-1 overflow-x-hidden p-3 sm:p-4 lg:p-6">
+              <div className="mx-auto w-full min-w-0 max-w-[1920px]">
+                {children}
+              </div>
+            </main>
+          </div>
         </div>
-      </div>
+      </Sheet>
     </ProtectedRoute>
   );
 }
