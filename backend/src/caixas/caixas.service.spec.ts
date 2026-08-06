@@ -86,15 +86,16 @@ describe('CaixasService', () => {
       nome: ' Principal ',
       codigo: ' cx1 ',
     });
-    expect(prisma.caixa.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          empresaId: 'empresa-1',
-          nome: 'Principal',
-          codigo: 'CX1',
-        }),
-      }),
-    );
+    const chamada = (
+      prisma.caixa.create.mock.calls as Array<[Prisma.CaixaCreateArgs]>
+    )[0][0];
+    expect(chamada).toMatchObject({
+      data: {
+        empresaId: 'empresa-1',
+        nome: 'Principal',
+        codigo: 'CX1',
+      },
+    });
   });
 
   it.each([
@@ -160,14 +161,13 @@ describe('CaixasService', () => {
     expect(prisma.$queryRaw).toHaveBeenCalled();
     const lock = (prisma.$queryRaw.mock.calls as Array<[Prisma.Sql]>)[0][0];
     expect(lock.values).toEqual(['caixa-1', 'empresa-1']);
-    expect(prisma.caixa.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          empresaId: 'empresa-1',
-          status: StatusCaixa.FECHADO,
-        }),
-      }),
-    );
+    const chamada = (
+      prisma.caixa.updateMany.mock.calls as Array<[Prisma.CaixaUpdateManyArgs]>
+    )[0][0];
+    expect(chamada.where).toMatchObject({
+      empresaId: 'empresa-1',
+      status: StatusCaixa.FECHADO,
+    });
     expect(prisma.caixaHistorico.create).toHaveBeenCalled();
   });
 
@@ -226,14 +226,15 @@ describe('CaixasService', () => {
         data: { saldoAtual: { increment: 5 } },
       }),
     );
-    expect(prisma.movimentacaoCaixa.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          saldoAnterior: 10,
-          saldoPosterior: 15,
-        }),
-      }),
-    );
+    const chamadaMovimentacao = (
+      prisma.movimentacaoCaixa.create.mock.calls as Array<
+        [Prisma.MovimentacaoCaixaCreateArgs]
+      >
+    )[0][0];
+    expect(chamadaMovimentacao.data).toMatchObject({
+      saldoAnterior: 10,
+      saldoPosterior: 15,
+    });
   });
 
   it('saída usa decrement condicional e nunca permite negativo', async () => {
@@ -247,12 +248,13 @@ describe('CaixasService', () => {
       descricao: 'Saída',
       valor: 6,
     });
-    expect(prisma.caixa.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ saldoAtual: { gte: 6 } }),
-        data: { saldoAtual: { decrement: 6 } },
-      }),
-    );
+    const chamada = (
+      prisma.caixa.updateMany.mock.calls as Array<[Prisma.CaixaUpdateManyArgs]>
+    )[0][0];
+    expect(chamada).toMatchObject({
+      where: { saldoAtual: { gte: 6 } },
+      data: { saldoAtual: { decrement: 6 } },
+    });
   });
 
   it('rejeita saída concorrente derrotada sem movimento ou histórico', async () => {
@@ -294,19 +296,15 @@ describe('CaixasService', () => {
     await service.fechar('empresa-1', 'caixa-1', 'usuario-1', {
       saldoInformado: 89,
     });
-    expect(prisma.aberturaCaixa.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          aberto: true,
-          empresaId: 'empresa-1',
-        }),
-        data: expect.objectContaining({
-          saldoSistema: 90,
-          saldoInformado: 89,
-          diferenca: -1,
-        }),
-      }),
-    );
+    const chamada = (
+      prisma.aberturaCaixa.updateMany.mock.calls as Array<
+        [Prisma.AberturaCaixaUpdateManyArgs]
+      >
+    )[0][0];
+    expect(chamada).toMatchObject({
+      where: { aberto: true, empresaId: 'empresa-1' },
+      data: { saldoSistema: 90, saldoInformado: 89, diferenca: -1 },
+    });
     expect(prisma.caixaHistorico.create).toHaveBeenCalled();
   });
 
@@ -342,11 +340,12 @@ describe('CaixasService', () => {
 
   it('usa sempre a empresa operacional explícita', async () => {
     await service.abrir('empresa-1', 'caixa-1', 'super', { saldoInicial: 0 });
-    expect(prisma.aberturaCaixa.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ empresaId: 'empresa-1' }),
-      }),
-    );
+    const chamada = (
+      prisma.aberturaCaixa.create.mock.calls as Array<
+        [Prisma.AberturaCaixaCreateArgs]
+      >
+    )[0][0];
+    expect(chamada.data).toMatchObject({ empresaId: 'empresa-1' });
   });
   it('registra saída financeira no tx recebido com idempotência do pagamento', async () => {
     prisma.caixa.findFirst.mockResolvedValue(caixa(StatusCaixa.ABERTO, 100));
@@ -375,25 +374,27 @@ describe('CaixasService', () => {
     const lock = rawCalls[0][0];
     expect(lock.values).toEqual(['caixa-1', 'empresa-1']);
 
-    expect(prisma.caixa.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          id: 'caixa-1',
-          empresaId: 'empresa-1',
-          saldoAtual: { gte: new Prisma.Decimal(40) },
-        }),
-        data: { saldoAtual: { decrement: new Prisma.Decimal(40) } },
-      }),
-    );
-    expect(prisma.movimentacaoCaixa.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          pagamentoContaPagarId: 'pagamento-1',
-          saldoAnterior: new Prisma.Decimal(100),
-          saldoPosterior: new Prisma.Decimal(60),
-        }),
-      }),
-    );
+    const chamadaCaixa = (
+      prisma.caixa.updateMany.mock.calls as Array<[Prisma.CaixaUpdateManyArgs]>
+    )[0][0];
+    expect(chamadaCaixa).toMatchObject({
+      where: {
+        id: 'caixa-1',
+        empresaId: 'empresa-1',
+        saldoAtual: { gte: new Prisma.Decimal(40) },
+      },
+      data: { saldoAtual: { decrement: new Prisma.Decimal(40) } },
+    });
+    const chamadaMovimentacao = (
+      prisma.movimentacaoCaixa.create.mock.calls as Array<
+        [Prisma.MovimentacaoCaixaCreateArgs]
+      >
+    )[0][0];
+    expect(chamadaMovimentacao.data).toMatchObject({
+      pagamentoContaPagarId: 'pagamento-1',
+      saldoAnterior: new Prisma.Decimal(100),
+      saldoPosterior: new Prisma.Decimal(60),
+    });
     expect(prisma.caixaHistorico.create).toHaveBeenCalled();
   });
 
