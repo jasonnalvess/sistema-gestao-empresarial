@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 
 export function AcessoNegado() {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="max-w-md rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+    <div className="flex min-h-[50vh] min-w-0 items-center justify-center py-6">
+      <div className="w-full min-w-0 max-w-md rounded-lg border border-slate-200 bg-white p-5 text-center shadow-sm sm:p-8">
         <ShieldAlert
           aria-hidden="true"
           className="mx-auto text-amber-500"
@@ -18,7 +18,7 @@ export function AcessoNegado() {
         <p className="mt-2 text-sm text-slate-600">
           Você não possui permissão para acessar este recurso.
         </p>
-        <Button asChild className="mt-6">
+        <Button asChild className="mt-6 w-full sm:w-auto">
           <Link href="/dashboard">Voltar ao início</Link>
         </Button>
       </div>
