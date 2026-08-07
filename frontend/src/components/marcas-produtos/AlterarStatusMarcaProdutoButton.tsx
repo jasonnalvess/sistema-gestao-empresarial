@@ -60,7 +60,7 @@ export function AlterarStatusMarcaProdutoButton({ marca }: Props) {
       onConfirm={alterarStatus}
       trigger={
         <Button variant={marca.ativo ? "destructive" : "outline"} size="sm">
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {marca.ativo ? "Desativar" : "Ativar"}
         </Button>
       }

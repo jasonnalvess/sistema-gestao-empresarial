@@ -74,7 +74,7 @@ export default function DepositosPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Depósitos"
           description="Gerencie depósitos, almoxarifados e locais de armazenamento."
@@ -91,14 +91,15 @@ export default function DepositosPage() {
             />
           </CrudToolbar>
 
-          <div className="mt-4 max-w-xs">
+          <div className="mt-4 w-full min-w-0 md:max-w-xs">
             <select
               value={ativo}
               onChange={(e) => {
                 setAtivo(e.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              aria-label="Filtrar depósitos por status"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos os status</option>
               <option value="true">Ativos</option>
@@ -116,7 +117,7 @@ export default function DepositosPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -151,7 +152,7 @@ export default function DepositosPage() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex min-w-max justify-end gap-2">
                             {podeEditar && <><EditarDepositoModal deposito={deposito} /><AlterarStatusDepositoButton deposito={deposito} /></>}
                           </div>
                         </TableCell>

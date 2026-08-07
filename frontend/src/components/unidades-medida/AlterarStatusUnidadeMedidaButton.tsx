@@ -60,7 +60,7 @@ export function AlterarStatusUnidadeMedidaButton({ unidade }: Props) {
       onConfirm={alterarStatus}
       trigger={
         <Button variant={unidade.ativo ? "destructive" : "outline"} size="sm">
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {unidade.ativo ? "Desativar" : "Ativar"}
         </Button>
       }

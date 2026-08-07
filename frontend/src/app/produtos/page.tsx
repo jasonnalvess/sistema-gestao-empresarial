@@ -134,7 +134,7 @@ export default function ProdutosPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Produtos"
           description="Gerencie os produtos cadastrados no sistema."
@@ -153,14 +153,15 @@ export default function ProdutosPage() {
             />
           </CrudToolbar>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <select
               value={categoriaId}
               onChange={(e) => {
                 setCategoriaId(e.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              aria-label="Filtrar produtos por categoria"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todas as categorias</option>
 
@@ -177,7 +178,8 @@ export default function ProdutosPage() {
                 setMarcaId(e.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              aria-label="Filtrar produtos por marca"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todas as marcas</option>
 
@@ -194,7 +196,8 @@ export default function ProdutosPage() {
                 setUnidadeMedidaId(e.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              aria-label="Filtrar produtos por status"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todas as unidades</option>
 
@@ -211,7 +214,8 @@ export default function ProdutosPage() {
                 setAtivo(e.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              aria-label="Filtrar produtos por situação de estoque"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos os status</option>
               <option value="true">Ativos</option>
@@ -229,7 +233,7 @@ export default function ProdutosPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -299,7 +303,7 @@ export default function ProdutosPage() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex min-w-max justify-end gap-2">
                             <DetailsButton href={`/produtos/${produto.id}`} />
                             {podeEditar && <><EditarProdutoModal produto={produto} /><AlterarStatusProdutoButton produto={produto} /></>}
                           </div>

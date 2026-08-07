@@ -47,12 +47,12 @@ export function NovoInventarioModal() {
     } finally { setSalvando(false); }
   }
   if (!podeCriar || !podeVerDepositos || !empresaEfetivaId || carregando) return null;
-  return <FormDialog open={aberto} onOpenChange={setAberto} title="Novo inventário" trigger={<Button><Plus />Novo inventário</Button>}>
-    <div className="space-y-4">
-      <div><label className="text-sm font-medium">Depósito *</label><select value={depositoId} onChange={(e) => setDepositoId(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm"><option value="">Selecione</option>{depositos?.data.map((d) => <option key={d.id} value={d.id}>{d.codigo} - {d.nome}</option>)}</select></div>
+  return <FormDialog open={aberto} onOpenChange={setAberto} title="Novo inventário" trigger={<Button className="w-full md:w-auto"><Plus aria-hidden="true" />Novo inventário</Button>}>
+    <div className="min-w-0 space-y-4">
+      <div><label className="text-sm font-medium">Depósito *</label><select aria-label="Depósito do inventário" value={depositoId} onChange={(e) => setDepositoId(e.target.value)} className="mt-1 h-10 w-full min-w-0 rounded-md border px-3 py-2 text-base md:text-sm"><option value="">Selecione</option>{depositos?.data.map((d) => <option key={d.id} value={d.id}>{d.codigo} - {d.nome}</option>)}</select></div>
       <div><label className="text-sm font-medium">Descrição</label><Input value={descricao} onChange={(e) => setDescricao(e.target.value)} /></div>
       <div><label className="text-sm font-medium">Observação</label><Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} /></div>
-      <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setAberto(false)} disabled={salvando}>Cancelar</Button><Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : "Criar inventário"}</Button></div>
+      <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end"><Button variant="outline" onClick={() => setAberto(false)} disabled={salvando}>Cancelar</Button><Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : "Criar inventário"}</Button></div>
     </div>
   </FormDialog>;
 }

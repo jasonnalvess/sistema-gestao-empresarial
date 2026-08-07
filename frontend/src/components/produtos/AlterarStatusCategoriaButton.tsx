@@ -67,7 +67,7 @@ export function AlterarStatusCategoriaButton({ categoria }: Props) {
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant={categoria.ativo ? "destructive" : "outline"} size="sm">
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {categoria.ativo ? "Desativar" : "Ativar"}
         </Button>
       </AlertDialogTrigger>

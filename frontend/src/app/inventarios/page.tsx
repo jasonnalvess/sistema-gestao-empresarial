@@ -55,19 +55,19 @@ export default function InventariosPage() {
   if (!podeVisualizar) return <AppLayout><AcessoNegado /></AppLayout>;
   if (!possuiEmpresa) return <AppLayout><EmpresaNaoSelecionada /></AppLayout>;
 
-  return <AppLayout><div className="space-y-6">
+  return <AppLayout><div className="min-w-0 space-y-6">
     <PageHeader title="Inventários" description="Consulte históricos e realize contagens físicas de estoque." actions={<NovoInventarioModal />} />
     <CrudCard>
       <CrudToolbar><CrudSearch value={search} onChange={setSearch} onSearch={() => { setPage(1); setSearchAplicado(search); }} placeholder="Pesquisar por número, descrição ou depósito..." /></CrudToolbar>
-      <div className={`mt-4 grid gap-4 ${podeVerDepositos ? "md:grid-cols-2" : ""}`}>
-        <select value={status} onChange={(e) => { setStatus(e.target.value as StatusInventarioEstoque | ""); setPage(1); }} className="rounded-md border bg-white px-3 py-2 text-sm">
+      <div className={`mt-4 grid min-w-0 grid-cols-1 gap-4 ${podeVerDepositos ? "md:grid-cols-2" : ""}`}>
+        <select aria-label="Filtrar inventários por status" value={status} onChange={(e) => { setStatus(e.target.value as StatusInventarioEstoque | ""); setPage(1); }} className="h-10 w-full min-w-0 rounded-md border bg-white px-3 py-2 text-base md:text-sm">
           <option value="">Todos os status</option><option value="ABERTO">Aberto</option><option value="EM_CONTAGEM">Em contagem</option><option value="FINALIZADO">Finalizado</option><option value="CANCELADO">Cancelado</option>
         </select>
-        {podeVerDepositos && <select value={depositoId} onChange={(e) => { setDepositoId(e.target.value); setPage(1); }} className="rounded-md border bg-white px-3 py-2 text-sm"><option value="">Todos os depósitos</option>{depositos?.data.map((d) => <option key={d.id} value={d.id}>{d.codigo} - {d.nome}</option>)}</select>}
+        {podeVerDepositos && <select aria-label="Filtrar inventários por depósito" value={depositoId} onChange={(e) => { setDepositoId(e.target.value); setPage(1); }} className="h-10 w-full min-w-0 rounded-md border bg-white px-3 py-2 text-base md:text-sm"><option value="">Todos os depósitos</option>{depositos?.data.map((d) => <option key={d.id} value={d.id}>{d.codigo} - {d.nome}</option>)}</select>}
       </div>
       {error && <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">Erro ao carregar inventários.</div>}
       {isLoading ? <CrudLoading /> : <>
-        <div className="mt-5 overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Número</TableHead><TableHead>Status</TableHead><TableHead>Depósito</TableHead><TableHead>Descrição</TableHead><TableHead>Itens</TableHead><TableHead>Abertura</TableHead><TableHead>Conclusão</TableHead><TableHead>Ações</TableHead></TableRow></TableHeader>
+        <div className="mt-5 min-w-0 max-w-full overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Número</TableHead><TableHead>Status</TableHead><TableHead>Depósito</TableHead><TableHead>Descrição</TableHead><TableHead>Itens</TableHead><TableHead>Abertura</TableHead><TableHead>Conclusão</TableHead><TableHead>Ações</TableHead></TableRow></TableHeader>
         <TableBody>{data?.data.map((item) => <TableRow key={item.id}><TableCell className="font-medium">#{String(item.numero).padStart(5, "0")}</TableCell><TableCell><InventarioStatusBadge status={item.status} /></TableCell><TableCell>{item.deposito.codigo} - {item.deposito.nome}</TableCell><TableCell>{item.descricao || "-"}</TableCell><TableCell>{item._count?.itens ?? "-"}</TableCell><TableCell>{new Date(item.dataAbertura).toLocaleString("pt-BR")}</TableCell><TableCell>{item.dataConclusao ? new Date(item.dataConclusao).toLocaleString("pt-BR") : "-"}</TableCell><TableCell><Button size="sm" variant="outline" asChild><Link href={`/inventarios/${item.id}`}><Eye />Detalhes</Link></Button></TableCell></TableRow>)}
         {!data?.data.length && <TableRow><TableCell colSpan={8}><CrudEmpty message="Nenhum inventário encontrado." /></TableCell></TableRow>}</TableBody></Table></div>
         <CrudPagination page={page} totalPages={data?.meta.totalPages ?? 1} onPageChange={setPage} />

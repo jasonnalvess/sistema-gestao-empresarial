@@ -66,7 +66,7 @@ export function AlterarStatusProdutoButton({ produto }: Props) {
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant={produto.ativo ? "destructive" : "outline"} size="sm">
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {produto.ativo ? "Desativar" : "Ativar"}
         </Button>
       </AlertDialogTrigger>

@@ -85,7 +85,7 @@ export default function CategoriasPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Categorias"
           description="Gerencie as categorias de produtos da empresa."
@@ -112,7 +112,7 @@ export default function CategoriasPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -137,7 +137,7 @@ export default function CategoriasPage() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex min-w-max justify-end gap-2">
                             {podeEditar && (
                               <>
                                 <EditarCategoriaModal categoria={categoria} />
