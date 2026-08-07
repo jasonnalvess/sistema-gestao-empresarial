@@ -78,7 +78,7 @@ export function AlterarStatusFornecedorButton({
           variant={fornecedor.ativo ? "destructive" : "outline"}
           size="sm"
         >
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {fornecedor.ativo ? "Desativar" : "Ativar"}
         </Button>
       }

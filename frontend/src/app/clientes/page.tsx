@@ -106,7 +106,7 @@ export default function ClientesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Clientes"
           description="Gerencie clientes, contatos e informações comerciais."
@@ -125,16 +125,17 @@ export default function ClientesPage() {
             />
           </CrudToolbar>
 
-          <div className="mb-4 grid gap-3 md:grid-cols-3">
-            <div>
-              <label className="text-sm font-medium text-slate-700">Tipo</label>
+          <div className="mb-4 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="min-w-0">
+              <label htmlFor="clientes-tipo" className="text-sm font-medium text-slate-700">Tipo</label>
               <select
+                id="clientes-tipo"
                 value={tipoFiltro}
                 onChange={(e) => {
                   setPage(1);
                   setTipoFiltro(e.target.value);
                 }}
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="mt-1 h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
               >
                 <option value="">Todos</option>
                 <option value="PF">Pessoa Física</option>
@@ -142,17 +143,18 @@ export default function ClientesPage() {
               </select>
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-slate-700">
+            <div className="min-w-0">
+              <label htmlFor="clientes-status" className="text-sm font-medium text-slate-700">
                 Status
               </label>
               <select
+                id="clientes-status"
                 value={ativoFiltro}
                 onChange={(e) => {
                   setPage(1);
                   setAtivoFiltro(e.target.value);
                 }}
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="mt-1 h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
               >
                 <option value="">Todos</option>
                 <option value="true">Ativos</option>
@@ -171,7 +173,7 @@ export default function ClientesPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -215,7 +217,7 @@ export default function ClientesPage() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex min-w-max justify-end gap-2">
                             <DetailsButton href={`/clientes/${cliente.id}`} />
                             <NewAtendimentoButton clienteId={cliente.id} />
                             {podeEditarCliente && (

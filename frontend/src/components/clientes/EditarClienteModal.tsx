@@ -88,14 +88,14 @@ export function EditarClienteModal({ cliente }: Props) {
       onOpenChange={setAberto}
       title="Editar cliente"
       trigger={
-        <Button variant="outline" size="sm">
-          <Pencil size={14} className="mr-2" />
+        <Button className="w-full md:w-auto" variant="outline" size="sm">
+          <Pencil aria-hidden="true" />
           Editar
         </Button>
       }
     >
-      <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
+      <div className="min-w-0 space-y-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-700">Nome</label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} />
@@ -106,7 +106,7 @@ export function EditarClienteModal({ cliente }: Props) {
             <select
               value={tipo}
               onChange={(e) => setTipo(e.target.value as "PF" | "PJ")}
-              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="mt-1 h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="PF">Pessoa Física</option>
               <option value="PJ">Pessoa Jurídica</option>
@@ -114,7 +114,7 @@ export function EditarClienteModal({ cliente }: Props) {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Documento
@@ -136,7 +136,7 @@ export function EditarClienteModal({ cliente }: Props) {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Telefone
@@ -166,7 +166,7 @@ export function EditarClienteModal({ cliente }: Props) {
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <label className="text-sm font-medium text-slate-700">Cidade</label>
             <Input value={cidade} onChange={(e) => setCidade(e.target.value)} />
@@ -197,8 +197,9 @@ export function EditarClienteModal({ cliente }: Props) {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end sm:gap-3">
           <Button
+            className="w-full sm:w-auto"
             variant="outline"
             onClick={() => setAberto(false)}
             disabled={salvando}
@@ -206,7 +207,7 @@ export function EditarClienteModal({ cliente }: Props) {
             Cancelar
           </Button>
 
-          <Button onClick={salvar} disabled={salvando}>
+          <Button className="w-full sm:w-auto" onClick={salvar} disabled={salvando}>
             {salvando ? "Salvando..." : "Salvar alterações"}
           </Button>
         </div>

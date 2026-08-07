@@ -129,7 +129,7 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Dashboard"
           description="Resumo geral do Sistema de Gestão Empresarial."
@@ -138,7 +138,7 @@ export default function DashboardPage() {
         <DashboardQuickActions />
         {resumo && <DashboardStats resumo={resumo} />}
         {(podeVisualizarMovimentacoes || podeVisualizarEstoque) && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
             {podeVisualizarMovimentacoes && (
               <DashboardRecentMovements
                 movimentacoes={movimentacoesResponse?.data ?? []}

@@ -7,8 +7,8 @@ type Props = {
 
 export function DashboardRecentMovements({ movimentacoes }: Props) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <h2 className="break-words text-lg font-semibold text-slate-900">
         Últimas movimentações
       </h2>
 
@@ -19,9 +19,9 @@ export function DashboardRecentMovements({ movimentacoes }: Props) {
           return (
             <div
               key={mov.id}
-              className="flex items-center justify-between rounded-xl bg-slate-50 p-4"
+              className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 sm:p-4"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <div
                   className={
                     entrada
@@ -29,20 +29,24 @@ export function DashboardRecentMovements({ movimentacoes }: Props) {
                       : "rounded-full bg-red-100 p-2 text-red-700"
                   }
                 >
-                  {entrada ? <ArrowUp size={18} /> : <ArrowDown size={18} />}
+                  {entrada ? (
+                    <ArrowUp aria-hidden="true" />
+                  ) : (
+                    <ArrowDown aria-hidden="true" />
+                  )}
                 </div>
 
-                <div>
-                  <p className="font-medium text-slate-900">
+                <div className="min-w-0">
+                  <p className="break-words font-medium text-slate-900">
                     {mov.produto?.nome ?? "Produto"}
                   </p>
-                  <p className="text-sm text-slate-500">
+                  <p className="break-words text-sm text-slate-500">
                     {mov.observacao || mov.tipo}
                   </p>
                 </div>
               </div>
 
-              <p className="text-sm font-semibold text-slate-700">
+              <p className="shrink-0 text-sm font-semibold text-slate-700">
                 {entrada ? "+" : "-"}
                 {Number(mov.quantidade)}
               </p>
