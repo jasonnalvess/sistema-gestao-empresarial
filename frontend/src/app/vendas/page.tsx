@@ -181,7 +181,7 @@ export default function VendasPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Vendas"
           description="Gerencie vendas, aprovações, faturamentos e recebimentos."
@@ -205,7 +205,7 @@ export default function VendasPage() {
             />
           </CrudToolbar>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <select
               value={status}
               onChange={(event) => {
@@ -213,7 +213,7 @@ export default function VendasPage() {
 
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos os status</option>
 
@@ -237,7 +237,7 @@ export default function VendasPage() {
 
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos os clientes</option>
 
@@ -255,7 +255,7 @@ export default function VendasPage() {
 
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos os depósitos</option>
 
@@ -277,7 +277,7 @@ export default function VendasPage() {
             </button>
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
                 Data inicial
@@ -323,7 +323,7 @@ export default function VendasPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+          <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -410,7 +410,7 @@ export default function VendasPage() {
                           </TableCell>
 
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
+                      <div className="flex min-w-max justify-end gap-2">
                               <DetailsButton href={`/vendas/${venda.id}`} />
 
                               <VendaAcoes

@@ -174,13 +174,13 @@ export function RegistrarPagamentoModal({ conta }: Props) {
       }
     >
       <div className="space-y-5">
-        <div className="grid gap-4 rounded-lg bg-slate-50 p-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 rounded-lg bg-slate-50 p-4 md:grid-cols-2">
           <Resumo label="Saldo atual" valor={Number(conta.valorAberto)} />
 
           <Resumo label="Saldo ajustado" valor={saldoAjustado} destaque />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <CampoNumero
             label="Desconto"
             value={desconto}
@@ -196,7 +196,7 @@ export function RegistrarPagamentoModal({ conta }: Props) {
               Valor pago *
             </label>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 type="number"
                 min="0.01"
@@ -298,7 +298,7 @@ export function RegistrarPagamentoModal({ conta }: Props) {
           />
         </div>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

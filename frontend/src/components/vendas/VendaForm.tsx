@@ -445,7 +445,7 @@ export function VendaForm({
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Cliente *
@@ -509,7 +509,7 @@ export function VendaForm({
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Condição *
@@ -669,7 +669,7 @@ export function VendaForm({
                   </Button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <div className="md:col-span-2">
                     <label className="text-sm font-medium text-slate-700">
                       Produto *
@@ -802,7 +802,7 @@ export function VendaForm({
       <section className="space-y-4 border-t pt-5">
         <h3 className="font-semibold text-slate-900">Valores adicionais</h3>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Desconto geral
@@ -845,7 +845,7 @@ export function VendaForm({
         </div>
       </section>
 
-      <section className="grid gap-4 border-t pt-5 md:grid-cols-2">
+        <section className="grid min-w-0 grid-cols-1 gap-4 border-t pt-5 md:grid-cols-2">
         <div>
           <label className="text-sm font-medium text-slate-700">
             Observação para o cliente
@@ -890,7 +890,7 @@ export function VendaForm({
         </div>
       </section>
 
-      <div className="flex justify-end gap-2 border-t pt-5">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t bg-white pt-5 sm:flex-row sm:justify-end">
         {onCancelar && (
           <Button
             type="button"

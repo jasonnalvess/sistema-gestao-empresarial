@@ -145,7 +145,7 @@ export function AbrirCaixaModal({ caixa }: Props) {
           />
         </div>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

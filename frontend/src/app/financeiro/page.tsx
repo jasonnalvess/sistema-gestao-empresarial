@@ -116,12 +116,12 @@ export default function FinanceiroPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Financeiro"
           description="Visão consolidada das contas a pagar e a receber."
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
               <Button variant="outline" asChild>
                 <Link href="/contas-pagar">
                   <ArrowDownCircle size={16} className="mr-2" />
@@ -186,7 +186,7 @@ export default function FinanceiroPage() {
           <CrudLoading />
         ) : (
           <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <ResumoCard
                 titulo="Saldo projetado"
                 valor={resumo.consolidado.saldoProjetado}
@@ -217,7 +217,7 @@ export default function FinanceiroPage() {
               />
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
               <CrudCard>
                 <div className="mb-5 flex items-center gap-3">
                   <div className="rounded-lg bg-red-50 p-2 text-red-700">
@@ -336,7 +336,7 @@ export default function FinanceiroPage() {
                 Indicadores financeiros
               </h2>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <Indicador
                   titulo="Descontos concedidos"
                   valor={resumo.receber.descontos}

@@ -294,7 +294,7 @@ export function EditarPedidoCompraModal({ pedido }: Props) {
       }
     >
       <div className="max-h-[78vh] space-y-6 overflow-y-auto pr-2">
-        <section className="grid gap-4 md:grid-cols-2">
+          <section className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium">Fornecedor</label>
 
@@ -366,7 +366,7 @@ export function EditarPedidoCompraModal({ pedido }: Props) {
                 </Button>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium">Produto</label>
 
@@ -425,7 +425,7 @@ export function EditarPedidoCompraModal({ pedido }: Props) {
           ))}
         </section>
 
-        <section className="grid gap-4 border-t pt-5 md:grid-cols-3">
+          <section className="grid min-w-0 grid-cols-1 gap-4 border-t pt-5 md:grid-cols-3">
           <CampoNumero
             label="Desconto geral"
             value={valorDesconto}
@@ -477,7 +477,7 @@ export function EditarPedidoCompraModal({ pedido }: Props) {
           </div>
         </section>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

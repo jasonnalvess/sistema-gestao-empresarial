@@ -221,7 +221,7 @@ export function ReceberPedidoCompraModal({ pedido }: Props) {
     >
       <div className="max-h-[78vh] space-y-6 overflow-y-auto pr-2">
         <section className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Documento de referência
@@ -262,7 +262,7 @@ export function ReceberPedidoCompraModal({ pedido }: Props) {
               </p>
             </div>
 
-            <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 type="button"
                 variant="outline"
@@ -314,7 +314,7 @@ export function ReceberPedidoCompraModal({ pedido }: Props) {
                     </p>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
                     <CampoResumo
                       label="Solicitado"
                       valor={formatarQuantidade(quantidadeSolicitada)}
@@ -395,7 +395,7 @@ export function ReceberPedidoCompraModal({ pedido }: Props) {
           />
         </section>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

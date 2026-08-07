@@ -95,12 +95,12 @@ export default function ContaPagarDetalhesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title={`Conta a Pagar #${String(conta.numero).padStart(5, "0")}`}
           description={conta.descricao}
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
               <Button variant="outline" asChild>
                 <Link href="/contas-pagar">
                   <ArrowLeft size={16} className="mr-2" />
@@ -114,7 +114,7 @@ export default function ContaPagarDetalhesPage() {
         />
 
         <CrudCard>
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
             <Campo label="Descrição" valor={conta.descricao} />
 
             <Campo label="Documento" valor={conta.documento} />
@@ -173,7 +173,7 @@ export default function ContaPagarDetalhesPage() {
           )}
         </CrudCard>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
           <CrudCard>
             <h2 className="mb-4 text-lg font-semibold">Valores</h2>
 
@@ -231,7 +231,7 @@ export default function ContaPagarDetalhesPage() {
         <CrudCard>
           <h2 className="mb-4 text-lg font-semibold">Pagamentos</h2>
 
-          <div className="overflow-x-auto">
+          <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-slate-500">

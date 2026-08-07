@@ -117,7 +117,7 @@ export function CancelarVendaModal({ vendaId, open, onOpenChange }: Props) {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t pt-5">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             disabled={processando}
