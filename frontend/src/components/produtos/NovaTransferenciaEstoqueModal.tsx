@@ -145,18 +145,18 @@ export function NovaTransferenciaEstoqueModal() {
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <ArrowRightLeft size={16} className="mr-2" />
+        <Button className="w-full md:w-auto" variant="outline">
+          <ArrowRightLeft aria-hidden="true" />
           Nova transferência
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Transferência entre depósitos</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Produto *
@@ -179,7 +179,7 @@ export function NovaTransferenciaEstoqueModal() {
             </select>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Depósito de origem *
@@ -270,7 +270,7 @@ export function NovaTransferenciaEstoqueModal() {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
               onClick={() => setAberto(false)}

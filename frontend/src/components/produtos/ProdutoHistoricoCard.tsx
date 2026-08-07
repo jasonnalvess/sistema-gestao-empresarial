@@ -59,7 +59,7 @@ export function ProdutoHistoricoCard({ produtoId }: Props) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       {podeEditar && <div>
         <label className="text-sm font-medium text-slate-700">
           Nova anotação
@@ -71,12 +71,12 @@ export function ProdutoHistoricoCard({ produtoId }: Props) {
           placeholder="Ex: Produto revisado, embalagem alterada, observação comercial..."
         />
 
-        <div className="mt-3 flex justify-end">
+        <div className="mt-3 flex justify-stretch sm:justify-end">
           <Button
             onClick={salvarHistorico}
             disabled={salvando || descricao.trim().length < 2}
           >
-            <MessageSquarePlus size={16} className="mr-2" />
+            <MessageSquarePlus aria-hidden="true" />
             {salvando ? "Salvando..." : "Adicionar anotação"}
           </Button>
         </div>
@@ -98,7 +98,7 @@ export function ProdutoHistoricoCard({ produtoId }: Props) {
                 key={historico.id}
                 className="rounded-lg border border-slate-200 bg-slate-50 p-3"
               >
-                <p className="whitespace-pre-line text-sm text-slate-700">
+                <p className="break-words whitespace-pre-line text-sm text-slate-700">
                   {historico.descricao}
                 </p>
 

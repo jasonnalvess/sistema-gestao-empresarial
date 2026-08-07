@@ -157,19 +157,19 @@ export function NovoProdutoModal() {
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus size={16} className="mr-2" />
+        <Button className="w-full md:w-auto">
+          <Plus aria-hidden="true" />
           Novo produto
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo produto</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
+        <div className="min-w-0 space-y-5">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Nome *
@@ -198,7 +198,7 @@ export function NovoProdutoModal() {
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Código de barras
@@ -233,7 +233,7 @@ export function NovoProdutoModal() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Categoria
@@ -283,7 +283,7 @@ export function NovoProdutoModal() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Preço de venda *
@@ -321,7 +321,7 @@ export function NovoProdutoModal() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Peso
@@ -371,7 +371,7 @@ export function NovoProdutoModal() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
               onClick={() => setAberto(false)}

@@ -38,11 +38,11 @@ export function EditarInventarioModal({ inventario }: { inventario: InventarioEs
     finally { setSalvando(false); }
   }
   if (!podeEditar || !empresaEfetivaId || carregando || ["FINALIZADO", "CANCELADO"].includes(inventario.status)) return null;
-  return <FormDialog open={aberto} onOpenChange={setAberto} title="Editar inventário" trigger={<Button variant="outline"><Pencil />Editar</Button>}>
-    <div className="space-y-4">
+  return <FormDialog open={aberto} onOpenChange={setAberto} title="Editar inventário" trigger={<Button className="w-full md:w-auto" variant="outline"><Pencil aria-hidden="true" />Editar</Button>}>
+    <div className="min-w-0 space-y-4">
       <div><label className="text-sm font-medium">Descrição</label><Input value={descricao} onChange={(e) => setDescricao(e.target.value)} /></div>
       <div><label className="text-sm font-medium">Observação</label><Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} /></div>
-      <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setAberto(false)} disabled={salvando}>Cancelar</Button><Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : "Salvar"}</Button></div>
+      <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end"><Button variant="outline" onClick={() => setAberto(false)} disabled={salvando}>Cancelar</Button><Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : "Salvar"}</Button></div>
     </div>
   </FormDialog>;
 }

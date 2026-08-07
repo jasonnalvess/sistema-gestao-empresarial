@@ -76,13 +76,13 @@ export function EditarDepositoModal({ deposito }: Props) {
       onOpenChange={setAberto}
       title="Editar depósito"
       trigger={
-        <Button variant="outline" size="sm">
-          <Pencil size={14} className="mr-2" />
+        <Button className="w-full md:w-auto" variant="outline" size="sm">
+          <Pencil aria-hidden="true" />
           Editar
         </Button>
       }
     >
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <div>
           <label className="text-sm font-medium text-slate-700">
             Nome *
@@ -127,7 +127,7 @@ export function EditarDepositoModal({ deposito }: Props) {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

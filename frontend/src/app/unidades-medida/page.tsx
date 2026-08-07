@@ -60,7 +60,7 @@ export default function UnidadesMedidaPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Unidades de Medida"
           description="Gerencie unidades como UN, CX, KG, LT, M e outras."
@@ -78,7 +78,7 @@ export default function UnidadesMedidaPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -103,7 +103,7 @@ export default function UnidadesMedidaPage() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex min-w-max justify-end gap-2">
                             {podeEditar && <><EditarUnidadeMedidaModal unidade={unidade} /><AlterarStatusUnidadeMedidaButton unidade={unidade} /></>}
                           </div>
                         </TableCell>

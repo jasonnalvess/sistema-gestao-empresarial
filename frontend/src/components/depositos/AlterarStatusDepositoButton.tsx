@@ -63,7 +63,7 @@ export function AlterarStatusDepositoButton({ deposito }: Props) {
           variant={deposito.ativo ? "destructive" : "outline"}
           size="sm"
         >
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {deposito.ativo ? "Desativar" : "Ativar"}
         </Button>
       }

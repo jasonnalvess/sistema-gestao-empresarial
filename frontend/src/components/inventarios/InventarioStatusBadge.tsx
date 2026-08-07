@@ -9,5 +9,5 @@ const statusVisual: Record<StatusInventarioEstoque, { label: string; classe: str
 
 export function InventarioStatusBadge({ status }: { status: StatusInventarioEstoque }) {
   const visual = statusVisual[status];
-  return <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${visual.classe}`}>{visual.label}</span>;
+  return <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium ${visual.classe}`}>{visual.label}</span>;
 }

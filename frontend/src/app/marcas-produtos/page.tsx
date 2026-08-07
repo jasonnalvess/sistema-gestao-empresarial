@@ -60,7 +60,7 @@ export default function MarcasProdutosPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Marcas de Produto"
           description="Gerencie marcas e fabricantes vinculados aos produtos."
@@ -78,7 +78,7 @@ export default function MarcasProdutosPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -103,7 +103,7 @@ export default function MarcasProdutosPage() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex min-w-max justify-end gap-2">
                             {podeEditar && <><EditarMarcaProdutoModal marca={marca} /><AlterarStatusMarcaProdutoButton marca={marca} /></>}
                           </div>
                         </TableCell>

@@ -137,19 +137,19 @@ export function EditarProdutoModal({ produto }: Props) {
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Pencil size={14} className="mr-2" />
+        <Button className="w-full md:w-auto" variant="outline" size="sm">
+          <Pencil aria-hidden="true" />
           Editar
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar produto</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
+        <div className="min-w-0 space-y-5">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">Nome *</label>
               <Input value={nome} onChange={(e) => setNome(e.target.value)} />
@@ -171,7 +171,7 @@ export function EditarProdutoModal({ produto }: Props) {
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Código de barras
@@ -204,7 +204,7 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Categoria
@@ -252,7 +252,7 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Preço de venda *
@@ -290,7 +290,7 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="text-sm font-medium text-slate-700">Peso</label>
               <Input
@@ -334,7 +334,7 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
               onClick={() => setAberto(false)}

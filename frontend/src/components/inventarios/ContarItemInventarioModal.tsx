@@ -40,11 +40,11 @@ export function ContarItemInventarioModal({ inventario, item }: { inventario: In
     finally { setSalvando(false); }
   }
   if (!podeEditar || !empresaEfetivaId || carregando || ["FINALIZADO", "CANCELADO"].includes(inventario.status)) return null;
-  return <FormDialog open={aberto} onOpenChange={setAberto} title={`Contar ${item.produto.nome}`} trigger={<Button size="sm" variant="outline"><Calculator />Contar</Button>}>
-    <div className="space-y-4">
+  return <FormDialog open={aberto} onOpenChange={setAberto} title={`Contar ${item.produto.nome}`} trigger={<Button className="w-full md:w-auto" size="sm" variant="outline"><Calculator aria-hidden="true" />Contar</Button>}>
+    <div className="min-w-0 space-y-4">
       <div><label className="text-sm font-medium">Quantidade contada *</label><Input type="number" min="0" step="any" value={quantidade} onChange={(e) => setQuantidade(e.target.value)} /></div>
       <div><label className="text-sm font-medium">Observação</label><Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} /></div>
-      <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setAberto(false)} disabled={salvando}>Cancelar</Button><Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : "Registrar contagem"}</Button></div>
+      <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end"><Button variant="outline" onClick={() => setAberto(false)} disabled={salvando}>Cancelar</Button><Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : "Registrar contagem"}</Button></div>
     </div>
   </FormDialog>;
 }
