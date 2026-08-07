@@ -139,12 +139,12 @@ export default function CaixasPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Caixas"
           description="Controle de caixas, saldos, aberturas, fechamentos e movimentações."
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
               <Button variant="outline" asChild>
                 <Link href="/caixas/movimentacoes">
                   <ListFilter size={16} className="mr-2" />
@@ -157,7 +157,7 @@ export default function CaixasPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <ResumoCard
             titulo="Saldo exibido"
             valor={formatarMoeda(resumoGlobal?.caixas.saldoTotal ?? 0)}
@@ -193,14 +193,14 @@ export default function CaixasPage() {
             />
           </CrudToolbar>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <select
               value={status}
               onChange={(event) => {
                 setStatus(event.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos os status</option>
 
@@ -217,7 +217,7 @@ export default function CaixasPage() {
                 setAtivo(event.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos</option>
 
@@ -245,7 +245,7 @@ export default function CaixasPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

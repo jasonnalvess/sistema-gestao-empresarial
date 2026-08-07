@@ -197,14 +197,14 @@ export default function ContasPagarPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Contas a Pagar"
           description="Controle vencimentos, pagamentos e obrigações financeiras da empresa."
           actions={podeCriarConta ? <NovaContaPagarModal /> : undefined}
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <ResumoCard
             titulo="Valor lançado"
             valor={resumoContasPagar?.pagar.valorOriginal ?? 0}
@@ -240,7 +240,7 @@ export default function ContasPagarPage() {
             />
           </CrudToolbar>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <select
               value={status}
               onChange={(event) => {
@@ -347,7 +347,7 @@ export default function ContasPagarPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

@@ -254,7 +254,7 @@ export function NovaContaReceberModal() {
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Documento
@@ -307,7 +307,7 @@ export function NovaContaReceberModal() {
             Datas
           </h3>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <CampoData
               label="Emissão"
               value={dataEmissao}
@@ -333,7 +333,7 @@ export function NovaContaReceberModal() {
             Parcelamento
           </h3>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <CampoNumero
               label="Parcela atual"
               value={parcelaAtual}
@@ -357,7 +357,7 @@ export function NovaContaReceberModal() {
             Valores
           </h3>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <CampoNumero
               label="Valor original *"
               value={valorOriginal}
@@ -409,7 +409,7 @@ export function NovaContaReceberModal() {
           />
         </section>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

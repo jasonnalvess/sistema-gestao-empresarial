@@ -158,7 +158,7 @@ export function VendasDashboard({
         />
       </DashboardGrid>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <DashboardStatusCard
           title="Rascunho"
           value={data.vendasPorStatus.rascunho}
@@ -204,7 +204,7 @@ export function VendasDashboard({
 
       <ResumoFinanceiro data={data} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
         <BarChartCard
           title="Produtos mais vendidos"
           description="Quantidade vendida por produto no período"
@@ -257,7 +257,7 @@ function ResumoFinanceiro({ data }: { data: DashboardVendasResponse }) {
 function DashboardLoading() {
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({
           length: 4,
         }).map((_, index) => (
@@ -268,7 +268,7 @@ function DashboardLoading() {
         ))}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {Array.from({
           length: 6,
         }).map((_, index) => (
@@ -279,7 +279,7 @@ function DashboardLoading() {
         ))}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({
           length: 4,
         }).map((_, index) => (

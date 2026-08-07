@@ -117,14 +117,14 @@ export default function CaixaDetalhesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title={caixa.nome}
           description={`${caixa.codigo}${
             caixa.descricao ? ` — ${caixa.descricao}` : ""
           }`}
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
               <Button variant="outline" asChild>
                 <Link href="/caixas">
                   <ArrowLeft size={16} className="mr-2" />
@@ -156,7 +156,7 @@ export default function CaixaDetalhesPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <ResumoCard
             titulo="Saldo atual"
             valor={formatarMoeda(caixa.saldoAtual)}
@@ -180,7 +180,7 @@ export default function CaixaDetalhesPage() {
             Dados do caixa
           </h2>
 
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
             <Campo label="Nome" valor={caixa.nome} />
 
             <Campo label="Código" valor={caixa.codigo} />
@@ -211,7 +211,7 @@ export default function CaixaDetalhesPage() {
             Movimentações recentes
           </h2>
 
-          <div className="overflow-x-auto">
+          <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-slate-500">
@@ -320,7 +320,7 @@ export default function CaixaDetalhesPage() {
                   </span>
                 </div>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <Campo
                     label="Saldo inicial"
                     valor={formatarMoeda(abertura.saldoInicial)}

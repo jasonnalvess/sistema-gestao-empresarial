@@ -154,7 +154,7 @@ export function HistoricoVendaModal({
               placeholder="Digite uma observação sobre esta venda"
             />
 
-            <div className="flex justify-end">
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button
                 type="button"
                 disabled={salvando || !novaObservacao.trim()}
@@ -263,7 +263,7 @@ export function HistoricoVendaModal({
           )}
         </section>
 
-        <div className="flex justify-end border-t pt-5">
+          <div className="sticky bottom-0 flex flex-col-reverse border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             type="button"
             variant="outline"

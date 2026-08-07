@@ -288,7 +288,7 @@ export function NovoPedidoCompraModal() {
         <section className="space-y-4">
           <h3 className="font-semibold text-slate-900">Dados gerais</h3>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Fornecedor *
@@ -397,7 +397,7 @@ export function NovoPedidoCompraModal() {
                     </Button>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div className="md:col-span-2">
                       <label className="text-sm font-medium text-slate-700">
                         Produto *
@@ -512,7 +512,7 @@ export function NovoPedidoCompraModal() {
         <section className="space-y-4 border-t pt-5">
           <h3 className="font-semibold text-slate-900">Valores adicionais</h3>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <CampoValor
               label="Desconto geral"
               value={valorDesconto}
@@ -532,7 +532,7 @@ export function NovoPedidoCompraModal() {
             />
           </div>
 
-          <div className="grid gap-3 rounded-lg bg-slate-50 p-4 md:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 gap-3 rounded-lg bg-slate-50 p-4 md:grid-cols-2">
             <ResumoValor
               label="Valor dos produtos"
               valor={totais.valorProdutos}
@@ -570,7 +570,7 @@ export function NovoPedidoCompraModal() {
           </div>
         </section>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}
