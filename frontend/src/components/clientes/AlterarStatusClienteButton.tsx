@@ -63,7 +63,7 @@ export function AlterarStatusClienteButton({ cliente }: Props) {
       onConfirm={alterarStatus}
       trigger={
         <Button variant={cliente.ativo ? "destructive" : "outline"} size="sm">
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {cliente.ativo ? "Desativar" : "Ativar"}
         </Button>
       }

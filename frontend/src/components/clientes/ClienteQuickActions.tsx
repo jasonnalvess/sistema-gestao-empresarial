@@ -18,24 +18,24 @@ export function ClienteQuickActions({ cliente }: Props) {
   const podeEditarCliente = temPermissao(PERMISSAO_CLIENTES_EDITAR);
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
       <Button asChild variant="outline" size="sm">
         <Link href="/clientes">
-          <ArrowLeft size={14} className="mr-2" />
+          <ArrowLeft aria-hidden="true" />
           Voltar
         </Link>
       </Button>
 
       <Button asChild variant="outline" size="sm">
         <Link href={`/agenda?clienteId=${cliente.id}`}>
-          <CalendarPlus size={14} className="mr-2" />
+          <CalendarPlus aria-hidden="true" />
           Novo atendimento
         </Link>
       </Button>
 
       <Button asChild variant="outline" size="sm">
         <Link href={`/ordens-servico?clienteId=${cliente.id}`}>
-          <Wrench size={14} className="mr-2" />
+          <Wrench aria-hidden="true" />
           Nova OS
         </Link>
       </Button>

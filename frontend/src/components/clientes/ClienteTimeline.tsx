@@ -31,17 +31,17 @@ export function ClienteTimeline({ atendimentos }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {itens.map((item) => (
-        <div key={item.id} className="flex gap-3">
+        <div key={item.id} className="flex min-w-0 gap-3">
           <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700">
-            <CalendarDays size={18} />
+            <CalendarDays aria-hidden="true" />
           </div>
 
-          <div className="flex-1 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="font-semibold text-slate-900">
+              <div className="min-w-0">
+                <p className="break-words font-semibold text-slate-900">
                   {item.titulo}
                 </p>
 
@@ -54,13 +54,13 @@ export function ClienteTimeline({ atendimentos }: Props) {
             </div>
 
             {item.descricao && (
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 break-words text-sm text-slate-600">
                 {item.descricao}
               </p>
             )}
 
             {item.local && (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 break-words text-xs text-slate-500">
                 Local: {item.local}
               </p>
             )}

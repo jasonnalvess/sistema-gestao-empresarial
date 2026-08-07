@@ -37,7 +37,7 @@ export default function FornecedorDetalhesPage() {
     useEmpresaSelecionada();
   const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
   const podeVisualizarFornecedores = temPermissao(
-    PERMISSAO_FORNECEDORES_VISUALIZAR
+    PERMISSAO_FORNECEDORES_VISUALIZAR,
   );
   const podeEditarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_EDITAR);
 
@@ -99,21 +99,15 @@ export default function FornecedorDetalhesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
-          title={
-            fornecedor.nomeFantasia ||
-            fornecedor.razaoSocial
-          }
+          title={fornecedor.nomeFantasia || fornecedor.razaoSocial}
           description="Ficha detalhada do fornecedor."
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
               <Button variant="outline" asChild>
                 <Link href="/fornecedores">
-                  <ArrowLeft
-                    size={16}
-                    className="mr-2"
-                  />
+                  <ArrowLeft aria-hidden="true" />
                   Voltar
                 </Link>
               </Button>
@@ -129,20 +123,12 @@ export default function FornecedorDetalhesPage() {
         />
 
         <CrudCard>
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            <Campo
-              label="Razão social"
-              valor={fornecedor.razaoSocial}
-            />
-            <Campo
-              label="Nome fantasia"
-              valor={fornecedor.nomeFantasia}
-            />
+          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <Campo label="Razão social" valor={fornecedor.razaoSocial} />
+            <Campo label="Nome fantasia" valor={fornecedor.nomeFantasia} />
             <Campo
               label="Documento"
-              valor={formatarDocumento(
-                fornecedor.documento
-              )}
+              valor={formatarDocumento(fornecedor.documento)}
             />
             <Campo
               label="Inscrição estadual"
@@ -152,37 +138,17 @@ export default function FornecedorDetalhesPage() {
               label="Inscrição municipal"
               valor={fornecedor.inscricaoMunicipal}
             />
-            <Campo
-              label="Contato"
-              valor={fornecedor.contato}
-            />
-            <Campo
-              label="E-mail"
-              valor={fornecedor.email}
-            />
-            <Campo
-              label="Telefone"
-              valor={fornecedor.telefone}
-            />
-            <Campo
-              label="Celular"
-              valor={fornecedor.celular}
-            />
-            <Campo
-              label="CEP"
-              valor={fornecedor.cep}
-            />
-            <Campo
-              label="Endereço"
-              valor={montarEndereco(fornecedor)}
-            />
+            <Campo label="Contato" valor={fornecedor.contato} />
+            <Campo label="E-mail" valor={fornecedor.email} />
+            <Campo label="Telefone" valor={fornecedor.telefone} />
+            <Campo label="Celular" valor={fornecedor.celular} />
+            <Campo label="CEP" valor={fornecedor.cep} />
+            <Campo label="Endereço" valor={montarEndereco(fornecedor)} />
             <Campo
               label="Cidade/UF"
               valor={
                 fornecedor.cidade || fornecedor.estado
-                  ? `${fornecedor.cidade || "-"} / ${
-                      fornecedor.estado || "-"
-                    }`
+                  ? `${fornecedor.cidade || "-"} / ${fornecedor.estado || "-"}`
                   : null
               }
             />
@@ -192,9 +158,7 @@ export default function FornecedorDetalhesPage() {
               </p>
 
               <div className="mt-1">
-                <CrudStatusBadge
-                  ativo={fornecedor.ativo}
-                />
+                <CrudStatusBadge ativo={fornecedor.ativo} />
               </div>
             </div>
           </div>
@@ -217,31 +181,21 @@ export default function FornecedorDetalhesPage() {
             Histórico do fornecedor
           </h2>
 
-          <FornecedorHistoricoCard
-            fornecedorId={fornecedor.id}
-          />
+          <FornecedorHistoricoCard fornecedorId={fornecedor.id} />
         </CrudCard>
       </div>
     </AppLayout>
   );
 }
 
-function Campo({
-  label,
-  valor,
-}: {
-  label: string;
-  valor?: string | null;
-}) {
+function Campo({ label, valor }: { label: string; valor?: string | null }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
         {label}
       </p>
 
-      <p className="mt-1 text-sm text-slate-900">
-        {valor || "-"}
-      </p>
+      <p className="mt-1 break-words text-sm text-slate-900">{valor || "-"}</p>
     </div>
   );
 }
@@ -250,15 +204,12 @@ function formatarDocumento(documento: string) {
   if (documento.length === 14) {
     return documento.replace(
       /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
-      "$1.$2.$3/$4-$5"
+      "$1.$2.$3/$4-$5",
     );
   }
 
   if (documento.length === 11) {
-    return documento.replace(
-      /^(\d{3})(\d{3})(\d{3})(\d{2})$/,
-      "$1.$2.$3-$4"
-    );
+    return documento.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
   }
 
   return documento;

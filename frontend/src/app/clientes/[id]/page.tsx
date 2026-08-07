@@ -109,46 +109,49 @@ export default function ClienteDetalhesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title={cliente.nome}
           description="Ficha completa do cliente."
           actions={<ClienteQuickActions cliente={cliente} />}
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <StatsCard
             title="Atendimentos"
             value={totalAtendimentos}
-            icon={<CalendarDays size={22} />}
+            icon={<CalendarDays aria-hidden="true" />}
           />
           <StatsCard
             title="Agendados"
             value={agendados}
-            icon={<CalendarCheck size={22} />}
+            icon={<CalendarCheck aria-hidden="true" />}
           />
           <StatsCard
             title="Em andamento"
             value={emAndamento}
-            icon={<Clock size={22} />}
+            icon={<Clock aria-hidden="true" />}
           />
           <StatsCard
             title="Concluídos"
             value={concluidos}
-            icon={<CheckCircle size={22} />}
+            icon={<CheckCircle aria-hidden="true" />}
           />
           <StatsCard
             title="Cancelados"
             value={cancelados}
-            icon={<XCircle size={22} />}
+            icon={<XCircle aria-hidden="true" />}
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
           <CrudCard>
             <div className="flex items-center gap-3">
-              <UserRound className="text-blue-600" size={22} />
-              <div>
+              <UserRound
+                className="shrink-0 text-blue-600"
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
                 <p className="text-sm text-slate-500">Tipo</p>
                 <p className="font-semibold text-slate-900">{cliente.tipo}</p>
               </div>
@@ -157,10 +160,10 @@ export default function ClienteDetalhesPage() {
 
           <CrudCard>
             <div className="flex items-center gap-3">
-              <Phone className="text-green-600" size={22} />
-              <div>
+              <Phone className="shrink-0 text-green-600" aria-hidden="true" />
+              <div className="min-w-0">
                 <p className="text-sm text-slate-500">Contato</p>
-                <p className="font-semibold text-slate-900">
+                <p className="break-words font-semibold text-slate-900">
                   {cliente.celular || cliente.telefone || "-"}
                 </p>
               </div>
@@ -169,10 +172,10 @@ export default function ClienteDetalhesPage() {
 
           <CrudCard>
             <div className="flex items-center gap-3">
-              <Mail className="text-purple-600" size={22} />
-              <div>
+              <Mail className="shrink-0 text-purple-600" aria-hidden="true" />
+              <div className="min-w-0">
                 <p className="text-sm text-slate-500">E-mail</p>
-                <p className="font-semibold text-slate-900">
+                <p className="break-all font-semibold text-slate-900">
                   {cliente.email || "-"}
                 </p>
               </div>
@@ -185,24 +188,24 @@ export default function ClienteDetalhesPage() {
             Dados cadastrais
           </h2>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <p className="text-sm text-slate-500">Documento</p>
-              <p className="font-medium text-slate-900">
+              <p className="break-words font-medium text-slate-900">
                 {cliente.documento || "-"}
               </p>
             </div>
 
             <div>
               <p className="text-sm text-slate-500">Endereço</p>
-              <p className="font-medium text-slate-900">
+              <p className="break-words font-medium text-slate-900">
                 {cliente.endereco || "-"}
               </p>
             </div>
 
             <div>
               <p className="text-sm text-slate-500">Cidade/UF</p>
-              <p className="font-medium text-slate-900">
+              <p className="break-words font-medium text-slate-900">
                 {cliente.cidade || "-"}
                 {cliente.estado ? `/${cliente.estado}` : ""}
               </p>
@@ -210,14 +213,18 @@ export default function ClienteDetalhesPage() {
 
             <div>
               <p className="text-sm text-slate-500">CEP</p>
-              <p className="font-medium text-slate-900">{cliente.cep || "-"}</p>
+              <p className="break-words font-medium text-slate-900">
+                {cliente.cep || "-"}
+              </p>
             </div>
           </div>
 
           {cliente.observacao && (
             <div className="mt-4">
               <p className="text-sm text-slate-500">Observação</p>
-              <p className="font-medium text-slate-900">{cliente.observacao}</p>
+              <p className="break-words font-medium text-slate-900">
+                {cliente.observacao}
+              </p>
             </div>
           )}
         </CrudCard>
@@ -278,9 +285,7 @@ export default function ClienteDetalhesPage() {
             Ordens de Serviço
           </h2>
 
-          <ClienteOrdensServicoCard
-            ordens={cliente.ordensServico}
-          />
+          <ClienteOrdensServicoCard ordens={cliente.ordensServico} />
         </CrudCard>
 
         <CrudCard>

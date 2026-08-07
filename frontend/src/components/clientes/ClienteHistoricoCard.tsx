@@ -61,7 +61,7 @@ export function ClienteHistoricoCard({ clienteId }: Props) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       {podeEditarCliente && (
         <div>
           <label className="text-sm font-medium text-slate-700">
@@ -74,12 +74,13 @@ export function ClienteHistoricoCard({ clienteId }: Props) {
             placeholder="Ex: Cliente solicitou retorno, pediu orçamento, atualizou telefone..."
           />
 
-          <div className="mt-3 flex justify-end">
+          <div className="mt-3 flex justify-stretch sm:justify-end">
             <Button
+              className="w-full sm:w-auto"
               onClick={salvarHistorico}
               disabled={salvando || descricao.trim().length < 2}
             >
-              <MessageSquarePlus size={16} className="mr-2" />
+              <MessageSquarePlus aria-hidden="true" />
               {salvando ? "Salvando..." : "Adicionar histórico"}
             </Button>
           </div>
@@ -100,7 +101,7 @@ export function ClienteHistoricoCard({ clienteId }: Props) {
                 key={historico.id}
                 className="rounded-lg border border-slate-200 bg-slate-50 p-3"
               >
-                <p className="text-sm text-slate-700">{historico.descricao}</p>
+                <p className="break-words text-sm text-slate-700">{historico.descricao}</p>
 
                 <p className="mt-2 text-xs text-slate-500">
                   {historico.usuario?.nome || "Usuário"} •{" "}

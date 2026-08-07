@@ -91,7 +91,7 @@ export function FornecedorHistoricoCard({
   if (!podeVisualizarFornecedores || !empresaEfetivaId) return null;
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       {podeEditarFornecedor && (
         <div>
           <label className="text-sm font-medium text-slate-700">
@@ -104,15 +104,13 @@ export function FornecedorHistoricoCard({
           placeholder="Informe detalhes comerciais, contatos ou observações..."
         />
 
-        <div className="mt-3 flex justify-end">
+        <div className="mt-3 flex justify-stretch sm:justify-end">
           <Button
+            className="w-full sm:w-auto"
             onClick={salvar}
             disabled={salvando || descricao.trim().length < 2}
           >
-            <MessageSquarePlus
-              size={16}
-              className="mr-2"
-            />
+            <MessageSquarePlus aria-hidden="true" />
 
             {salvando
               ? "Salvando..."
@@ -142,7 +140,7 @@ export function FornecedorHistoricoCard({
                 key={historico.id}
                 className="rounded-lg border border-slate-200 bg-slate-50 p-3"
               >
-                <p className="whitespace-pre-line text-sm text-slate-700">
+                <p className="break-words whitespace-pre-line text-sm text-slate-700">
                   {historico.descricao}
                 </p>
 
