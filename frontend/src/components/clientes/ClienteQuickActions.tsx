@@ -18,7 +18,7 @@ export function ClienteQuickActions({ cliente }: Props) {
   const podeEditarCliente = temPermissao(PERMISSAO_CLIENTES_EDITAR);
 
   return (
-    <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
+    <div className="grid w-full min-w-0 grid-cols-1 gap-2 lg:flex lg:w-auto lg:flex-wrap [&>*]:w-full md:[&>*]:w-full lg:[&>*]:w-auto">
       <Button asChild variant="outline" size="sm">
         <Link href="/clientes">
           <ArrowLeft aria-hidden="true" />

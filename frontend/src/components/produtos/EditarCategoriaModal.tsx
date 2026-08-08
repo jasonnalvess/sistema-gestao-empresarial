@@ -70,7 +70,7 @@ export function EditarCategoriaModal({ categoria }: Props) {
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button className="w-full md:w-auto" variant="outline" size="sm">
+        <Button className="shrink-0" variant="outline" size="sm">
           <Pencil aria-hidden="true" />
           Editar
         </Button>
@@ -81,7 +81,7 @@ export function EditarCategoriaModal({ categoria }: Props) {
           <DialogTitle>Editar categoria</DialogTitle>
         </DialogHeader>
 
-      <div className="min-w-0 space-y-4">
+        <div className="min-w-0 space-y-4">
           <div>
             <label className="text-sm font-medium text-slate-700">Nome</label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} />
@@ -97,7 +97,7 @@ export function EditarCategoriaModal({ categoria }: Props) {
             />
           </div>
 
-        <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
+          <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
               onClick={() => setAberto(false)}

@@ -88,7 +88,7 @@ export function EditarClienteModal({ cliente }: Props) {
       onOpenChange={setAberto}
       title="Editar cliente"
       trigger={
-        <Button className="w-full md:w-auto" variant="outline" size="sm">
+        <Button className="shrink-0" variant="outline" size="sm">
           <Pencil aria-hidden="true" />
           Editar
         </Button>
@@ -207,7 +207,11 @@ export function EditarClienteModal({ cliente }: Props) {
             Cancelar
           </Button>
 
-          <Button className="w-full sm:w-auto" onClick={salvar} disabled={salvando}>
+          <Button
+            className="w-full sm:w-auto"
+            onClick={salvar}
+            disabled={salvando}
+          >
             {salvando ? "Salvando..." : "Salvar alterações"}
           </Button>
         </div>

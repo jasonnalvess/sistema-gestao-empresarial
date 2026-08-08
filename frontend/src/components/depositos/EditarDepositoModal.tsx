@@ -10,10 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
 
-import {
-  atualizarDeposito,
-  Deposito,
-} from "@/services/depositos.service";
+import { atualizarDeposito, Deposito } from "@/services/depositos.service";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { PERMISSAO_DEPOSITOS_EDITAR } from "@/lib/auth";
@@ -76,7 +73,7 @@ export function EditarDepositoModal({ deposito }: Props) {
       onOpenChange={setAberto}
       title="Editar depósito"
       trigger={
-        <Button className="w-full md:w-auto" variant="outline" size="sm">
+        <Button className="shrink-0" variant="outline" size="sm">
           <Pencil aria-hidden="true" />
           Editar
         </Button>
@@ -84,20 +81,13 @@ export function EditarDepositoModal({ deposito }: Props) {
     >
       <div className="min-w-0 space-y-4">
         <div>
-          <label className="text-sm font-medium text-slate-700">
-            Nome *
-          </label>
+          <label className="text-sm font-medium text-slate-700">Nome *</label>
 
-          <Input
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-          />
+          <Input value={nome} onChange={(e) => setNome(e.target.value)} />
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700">
-            Código *
-          </label>
+          <label className="text-sm font-medium text-slate-700">Código *</label>
 
           <Input
             value={codigo}

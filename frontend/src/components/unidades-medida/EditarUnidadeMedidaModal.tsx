@@ -66,7 +66,7 @@ export function EditarUnidadeMedidaModal({ unidade }: Props) {
       onOpenChange={setAberto}
       title="Editar unidade de medida"
       trigger={
-        <Button className="w-full md:w-auto" variant="outline" size="sm">
+        <Button className="shrink-0" variant="outline" size="sm">
           <Pencil aria-hidden="true" />
           Editar
         </Button>

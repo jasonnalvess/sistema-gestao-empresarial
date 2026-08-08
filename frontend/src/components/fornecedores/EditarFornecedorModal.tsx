@@ -23,9 +23,7 @@ type Props = {
   fornecedor: Fornecedor;
 };
 
-export function EditarFornecedorModal({
-  fornecedor,
-}: Props) {
+export function EditarFornecedorModal({ fornecedor }: Props) {
   const queryClient = useQueryClient();
   const { temPermissao } = useAuth();
   const { empresaEfetivaId } = useEmpresaSelecionada();
@@ -34,51 +32,29 @@ export function EditarFornecedorModal({
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  const [razaoSocial, setRazaoSocial] = useState(
-    fornecedor.razaoSocial
-  );
+  const [razaoSocial, setRazaoSocial] = useState(fornecedor.razaoSocial);
   const [nomeFantasia, setNomeFantasia] = useState(
-    fornecedor.nomeFantasia ?? ""
+    fornecedor.nomeFantasia ?? "",
   );
-  const [documento, setDocumento] = useState(
-    fornecedor.documento
+  const [documento, setDocumento] = useState(fornecedor.documento);
+  const [inscricaoEstadual, setInscricaoEstadual] = useState(
+    fornecedor.inscricaoEstadual ?? "",
   );
-  const [inscricaoEstadual, setInscricaoEstadual] =
-    useState(fornecedor.inscricaoEstadual ?? "");
-  const [inscricaoMunicipal, setInscricaoMunicipal] =
-    useState(fornecedor.inscricaoMunicipal ?? "");
+  const [inscricaoMunicipal, setInscricaoMunicipal] = useState(
+    fornecedor.inscricaoMunicipal ?? "",
+  );
   const [email, setEmail] = useState(fornecedor.email ?? "");
-  const [telefone, setTelefone] = useState(
-    fornecedor.telefone ?? ""
-  );
-  const [celular, setCelular] = useState(
-    fornecedor.celular ?? ""
-  );
-  const [contato, setContato] = useState(
-    fornecedor.contato ?? ""
-  );
+  const [telefone, setTelefone] = useState(fornecedor.telefone ?? "");
+  const [celular, setCelular] = useState(fornecedor.celular ?? "");
+  const [contato, setContato] = useState(fornecedor.contato ?? "");
   const [cep, setCep] = useState(fornecedor.cep ?? "");
-  const [endereco, setEndereco] = useState(
-    fornecedor.endereco ?? ""
-  );
-  const [numero, setNumero] = useState(
-    fornecedor.numero ?? ""
-  );
-  const [complemento, setComplemento] = useState(
-    fornecedor.complemento ?? ""
-  );
-  const [bairro, setBairro] = useState(
-    fornecedor.bairro ?? ""
-  );
-  const [cidade, setCidade] = useState(
-    fornecedor.cidade ?? ""
-  );
-  const [estado, setEstado] = useState(
-    fornecedor.estado ?? ""
-  );
-  const [observacao, setObservacao] = useState(
-    fornecedor.observacao ?? ""
-  );
+  const [endereco, setEndereco] = useState(fornecedor.endereco ?? "");
+  const [numero, setNumero] = useState(fornecedor.numero ?? "");
+  const [complemento, setComplemento] = useState(fornecedor.complemento ?? "");
+  const [bairro, setBairro] = useState(fornecedor.bairro ?? "");
+  const [cidade, setCidade] = useState(fornecedor.cidade ?? "");
+  const [estado, setEstado] = useState(fornecedor.estado ?? "");
+  const [observacao, setObservacao] = useState(fornecedor.observacao ?? "");
 
   async function salvar() {
     if (!podeEditarFornecedor) {
@@ -101,10 +77,8 @@ export function EditarFornecedorModal({
         razaoSocial: razaoSocial.trim(),
         nomeFantasia: nomeFantasia.trim() || undefined,
         documento,
-        inscricaoEstadual:
-          inscricaoEstadual.trim() || undefined,
-        inscricaoMunicipal:
-          inscricaoMunicipal.trim() || undefined,
+        inscricaoEstadual: inscricaoEstadual.trim() || undefined,
+        inscricaoMunicipal: inscricaoMunicipal.trim() || undefined,
         email: email.trim() || undefined,
         telefone: telefone.trim() || undefined,
         celular: celular.trim() || undefined,
@@ -143,7 +117,7 @@ export function EditarFornecedorModal({
       onOpenChange={setAberto}
       title="Editar fornecedor"
       trigger={
-        <Button className="w-full md:w-auto" variant="outline" size="sm">
+        <Button className="shrink-0" variant="outline" size="sm">
           <Pencil aria-hidden="true" />
           Editar
         </Button>
@@ -161,11 +135,7 @@ export function EditarFornecedorModal({
             value={nomeFantasia}
             onChange={setNomeFantasia}
           />
-          <Campo
-            label="CPF/CNPJ *"
-            value={documento}
-            onChange={setDocumento}
-          />
+          <Campo label="CPF/CNPJ *" value={documento} onChange={setDocumento} />
           <Campo
             label="Inscrição estadual"
             value={inscricaoEstadual}
@@ -176,63 +146,29 @@ export function EditarFornecedorModal({
             value={inscricaoMunicipal}
             onChange={setInscricaoMunicipal}
           />
-          <Campo
-            label="Contato"
-            value={contato}
-            onChange={setContato}
-          />
+          <Campo label="Contato" value={contato} onChange={setContato} />
           <Campo
             label="E-mail"
             type="email"
             value={email}
             onChange={setEmail}
           />
-          <Campo
-            label="Telefone"
-            value={telefone}
-            onChange={setTelefone}
-          />
-          <Campo
-            label="Celular"
-            value={celular}
-            onChange={setCelular}
-          />
-          <Campo
-            label="CEP"
-            value={cep}
-            onChange={setCep}
-          />
-          <Campo
-            label="Endereço"
-            value={endereco}
-            onChange={setEndereco}
-          />
-          <Campo
-            label="Número"
-            value={numero}
-            onChange={setNumero}
-          />
+          <Campo label="Telefone" value={telefone} onChange={setTelefone} />
+          <Campo label="Celular" value={celular} onChange={setCelular} />
+          <Campo label="CEP" value={cep} onChange={setCep} />
+          <Campo label="Endereço" value={endereco} onChange={setEndereco} />
+          <Campo label="Número" value={numero} onChange={setNumero} />
           <Campo
             label="Complemento"
             value={complemento}
             onChange={setComplemento}
           />
-          <Campo
-            label="Bairro"
-            value={bairro}
-            onChange={setBairro}
-          />
-          <Campo
-            label="Cidade"
-            value={cidade}
-            onChange={setCidade}
-          />
+          <Campo label="Bairro" value={bairro} onChange={setBairro} />
+          <Campo label="Cidade" value={cidade} onChange={setCidade} />
           <Campo
             label="UF"
             value={estado}
-            onChange={(valor) =>
-              setEstado(valor.toUpperCase().slice(0, 2))
-            }
+            onChange={(valor) => setEstado(valor.toUpperCase().slice(0, 2))}
           />
         </div>
 
@@ -283,9 +219,7 @@ function Campo({
 }) {
   return (
     <div className="min-w-0">
-      <label className="text-sm font-medium text-slate-700">
-        {label}
-      </label>
+      <label className="text-sm font-medium text-slate-700">{label}</label>
 
       <Input
         type={type}

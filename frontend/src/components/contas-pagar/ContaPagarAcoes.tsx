@@ -80,7 +80,7 @@ export function ContaPagarAcoes({ conta }: Props) {
     conta.pagamentos.length === 0;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="grid w-full min-w-0 grid-cols-1 gap-2 lg:flex lg:w-auto lg:flex-wrap [&>*]:w-full md:[&>*]:w-full lg:[&>*]:w-auto">
       {podePagar && aceitaPagamento && empresaEfetivaId && !carregando && (
         <RegistrarPagamentoModal conta={conta} />
       )}
