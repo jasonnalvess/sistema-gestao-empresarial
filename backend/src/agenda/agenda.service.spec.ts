@@ -40,6 +40,7 @@ describe('AgendaService', () => {
 
   function criarContexto() {
     const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       $queryRaw: jest.fn().mockResolvedValue([]),
       cliente: {
         findFirst: jest
@@ -90,7 +91,7 @@ describe('AgendaService', () => {
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(tx.cliente.findFirst).toHaveBeenCalled();
       expect(tx.usuario.findFirst).toHaveBeenCalled();
-      expect(tx.$queryRaw).toHaveBeenCalled();
+      expect(tx.$executeRaw).toHaveBeenCalled();
       expect(tx.agendaEvento.findFirst).toHaveBeenCalled();
       expect(tx.agendaEvento.create).toHaveBeenCalled();
     });
@@ -197,10 +198,16 @@ describe('AgendaService', () => {
     it('adquire advisory lock antes de consultar conflito', async () => {
       const { service, tx } = criarContexto();
       await service.criar('e1', 'u1', dto);
-      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
         tx.agendaEvento.findFirst.mock.invocationCallOrder[0],
       );
-      expect(tx.$queryRaw.mock.calls[0][1]).toBe('agenda:e1:u1');
+      expect(tx.$executeRaw.mock.calls[0][0]).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('pg_advisory_xact_lock'),
+        ]),
+      );
+      expect(tx.$executeRaw.mock.calls[0][1]).toBe('agenda:e1:u1');
+      expect(tx.$queryRaw).not.toHaveBeenCalled();
     });
 
     it('rejeita evento sobreposto antes da criação', async () => {
@@ -235,7 +242,7 @@ describe('AgendaService', () => {
       expect(tx.usuario.findFirst.mock.invocationCallOrder[0]).toBeLessThan(
         ordemCriacao,
       );
-      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
         ordemCriacao,
       );
       expect(
@@ -352,7 +359,7 @@ describe('AgendaService', () => {
         ativo: true,
       });
       await service.atualizar('e1', 'a1', 'u1', { usuarioId: 'u2' });
-      const chaves = tx.$queryRaw.mock.calls.slice(1).map((call) => call[1]);
+      const chaves = tx.$executeRaw.mock.calls.map((call) => call[1]);
       expect(chaves).toEqual(['agenda:e1:u1', 'agenda:e1:u2']);
     });
 

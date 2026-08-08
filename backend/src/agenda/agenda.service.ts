@@ -129,7 +129,7 @@ export class AgendaService {
     usuarioId: string,
   ) {
     const chave = `agenda:${empresaId}:${usuarioId}`;
-    await tx.$queryRaw`
+    await tx.$executeRaw`
       SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))
     `;
   }
