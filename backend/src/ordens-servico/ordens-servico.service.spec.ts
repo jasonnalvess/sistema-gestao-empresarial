@@ -26,6 +26,7 @@ function erroP2002(target: string | string[]) {
 
 function criarContexto() {
   const tx = {
+    $executeRaw: jest.fn().mockResolvedValue(1),
     $queryRaw: jest.fn().mockResolvedValue([]),
     cliente: { findFirst: jest.fn().mockResolvedValue(cliente) },
     usuario: {
@@ -116,9 +117,22 @@ describe('OrdensServicoService', () => {
     it('adquire advisory lock de numeração antes de buscar o último número', async () => {
       const { service, tx } = criarContexto();
       await service.criar('empresa-1', 'usuario-1', dto);
-      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
         tx.ordemServico.findFirst.mock.invocationCallOrder[0],
       );
+      const chamadaExecuteRaw = tx.$executeRaw.mock.calls[0] as [
+        TemplateStringsArray,
+        string,
+      ];
+
+      expect(chamadaExecuteRaw[0]).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('pg_advisory_xact_lock'),
+        ]),
+      );
+
+      expect(chamadaExecuteRaw[1]).toBe('ordem-servico-numero:empresa-1');
+      expect(tx.$queryRaw).not.toHaveBeenCalled();
       expect(tx.ordemServico.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({ where: { empresaId: 'empresa-1' } }),
       );
