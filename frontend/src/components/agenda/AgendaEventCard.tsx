@@ -27,9 +27,7 @@ export function AgendaEventCard({ evento, compacto = false }: Props) {
       <div
         className={cn(
           "flex min-w-0 flex-col gap-3",
-          compacto
-            ? "gap-2"
-            : "sm:flex-row sm:items-start sm:justify-between",
+          compacto ? "gap-2" : "sm:flex-row sm:items-start sm:justify-between",
         )}
       >
         <div className="min-w-0">
