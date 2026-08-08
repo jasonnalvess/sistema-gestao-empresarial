@@ -364,10 +364,8 @@ export default function MovimentacoesCaixaPage() {
               />
             </div>
 
-            <div className="flex items-end gap-2">
-              <Button onClick={aplicarFiltros} className="flex-1">
-                Aplicar filtros
-              </Button>
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-end [&>*]:w-full lg:[&>*]:w-auto">
+              <Button onClick={aplicarFiltros}>Aplicar filtros</Button>
 
               <Button variant="outline" onClick={limparFiltros}>
                 Limpar

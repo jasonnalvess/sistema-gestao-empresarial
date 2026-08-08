@@ -22,7 +22,12 @@ import { listarMarcasProdutos } from "@/services/marcas-produtos.service";
 import { listarUnidadesMedida } from "@/services/unidades-medida.service";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
-import { PERMISSAO_CATEGORIAS_VISUALIZAR, PERMISSAO_MARCAS_VISUALIZAR, PERMISSAO_PRODUTOS_EDITAR, PERMISSAO_UNIDADES_VISUALIZAR } from "@/lib/auth";
+import {
+  PERMISSAO_CATEGORIAS_VISUALIZAR,
+  PERMISSAO_MARCAS_VISUALIZAR,
+  PERMISSAO_PRODUTOS_EDITAR,
+  PERMISSAO_UNIDADES_VISUALIZAR,
+} from "@/lib/auth";
 import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 import { obterMensagemErro } from "@/lib/api-error";
 
@@ -46,8 +51,12 @@ export function EditarProdutoModal({ produto }: Props) {
   const [ncm, setNcm] = useState(produto.ncm ?? "");
   const [precoCusto, setPrecoCusto] = useState(produto.precoCusto ?? "0");
   const [precoVenda, setPrecoVenda] = useState(produto.precoVenda ?? "0");
-  const [estoqueMinimo, setEstoqueMinimo] = useState(produto.estoqueMinimo ?? "0");
-  const [estoqueMaximo, setEstoqueMaximo] = useState(produto.estoqueMaximo ?? "");
+  const [estoqueMinimo, setEstoqueMinimo] = useState(
+    produto.estoqueMinimo ?? "0",
+  );
+  const [estoqueMaximo, setEstoqueMaximo] = useState(
+    produto.estoqueMaximo ?? "",
+  );
   const [peso, setPeso] = useState(produto.peso ?? "");
   const [altura, setAltura] = useState(produto.altura ?? "");
   const [largura, setLargura] = useState(produto.largura ?? "");
@@ -55,7 +64,7 @@ export function EditarProdutoModal({ produto }: Props) {
   const [categoriaId, setCategoriaId] = useState(produto.categoriaId ?? "");
   const [marcaId, setMarcaId] = useState(produto.marcaId ?? "");
   const [unidadeMedidaId, setUnidadeMedidaId] = useState(
-    produto.unidadeMedidaId ?? ""
+    produto.unidadeMedidaId ?? "",
   );
 
   const { data: categoriasResponse } = useQuery({
@@ -67,19 +76,34 @@ export function EditarProdutoModal({ produto }: Props) {
         sortBy: "nome",
         order: "asc",
       }),
-    enabled: aberto && podeEditar && temPermissao(PERMISSAO_CATEGORIAS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
+    enabled:
+      aberto &&
+      podeEditar &&
+      temPermissao(PERMISSAO_CATEGORIAS_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: marcasResponse } = useQuery({
     queryKey: estoqueQueryKeys.marcasSelect(empresaEfetivaId ?? ""),
     queryFn: () => listarMarcasProdutos({ page: 1, limit: 100 }),
-    enabled: aberto && podeEditar && temPermissao(PERMISSAO_MARCAS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
+    enabled:
+      aberto &&
+      podeEditar &&
+      temPermissao(PERMISSAO_MARCAS_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: unidadesResponse } = useQuery({
     queryKey: estoqueQueryKeys.unidadesSelect(empresaEfetivaId ?? ""),
     queryFn: () => listarUnidadesMedida({ page: 1, limit: 100 }),
-    enabled: aberto && podeEditar && temPermissao(PERMISSAO_UNIDADES_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
+    enabled:
+      aberto &&
+      podeEditar &&
+      temPermissao(PERMISSAO_UNIDADES_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   async function salvar() {
@@ -137,7 +161,7 @@ export function EditarProdutoModal({ produto }: Props) {
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button className="w-full md:w-auto" variant="outline" size="sm">
+        <Button className="shrink-0" variant="outline" size="sm">
           <Pencil aria-hidden="true" />
           Editar
         </Button>
@@ -151,7 +175,9 @@ export function EditarProdutoModal({ produto }: Props) {
         <div className="min-w-0 space-y-5">
           <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="text-sm font-medium text-slate-700">Nome *</label>
+              <label className="text-sm font-medium text-slate-700">
+                Nome *
+              </label>
               <Input value={nome} onChange={(e) => setNome(e.target.value)} />
             </div>
 
@@ -159,12 +185,17 @@ export function EditarProdutoModal({ produto }: Props) {
               <label className="text-sm font-medium text-slate-700">
                 Código interno
               </label>
-              <Input value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+              <Input
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
+              />
             </div>
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">Descrição</label>
+            <label className="text-sm font-medium text-slate-700">
+              Descrição
+            </label>
             <Textarea
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
@@ -188,7 +219,9 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Unidade</label>
+              <label className="text-sm font-medium text-slate-700">
+                Unidade
+              </label>
               <select
                 value={unidadeMedidaId}
                 onChange={(e) => setUnidadeMedidaId(e.target.value)}
@@ -224,7 +257,9 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Marca</label>
+              <label className="text-sm font-medium text-slate-700">
+                Marca
+              </label>
               <select
                 value={marcaId}
                 onChange={(e) => setMarcaId(e.target.value)}
@@ -302,7 +337,9 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Altura</label>
+              <label className="text-sm font-medium text-slate-700">
+                Altura
+              </label>
               <Input
                 type="number"
                 step="0.01"
@@ -312,7 +349,9 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Largura</label>
+              <label className="text-sm font-medium text-slate-700">
+                Largura
+              </label>
               <Input
                 type="number"
                 step="0.01"

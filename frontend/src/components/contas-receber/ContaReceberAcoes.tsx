@@ -26,9 +26,7 @@ type Props = {
   conta: ContaReceberDetalhada;
 };
 
-export function ContaReceberAcoes({
-  conta,
-}: Props) {
+export function ContaReceberAcoes({ conta }: Props) {
   const queryClient = useQueryClient();
   const { temPermissao } = useAuth();
   const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
@@ -37,7 +35,10 @@ export function ContaReceberAcoes({
 
   async function atualizarConsultas() {
     await queryClient.invalidateQueries({
-      queryKey: contasReceberQueryKeys.detalhe(empresaEfetivaId ?? "", conta.id),
+      queryKey: contasReceberQueryKeys.detalhe(
+        empresaEfetivaId ?? "",
+        conta.id,
+      ),
     });
 
     await queryClient.invalidateQueries({
@@ -64,9 +65,7 @@ export function ContaReceberAcoes({
     try {
       await cancelarContaReceber(conta.id);
 
-      toast.success(
-        "Conta cancelada com sucesso!"
-      );
+      toast.success("Conta cancelada com sucesso!");
 
       await atualizarConsultas();
     } catch (error: unknown) {
@@ -88,29 +87,27 @@ export function ContaReceberAcoes({
     conta.recebimentos.length === 0;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="grid w-full min-w-0 grid-cols-1 gap-2 lg:flex lg:w-auto lg:flex-wrap [&>*]:w-full md:[&>*]:w-full lg:[&>*]:w-auto">
       {podeReceber && aceitaRecebimento && empresaEfetivaId && !carregando && (
-        <RegistrarRecebimentoModal
-          conta={conta}
-        />
+        <RegistrarRecebimentoModal conta={conta} />
       )}
 
-      {podeCancelar && aceitaCancelamento && empresaEfetivaId && !carregando && (
-        <ConfirmDialog
-          title="Cancelar conta a receber?"
-          description="A conta ficará indisponível para novos recebimentos."
-          onConfirm={cancelar}
-          trigger={
-            <Button variant="destructive">
-              <XCircle
-                size={16}
-                className="mr-2"
-              />
-              Cancelar conta
-            </Button>
-          }
-        />
-      )}
+      {podeCancelar &&
+        aceitaCancelamento &&
+        empresaEfetivaId &&
+        !carregando && (
+          <ConfirmDialog
+            title="Cancelar conta a receber?"
+            description="A conta ficará indisponível para novos recebimentos."
+            onConfirm={cancelar}
+            trigger={
+              <Button variant="destructive">
+                <XCircle size={16} className="mr-2" />
+                Cancelar conta
+              </Button>
+            }
+          />
+        )}
     </div>
   );
 }

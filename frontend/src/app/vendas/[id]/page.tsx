@@ -98,7 +98,7 @@ export default function VendaDetalhesPage() {
           title={`Venda #${String(venda.numero).padStart(5, "0")}`}
           description="Ficha completa da venda."
           actions={
-            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 lg:flex lg:w-auto lg:flex-wrap [&>*]:w-full md:[&>*]:w-full lg:[&>*]:w-auto">
               <Button variant="outline" asChild>
                 <Link href="/vendas">
                   <ArrowLeft size={16} className="mr-2" />
@@ -106,7 +106,9 @@ export default function VendaDetalhesPage() {
                 </Link>
               </Button>
 
-              <VendaAcoes vendaId={venda.id} status={venda.status} />
+              <div className="w-full lg:w-auto [&>div]:w-full lg:[&>div]:w-auto [&>div>button]:w-full lg:[&>div>button]:w-auto">
+                <VendaAcoes vendaId={venda.id} status={venda.status} />
+              </div>
             </div>
           }
         />

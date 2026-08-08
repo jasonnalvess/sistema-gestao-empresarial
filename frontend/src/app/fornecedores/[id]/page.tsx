@@ -104,7 +104,7 @@ export default function FornecedorDetalhesPage() {
           title={fornecedor.nomeFantasia || fornecedor.razaoSocial}
           description="Ficha detalhada do fornecedor."
           actions={
-            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 lg:flex lg:w-auto lg:flex-wrap [&>*]:w-full md:[&>*]:w-full lg:[&>*]:w-auto">
               <Button variant="outline" asChild>
                 <Link href="/fornecedores">
                   <ArrowLeft aria-hidden="true" />
