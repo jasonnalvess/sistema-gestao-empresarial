@@ -1,12 +1,13 @@
-import { AgendaEvento } from "@/services/agenda.service";
-import { EditarEventoModal } from "./EditarEventoModal";
-import { AgendaStatusBadge } from "./AgendaStatusBadge";
-import { AgendaHistoricoModal } from "./AgendaHistoricoModal";
-import { CancelarEventoButton } from "./CancelarEventoButton";
+"use client";
 
-type Props = {
-  eventos: AgendaEvento[];
-};
+import { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { AgendaEvento } from "@/services/agenda.service";
+import { AgendaEventCard } from "./AgendaEventCard";
+
+type Props = { eventos: AgendaEvento[] };
 
 function mesmoDia(dataA: Date, dataB: Date) {
   return (
@@ -17,88 +18,80 @@ function mesmoDia(dataA: Date, dataB: Date) {
 }
 
 export function AgendaDayView({ eventos }: Props) {
-  const hoje = new Date();
+  const [diaSelecionado, setDiaSelecionado] = useState(() => new Date());
+  const eventosDoDia = useMemo(
+    () =>
+      eventos
+        .filter((evento) =>
+          mesmoDia(new Date(evento.dataInicio), diaSelecionado),
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime(),
+        ),
+    [diaSelecionado, eventos],
+  );
 
-  const eventosHoje = eventos
-    .filter((evento) => mesmoDia(new Date(evento.dataInicio), hoje))
-    .sort(
-      (a, b) =>
-        new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime(),
-    );
-
-  const horas = Array.from({ length: 14 }).map((_, index) => index + 7);
+  function mudarDia(deslocamento: number) {
+    setDiaSelecionado((diaAtual) => {
+      const novoDia = new Date(diaAtual);
+      novoDia.setDate(diaAtual.getDate() + deslocamento);
+      return novoDia;
+    });
+  }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6">
-      <h2 className="mb-5 text-lg font-semibold text-slate-900">
-        Hoje — {hoje.toLocaleDateString("pt-BR")}
-      </h2>
-
-      <div className="min-w-0 space-y-3">
-        {horas.map((hora) => {
-          const eventosDaHora = eventosHoje.filter(
-            (evento) => new Date(evento.dataInicio).getHours() === hora,
-          );
-
-          return (
-            <div
-              key={hora}
-              className="grid min-w-0 grid-cols-1 gap-3 border-b border-slate-100 pb-3 md:grid-cols-[80px_1fr]"
-            >
-              <div className="text-sm font-medium text-slate-500">
-                {String(hora).padStart(2, "0")}:00
-              </div>
-
-              <div className="space-y-2">
-                {eventosDaHora.map((evento) => (
-                  <div
-                    key={evento.id}
-                    className="rounded-lg border border-blue-200 bg-blue-50 p-3"
-                  >
-                    <p className="font-medium text-blue-900">{evento.titulo}</p>
-
-                    <p className="text-sm text-blue-700">
-                      {new Date(evento.dataInicio).toLocaleTimeString("pt-BR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}{" "}
-                      -{" "}
-                      {new Date(evento.dataFim).toLocaleTimeString("pt-BR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-
-                    <div className="mt-2">
-                      <AgendaStatusBadge status={evento.status} />
-                    </div>
-
-                    {(evento.cliente?.nome || evento.clienteNome) && (
-                      <p className="mt-1 text-sm text-slate-600">
-                        Cliente: {evento.cliente?.nome || evento.clienteNome}
-                      </p>
-                    )}
-
-                    <div className="mt-3">
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <EditarEventoModal evento={evento} />
-                        <AgendaHistoricoModal evento={evento} />
-                        <CancelarEventoButton evento={evento} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {eventosDaHora.length === 0 && (
-                  <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-400">
-                    Horário livre
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+    <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 sm:p-5">
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+            Visão diária
+          </p>
+          <h2 className="text-xl font-semibold capitalize text-slate-900">
+            {diaSelecionado.toLocaleDateString("pt-BR", { dateStyle: "full" })}
+          </h2>
+        </div>
+        <div className="grid grid-cols-[auto_1fr_auto] gap-2 sm:flex">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => mudarDia(-1)}
+            aria-label="Dia anterior"
+          >
+            <ChevronLeft aria-hidden="true" />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setDiaSelecionado(new Date())}
+          >
+            Hoje
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => mudarDia(1)}
+            aria-label="Próximo dia"
+          >
+            <ChevronRight aria-hidden="true" />
+          </Button>
+        </div>
       </div>
-    </div>
+
+      <div className="space-y-3">
+        {eventosDoDia.map((evento) => (
+          <AgendaEventCard key={evento.id} evento={evento} />
+        ))}
+        {eventosDoDia.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+            <p className="font-medium text-slate-700">
+              Nenhum compromisso neste dia
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Use a navegação para consultar outra data.
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
