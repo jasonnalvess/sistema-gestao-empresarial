@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CrudCard } from "@/components/crud/CrudCard";
-import { CrudEmpty } from "@/components/crud/CrudEmpty";
 import { CrudLoading } from "@/components/crud/CrudLoading";
 import { listarAgenda } from "@/services/agenda.service";
 import { NovoEventoModal } from "@/components/agenda/NovoEventoModal";
@@ -79,13 +78,7 @@ export default function AgendaPage() {
             </div>
           )}
 
-          {isLoading ? (
-            <CrudLoading />
-          ) : eventos.length === 0 ? (
-            <CrudEmpty message="Nenhum evento encontrado na agenda." />
-          ) : (
-            <AgendaView eventos={eventos} />
-          )}
+          {isLoading ? <CrudLoading /> : <AgendaView eventos={eventos} />}
         </CrudCard>
       </div>
     </AppLayout>
