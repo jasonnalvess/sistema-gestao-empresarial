@@ -172,7 +172,7 @@ export default function AuditoriaPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Auditoria"
           description="Acompanhe as ações realizadas no sistema."
@@ -184,7 +184,7 @@ export default function AuditoriaPage() {
         />
 
         {podeEmpresa && podeGlobal && (
-          <div className="flex w-fit gap-2 rounded-lg border bg-white p-1" aria-label="Escopo da auditoria">
+          <div className="grid w-full grid-cols-2 gap-2 rounded-lg border bg-white p-1 sm:w-fit" aria-label="Escopo da auditoria">
             <Button variant={modo === "EMPRESA" ? "default" : "ghost"} onClick={() => trocarModo("EMPRESA")}>Empresa</Button>
             <Button variant={modo === "GLOBAL" ? "default" : "ghost"} onClick={() => trocarModo("GLOBAL")}>Global</Button>
           </div>
@@ -200,7 +200,7 @@ export default function AuditoriaPage() {
             />
           </CrudToolbar>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             <select value={acao} onChange={(e) => { setAcao(e.target.value as AuditoriaAcao | ""); setPage(1); }} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
               <option value="">Todas as ações</option>
               {ACOES.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -226,7 +226,7 @@ export default function AuditoriaPage() {
 
           {query.isLoading ? <CrudLoading /> : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader><TableRow><TableHead>Ação</TableHead><TableHead>Entidade</TableHead><TableHead>Recurso</TableHead><TableHead>Usuário</TableHead><TableHead>Empresa</TableHead><TableHead>Data</TableHead><TableHead>IP</TableHead><TableHead>Dados</TableHead></TableRow></TableHeader>
                   <TableBody>
@@ -240,9 +240,9 @@ export default function AuditoriaPage() {
                         <TableCell>{new Date(log.createdAt).toLocaleString("pt-BR")}</TableCell>
                         <TableCell>{log.ip ?? "-"}</TableCell>
                         <TableCell>
-                          <details className="min-w-48 text-xs"><summary className="cursor-pointer font-medium">Ver snapshots</summary>
-                            <p className="mt-2 font-semibold">Dados anteriores</p><pre className="mt-1 max-h-48 overflow-auto rounded bg-slate-50 p-2">{formatarSnapshot(log.dadosAntigos)}</pre>
-                            <p className="mt-2 font-semibold">Dados posteriores</p><pre className="mt-1 max-h-48 overflow-auto rounded bg-slate-50 p-2">{formatarSnapshot(log.dadosNovos)}</pre>
+                          <details className="w-64 max-w-[75vw] text-xs"><summary className="cursor-pointer font-medium">Ver snapshots</summary>
+                            <p className="mt-2 font-semibold">Dados anteriores</p><pre className="mt-1 max-h-48 max-w-full overflow-auto whitespace-pre-wrap break-all rounded bg-slate-50 p-2">{formatarSnapshot(log.dadosAntigos)}</pre>
+                            <p className="mt-2 font-semibold">Dados posteriores</p><pre className="mt-1 max-h-48 max-w-full overflow-auto whitespace-pre-wrap break-all rounded bg-slate-50 p-2">{formatarSnapshot(log.dadosNovos)}</pre>
                           </details>
                         </TableCell>
                       </TableRow>

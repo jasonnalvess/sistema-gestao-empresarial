@@ -99,7 +99,7 @@ export function EditarUsuarioModal({ usuario }: Props) {
           </select>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 bg-white pt-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

@@ -169,7 +169,7 @@ export function NovaOrdemServicoModal() {
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Prioridade
@@ -213,7 +213,7 @@ export function NovaOrdemServicoModal() {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 bg-white pt-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

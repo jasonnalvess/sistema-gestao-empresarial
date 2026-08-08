@@ -34,7 +34,7 @@ export function AgendaDayView({ eventos }: Props) {
         Hoje — {hoje.toLocaleDateString("pt-BR")}
       </h2>
 
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
         {horas.map((hora) => {
           const eventosDaHora = eventosHoje.filter(
             (evento) => new Date(evento.dataInicio).getHours() === hora,
@@ -43,7 +43,7 @@ export function AgendaDayView({ eventos }: Props) {
           return (
             <div
               key={hora}
-              className="grid gap-3 border-b border-slate-100 pb-3 md:grid-cols-[80px_1fr]"
+              className="grid min-w-0 grid-cols-1 gap-3 border-b border-slate-100 pb-3 md:grid-cols-[80px_1fr]"
             >
               <div className="text-sm font-medium text-slate-500">
                 {String(hora).padStart(2, "0")}:00
@@ -80,7 +80,7 @@ export function AgendaDayView({ eventos }: Props) {
                     )}
 
                     <div className="mt-3">
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row">
                         <EditarEventoModal evento={evento} />
                         <AgendaHistoricoModal evento={evento} />
                         <CancelarEventoButton evento={evento} />

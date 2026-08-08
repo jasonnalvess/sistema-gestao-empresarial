@@ -59,7 +59,7 @@ export function AgendaMonthView({ eventos }: Props) {
   const nomesDias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6">
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-lg font-semibold capitalize text-slate-900">
           {dataAtual.toLocaleDateString("pt-BR", {
@@ -68,22 +68,23 @@ export function AgendaMonthView({ eventos }: Props) {
           })}
         </h2>
 
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={mesAnterior}>
-            <ChevronLeft size={16} />
+        <div className="grid grid-cols-3 gap-2 sm:flex">
+          <Button variant="outline" size="sm" onClick={mesAnterior} aria-label="Mês anterior">
+            <ChevronLeft size={16} aria-hidden="true" />
           </Button>
 
           <Button variant="outline" size="sm" onClick={irParaHoje}>
             Hoje
           </Button>
 
-          <Button variant="outline" size="sm" onClick={proximoMes}>
-            <ChevronRight size={16} />
+          <Button variant="outline" size="sm" onClick={proximoMes} aria-label="Próximo mês">
+            <ChevronRight size={16} aria-hidden="true" />
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
+      <div className="min-w-0 max-w-full overflow-x-auto pb-2">
+        <div className="grid min-w-[42rem] grid-cols-7 gap-2">
         {nomesDias.map((dia) => (
           <div
             key={dia}
@@ -145,6 +146,7 @@ export function AgendaMonthView({ eventos }: Props) {
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
