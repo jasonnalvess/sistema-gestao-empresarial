@@ -69,7 +69,7 @@ export function NovoUsuarioModal() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo usuário</DialogTitle>
         </DialogHeader>
@@ -113,7 +113,7 @@ export function NovoUsuarioModal() {
             </select>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-3 bg-white pt-4 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
               onClick={() => setAberto(false)}

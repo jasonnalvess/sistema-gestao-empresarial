@@ -94,12 +94,12 @@ export default function OrdemServicoDetalhesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title={`OS #${ordem.numero}`}
           description={ordem.titulo}
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
               <Button variant="outline" asChild>
                 <Link href="/ordens-servico">Voltar</Link>
               </Button>
@@ -111,7 +111,7 @@ export default function OrdemServicoDetalhesPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <CrudCard>
             <Wrench className="mb-2 text-blue-600" size={22} />
             <p className="text-sm text-slate-500">Status</p>
@@ -146,7 +146,7 @@ export default function OrdemServicoDetalhesPage() {
             Dados da OS
           </h2>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <p className="text-sm text-slate-500">Título</p>
               <p className="font-medium text-slate-900">{ordem.titulo}</p>

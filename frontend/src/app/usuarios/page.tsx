@@ -58,7 +58,7 @@ export default function UsuariosPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Usuários"
           description="Gerencie os usuários cadastrados no sistema."
@@ -85,7 +85,7 @@ export default function UsuariosPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -118,7 +118,7 @@ export default function UsuariosPage() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex min-w-max justify-end gap-2">
                             <EditarUsuarioModal usuario={usuario} />
                             <AlterarStatusUsuarioButton usuario={usuario} />
                           </div>

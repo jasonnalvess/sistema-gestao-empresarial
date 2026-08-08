@@ -63,7 +63,7 @@ export default function AgendaPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Agenda"
           description="Gerencie atendimentos, compromissos e acompanhamentos da empresa."

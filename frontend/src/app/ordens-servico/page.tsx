@@ -111,7 +111,7 @@ export default function OrdensServicoPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Ordens de Serviço"
           description="Gerencie solicitações técnicas, serviços e atendimentos operacionais."
@@ -131,7 +131,7 @@ export default function OrdensServicoPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mb-4 grid gap-3 md:grid-cols-3">
+              <div className="mb-4 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3">
                 <div>
                   <label className="text-sm font-medium text-slate-700">
                     Buscar
@@ -188,7 +188,7 @@ export default function OrdensServicoPage() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

@@ -39,7 +39,7 @@ export function AgendaWeekView({ eventos }: Props) {
         Visão semanal
       </h2>
 
-      <div className="grid gap-4 md:grid-cols-7">
+      <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-7">
         {dias.map((dia) => {
           const eventosDoDia = eventos.filter((evento) =>
             mesmoDia(new Date(evento.dataInicio), dia),

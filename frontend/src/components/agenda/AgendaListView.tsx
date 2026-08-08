@@ -16,7 +16,7 @@ export function AgendaListView({ eventos }: Props) {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {eventosOrdenados.map((evento) => (
         <div
           key={evento.id}
@@ -37,7 +37,7 @@ export function AgendaListView({ eventos }: Props) {
                 </p>
               )}
 
-              <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+              <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 text-sm text-slate-600 md:grid-cols-2">
                 <span className="flex items-center gap-2">
                   <Clock size={15} />
                   {new Date(evento.dataInicio).toLocaleString("pt-BR")}
@@ -59,9 +59,9 @@ export function AgendaListView({ eventos }: Props) {
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-col items-stretch gap-2 sm:items-end">
               <AgendaStatusBadge status={evento.status} />
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <EditarEventoModal evento={evento} />
                 <AgendaHistoricoModal evento={evento} />
                 <CancelarEventoButton evento={evento} />
