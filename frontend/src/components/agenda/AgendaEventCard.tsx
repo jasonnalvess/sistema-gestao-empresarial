@@ -18,8 +18,20 @@ export function AgendaEventCard({ evento, compacto = false }: Props) {
   const cliente = evento.cliente?.nome || evento.clienteNome;
 
   return (
-    <article className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <article
+      className={cn(
+        "min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4",
+        compacto && "p-2 sm:p-2",
+      )}
+    >
+      <div
+        className={cn(
+          "flex min-w-0 flex-col gap-3",
+          compacto
+            ? "gap-2"
+            : "sm:flex-row sm:items-start sm:justify-between",
+        )}
+      >
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-blue-700">
             <Clock className="shrink-0" size={16} aria-hidden="true" />
@@ -28,15 +40,27 @@ export function AgendaEventCard({ evento, compacto = false }: Props) {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
-              {" – "}
-              {fim.toLocaleTimeString("pt-BR", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              {!compacto && (
+                <>
+                  {" – "}
+                  {fim.toLocaleTimeString("pt-BR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </>
+              )}
             </time>
           </div>
 
-          <h3 className="mt-1 break-words font-semibold text-slate-900">
+          <h3
+            className={cn(
+              "mt-1 font-semibold text-slate-900",
+              compacto
+                ? "line-clamp-2 min-w-0 break-normal text-sm leading-snug"
+                : "break-words",
+            )}
+            title={compacto ? evento.titulo : undefined}
+          >
             {evento.titulo}
           </h3>
 
@@ -68,21 +92,24 @@ export function AgendaEventCard({ evento, compacto = false }: Props) {
           )}
         </div>
 
-        <div className="shrink-0">
+        <div
+          className={cn(
+            "shrink-0",
+            compacto &&
+              "min-w-0 [&>span]:max-w-full [&>span]:whitespace-normal [&>span]:px-1.5 [&>span]:py-0.5 [&>span]:text-center [&>span]:leading-tight",
+          )}
+        >
           <AgendaStatusBadge status={evento.status} />
         </div>
       </div>
 
-      <div
-        className={cn(
-          "mt-3 grid grid-cols-1 gap-2 [&>*]:w-full",
-          !compacto && "lg:grid-cols-3",
-        )}
-      >
-        <EditarEventoModal evento={evento} />
-        <AgendaHistoricoModal evento={evento} />
-        <CancelarEventoButton evento={evento} />
-      </div>
+      {!compacto && (
+        <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-3 [&>*]:w-full">
+          <EditarEventoModal evento={evento} />
+          <AgendaHistoricoModal evento={evento} />
+          <CancelarEventoButton evento={evento} />
+        </div>
+      )}
     </article>
   );
 }
