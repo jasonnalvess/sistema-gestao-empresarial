@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { useAuth } from "@/contexts/AuthContext";
@@ -108,9 +109,10 @@ export default function DepositosPage() {
           </div>
 
           {error && (
-            <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              Erro ao carregar depósitos.
-            </div>
+            <ErrorMessage
+              className="mt-4"
+              message="Erro ao carregar depósitos."
+            />
           )}
 
           {isLoading ? (
@@ -159,10 +161,16 @@ export default function DepositosPage() {
                       </TableRow>
                     ))}
 
-                    {depositos.length === 0 && (
+                    {!error && depositos.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={6}>
-                          <CrudEmpty message="Nenhum depósito encontrado." />
+                          <CrudEmpty
+                            message={
+                              searchAplicado || ativo
+                                ? "Nenhum depósito encontrado para os filtros aplicados."
+                                : "Nenhum depósito encontrado."
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     )}
