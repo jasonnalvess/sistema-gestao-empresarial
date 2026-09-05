@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +24,8 @@ type Props = {
 };
 
 export function EditarUnidadeMedidaModal({ unidade }: Props) {
+  const nomeId = useId();
+  const siglaId = useId();
   const queryClient = useQueryClient();
   const { temPermissao } = useAuth();
   const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
@@ -74,13 +76,28 @@ export function EditarUnidadeMedidaModal({ unidade }: Props) {
     >
       <div className="min-w-0 space-y-4">
         <div>
-          <label className="text-sm font-medium text-slate-700">Nome</label>
-          <Input value={nome} onChange={(e) => setNome(e.target.value)} />
+          <label
+            htmlFor={nomeId}
+            className="text-sm font-medium text-slate-700"
+          >
+            Nome
+          </label>
+          <Input
+            id={nomeId}
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+          />
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700">Sigla</label>
+          <label
+            htmlFor={siglaId}
+            className="text-sm font-medium text-slate-700"
+          >
+            Sigla
+          </label>
           <Input
+            id={siglaId}
             value={sigla}
             onChange={(e) => setSigla(e.target.value.toUpperCase())}
           />

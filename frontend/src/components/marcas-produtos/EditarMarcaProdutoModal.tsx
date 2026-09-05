@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +25,8 @@ type Props = {
 };
 
 export function EditarMarcaProdutoModal({ marca }: Props) {
+  const nomeId = useId();
+  const descricaoId = useId();
   const queryClient = useQueryClient();
   const { temPermissao } = useAuth();
   const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
@@ -75,15 +77,28 @@ export function EditarMarcaProdutoModal({ marca }: Props) {
     >
       <div className="min-w-0 space-y-4">
         <div>
-          <label className="text-sm font-medium text-slate-700">Nome</label>
-          <Input value={nome} onChange={(e) => setNome(e.target.value)} />
+          <label
+            htmlFor={nomeId}
+            className="text-sm font-medium text-slate-700"
+          >
+            Nome
+          </label>
+          <Input
+            id={nomeId}
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+          />
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor={descricaoId}
+            className="text-sm font-medium text-slate-700"
+          >
             Descrição
           </label>
           <Textarea
+            id={descricaoId}
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
           />
