@@ -44,6 +44,7 @@ export class AuthService {
     ].sort();
 
     const payload = {
+      versaoAutorizacao: usuario.versaoAutorizacao,
       id: usuario.id,
       email: usuario.email,
       tipo: usuario.tipo,

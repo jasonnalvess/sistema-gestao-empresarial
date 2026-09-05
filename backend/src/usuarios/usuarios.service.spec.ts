@@ -234,7 +234,9 @@ describe('UsuariosService', () => {
             data:
               operacao === 'atualizar'
                 ? { nome: 'Nome atualizado', email: undefined, tipo: undefined }
-                : { ativo: operacao === 'ativar' },
+                : operacao === 'ativar'
+                  ? { ativo: true }
+                  : { ativo: false, versaoAutorizacao: { increment: 1 } },
           }),
         );
       },
@@ -279,6 +281,64 @@ describe('UsuariosService', () => {
     });
   });
 
+  describe('invalidação persistente de autorização', () => {
+    beforeEach(() => {
+      prismaServiceMock.usuario.findUnique.mockResolvedValue({
+        id: 'alvo',
+        tipo: 'USUARIO_EMPRESA',
+        empresaId: 'empresa-a',
+      });
+    });
+
+    it('inativa e incrementa a versão na mesma escrita', async () => {
+      await service.desativar('alvo', admin);
+      expect(prismaServiceMock.usuario.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'alvo' },
+          data: { ativo: false, versaoAutorizacao: { increment: 1 } },
+        }),
+      );
+    });
+
+    it('mudança efetiva de tipo incrementa atomicamente', async () => {
+      await service.atualizar('alvo', { tipo: 'ADMIN_EMPRESA' }, superAdmin);
+      expect(prismaServiceMock.usuario.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: {
+            nome: undefined,
+            email: undefined,
+            tipo: 'ADMIN_EMPRESA',
+            versaoAutorizacao: { increment: 1 },
+          },
+        }),
+      );
+    });
+
+    it.each([
+      { tipo: 'USUARIO_EMPRESA' as const },
+      { nome: 'Novo nome' },
+      { email: 'novo@example.com' },
+    ])('atualização sem mudança de tipo não incrementa: %j', async (dados) => {
+      await service.atualizar('alvo', dados, superAdmin);
+      expect(prismaServiceMock.usuario.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: {
+            nome: 'nome' in dados ? dados.nome : undefined,
+            email: 'email' in dados ? dados.email : undefined,
+            tipo: 'tipo' in dados ? dados.tipo : undefined,
+          },
+        }),
+      );
+    });
+
+    it('reativa sem restaurar nem incrementar a versão', async () => {
+      await service.ativar('alvo', admin);
+      expect(prismaServiceMock.usuario.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { ativo: true } }),
+      );
+    });
+  });
+
   it('deve estar definido', () => {
     expect(service).toBeDefined();
   });
@@ -296,6 +356,7 @@ describe('UsuariosService', () => {
         nome: true,
         email: true,
         senha: true,
+        versaoAutorizacao: true,
         tipo: true,
         ativo: true,
         empresaId: true,

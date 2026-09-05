@@ -52,6 +52,7 @@ describe('AuthService', () => {
       senha: 'senha-criptografada',
       tipo: 'USUARIO_EMPRESA',
       ativo: true,
+      versaoAutorizacao: 7,
       empresaId: 'empresa-1',
       perfis: [
         {
@@ -103,6 +104,7 @@ describe('AuthService', () => {
     );
 
     const payloadEsperado = {
+      versaoAutorizacao: 7,
       id: 'usuario-1',
       email: 'teste@sistema.com',
       tipo: 'USUARIO_EMPRESA',
