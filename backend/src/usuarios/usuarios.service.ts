@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -47,7 +48,7 @@ export class UsuariosService {
     const empresaId =
       usuarioLogado.tipo === 'ADMIN_EMPRESA'
         ? obterEmpresaId(usuarioLogado)
-        : dados.empresaId;
+        : (dados.empresaId ?? null);
 
     if (
       usuarioLogado.tipo === 'ADMIN_EMPRESA' &&
@@ -56,6 +57,27 @@ export class UsuariosService {
       throw new ForbiddenException(
         'Administrador de empresa não pode criar Super Admin',
       );
+    }
+
+    if (dados.tipo === 'SUPER_ADMIN') {
+      if (empresaId !== null) {
+        throw new BadRequestException(
+          'Super Admin não pode possuir empresa vinculada',
+        );
+      }
+    } else {
+      if (!empresaId) {
+        throw new BadRequestException(
+          'Usuário empresarial deve possuir uma empresa',
+        );
+      }
+      const empresa = await this.prisma.empresa.findUnique({
+        where: { id: empresaId },
+        select: { id: true },
+      });
+      if (!empresa) {
+        throw new NotFoundException('Empresa não encontrada');
+      }
     }
 
     const senhaCriptografada = await bcrypt.hash(dados.senha, 10);
@@ -125,7 +147,7 @@ export class UsuariosService {
     dados: AtualizarUsuarioDados,
     usuarioLogado: AuthenticatedUser,
   ) {
-    await this.buscarPorId(id, usuarioLogado);
+    await this.validarUsuarioGerenciavel(id, usuarioLogado);
 
     if (
       usuarioLogado.tipo === 'ADMIN_EMPRESA' &&
@@ -148,7 +170,7 @@ export class UsuariosService {
   }
 
   async ativar(id: string, usuarioLogado: AuthenticatedUser) {
-    await this.buscarPorId(id, usuarioLogado);
+    await this.validarUsuarioGerenciavel(id, usuarioLogado);
 
     return this.prisma.usuario.update({
       where: { id },
@@ -158,13 +180,28 @@ export class UsuariosService {
   }
 
   async desativar(id: string, usuarioLogado: AuthenticatedUser) {
-    await this.buscarPorId(id, usuarioLogado);
+    await this.validarUsuarioGerenciavel(id, usuarioLogado);
 
     return this.prisma.usuario.update({
       where: { id },
       data: { ativo: false },
       select: this.selectSeguro,
     });
+  }
+
+  private async validarUsuarioGerenciavel(
+    id: string,
+    usuarioLogado: AuthenticatedUser,
+  ) {
+    const usuario = await this.buscarPorId(id, usuarioLogado);
+    if (
+      usuarioLogado.tipo === 'ADMIN_EMPRESA' &&
+      usuario.tipo === 'SUPER_ADMIN'
+    ) {
+      throw new ForbiddenException(
+        'Administrador de empresa não pode gerenciar Super Admin',
+      );
+    }
   }
 
   buscarPorEmail(email: string) {
