@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import {
@@ -43,7 +44,7 @@ export default function FornecedoresPage() {
     useEmpresaSelecionada();
   const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
   const podeVisualizarFornecedores = temPermissao(
-    PERMISSAO_FORNECEDORES_VISUALIZAR
+    PERMISSAO_FORNECEDORES_VISUALIZAR,
   );
   const podeCriarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_CRIAR);
   const podeEditarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_EDITAR);
@@ -72,8 +73,7 @@ export default function FornecedoresPage() {
         sortBy: "createdAt",
         order: "desc",
       }),
-    enabled:
-      podeVisualizarFornecedores && possuiEmpresaEfetiva && !carregando,
+    enabled: podeVisualizarFornecedores && possuiEmpresaEfetiva && !carregando,
   });
 
   function pesquisar() {
@@ -85,15 +85,12 @@ export default function FornecedoresPage() {
     if (documento.length === 14) {
       return documento.replace(
         /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
-        "$1.$2.$3/$4-$5"
+        "$1.$2.$3/$4-$5",
       );
     }
 
     if (documento.length === 11) {
-      return documento.replace(
-        /^(\d{3})(\d{3})(\d{3})(\d{2})$/,
-        "$1.$2.$3-$4"
-      );
+      return documento.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
     }
 
     return documento;
@@ -170,9 +167,10 @@ export default function FornecedoresPage() {
           </div>
 
           {error && (
-            <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              Erro ao carregar fornecedores.
-            </div>
+            <ErrorMessage
+              className="mt-4"
+              message="Erro ao carregar fornecedores."
+            />
           )}
 
           {isLoading ? (
@@ -197,8 +195,7 @@ export default function FornecedoresPage() {
                       <TableRow key={fornecedor.id}>
                         <TableCell>
                           <p className="font-medium text-slate-900">
-                            {fornecedor.nomeFantasia ||
-                              fornecedor.razaoSocial}
+                            {fornecedor.nomeFantasia || fornecedor.razaoSocial}
                           </p>
 
                           {fornecedor.nomeFantasia && (
@@ -209,17 +206,11 @@ export default function FornecedoresPage() {
                         </TableCell>
 
                         <TableCell>
-                          {formatarDocumento(
-                            fornecedor.documento
-                          )}
+                          {formatarDocumento(fornecedor.documento)}
                         </TableCell>
 
                         <TableCell>
-                          <p>
-                            {fornecedor.contato ||
-                              fornecedor.email ||
-                              "-"}
-                          </p>
+                          <p>{fornecedor.contato || fornecedor.email || "-"}</p>
 
                           {fornecedor.celular && (
                             <p className="text-xs text-slate-500">
@@ -237,9 +228,7 @@ export default function FornecedoresPage() {
                         </TableCell>
 
                         <TableCell>
-                          <CrudStatusBadge
-                            ativo={fornecedor.ativo}
-                          />
+                          <CrudStatusBadge ativo={fornecedor.ativo} />
                         </TableCell>
 
                         <TableCell className="text-right">
@@ -250,8 +239,12 @@ export default function FornecedoresPage() {
 
                             {podeEditarFornecedor && (
                               <>
-                                <EditarFornecedorModal fornecedor={fornecedor} />
-                                <AlterarStatusFornecedorButton fornecedor={fornecedor} />
+                                <EditarFornecedorModal
+                                  fornecedor={fornecedor}
+                                />
+                                <AlterarStatusFornecedorButton
+                                  fornecedor={fornecedor}
+                                />
                               </>
                             )}
                           </div>
@@ -259,10 +252,16 @@ export default function FornecedoresPage() {
                       </TableRow>
                     ))}
 
-                    {fornecedores.length === 0 && (
+                    {!error && fornecedores.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={6}>
-                          <CrudEmpty message="Nenhum fornecedor encontrado." />
+                          <CrudEmpty
+                            message={
+                              searchAplicado || ativo || estado
+                                ? "Nenhum fornecedor encontrado para os filtros aplicados."
+                                : "Nenhum fornecedor encontrado."
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     )}
@@ -294,9 +293,7 @@ function InputEstado({
     <input
       value={value}
       maxLength={2}
-      onChange={(e) =>
-        onChange(e.target.value.toUpperCase())
-      }
+      onChange={(e) => onChange(e.target.value.toUpperCase())}
       placeholder="Filtrar por UF"
       aria-label="Filtrar fornecedores por UF"
       className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"

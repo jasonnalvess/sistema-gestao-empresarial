@@ -177,14 +177,14 @@ export default function FinanceiroPage() {
         </CrudCard>
 
         {error && (
-          <div className="rounded-lg bg-red-50 p-4 text-red-700">
+          <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">
             Erro ao carregar o resumo financeiro.
           </div>
         )}
 
-        {isLoading || !resumo ? (
+        {isLoading ? (
           <CrudLoading />
-        ) : (
+        ) : resumo ? (
           <>
             <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <ResumoCard
@@ -363,7 +363,7 @@ export default function FinanceiroPage() {
               </div>
             </CrudCard>
           </>
-        )}
+        ) : null}
       </div>
     </AppLayout>
   );
