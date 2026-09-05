@@ -43,7 +43,7 @@ export default function EstoquePage() {
     {error && <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">Erro ao carregar estoque.</div>}
     {isLoading ? <CrudLoading /> : <><div className="mt-5 min-w-0 max-w-full overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Produto</TableHead><TableHead>Código</TableHead><TableHead>Atual</TableHead><TableHead>Mínimo</TableHead><TableHead>Máximo</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>
       {itens.map((item) => <TableRow key={item.id}><TableCell className="font-medium">{item.produto?.nome ?? "-"}</TableCell><TableCell>{item.produto?.codigo || "-"}</TableCell><TableCell>{Number(item.quantidadeAtual)}</TableCell><TableCell>{Number(item.estoqueMinimo)}</TableCell><TableCell>{item.estoqueMaximo ? Number(item.estoqueMaximo) : "-"}</TableCell><TableCell>{statusEstoque(item.quantidadeAtual, item.estoqueMinimo, item.estoqueMaximo)}</TableCell></TableRow>)}
-      {!itens.length && <TableRow><TableCell colSpan={6}><CrudEmpty message="Nenhum item de estoque encontrado." /></TableCell></TableRow>}
+      {!error && !itens.length && <TableRow><TableCell colSpan={6}><CrudEmpty message="Nenhum item de estoque encontrado." /></TableCell></TableRow>}
     </TableBody></Table></div><CrudPagination page={page} totalPages={data?.meta.totalPages ?? 1} onPageChange={setPage} /></>}
   </CrudCard></div></AppLayout>;
 }

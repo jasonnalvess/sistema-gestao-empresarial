@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import { ArrowLeft } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -86,7 +87,9 @@ export default function ContaReceberDetalhesPage() {
     return (
       <AppLayout>
         <div className="rounded-lg bg-red-50 p-4 text-red-700">
-          Conta a receber não encontrada.
+          {error && !(isAxiosError(error) && error.response?.status === 404)
+            ? "Erro ao carregar conta a receber."
+            : "Conta a receber não encontrada."}
         </div>
       </AppLayout>
     );

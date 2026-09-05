@@ -470,7 +470,7 @@ export default function MovimentacoesCaixaPage() {
                       </tr>
                     ))}
 
-                    {movimentacoes.length === 0 && (
+                    {!error && movimentacoes.length === 0 && (
                       <tr>
                         <td colSpan={10}>
                           <CrudEmpty message="Nenhuma movimentação encontrada." />

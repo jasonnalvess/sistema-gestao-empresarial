@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 
 import {
   ArrowDownCircle,
@@ -107,7 +108,9 @@ export default function CaixaDetalhesPage() {
     return (
       <AppLayout>
         <div className="rounded-lg bg-red-50 p-4 text-red-700">
-          Caixa não encontrado.
+          {error && !(isAxiosError(error) && error.response?.status === 404)
+            ? "Erro ao carregar caixa."
+            : "Caixa não encontrado."}
         </div>
       </AppLayout>
     );

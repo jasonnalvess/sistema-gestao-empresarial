@@ -126,7 +126,7 @@ export default function UsuariosPage() {
                       </TableRow>
                     ))}
 
-                    {usuarios.length === 0 && (
+                    {!error && usuarios.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={6}>
                           <CrudEmpty message="Nenhum usuário encontrado." />

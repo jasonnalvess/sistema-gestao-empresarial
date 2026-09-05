@@ -1,5 +1,6 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -88,7 +89,13 @@ export default function ClienteDetalhesPage() {
   if (error || !cliente) {
     return (
       <AppLayout>
-        <CrudEmpty message="Cliente não encontrado." />
+        <CrudEmpty
+          message={
+            error && !(isAxiosError(error) && error.response?.status === 404)
+              ? "Erro ao carregar cliente."
+              : "Cliente não encontrado."
+          }
+        />
       </AppLayout>
     );
   }

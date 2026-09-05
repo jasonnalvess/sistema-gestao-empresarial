@@ -28,7 +28,7 @@ export default function AgendaPage() {
   const podeVisualizar = temPermissao(PERMISSAO_AGENDA_VISUALIZAR);
   const podeCriar = temPermissao(PERMISSAO_AGENDA_CRIAR);
   const {
-    data: eventos = [],
+    data: eventos,
     isLoading,
     error,
   } = useQuery({
@@ -69,7 +69,9 @@ export default function AgendaPage() {
           actions={podeCriar ? <NovoEventoModal /> : undefined}
         />
 
-        <AgendaSummaryCards eventos={eventos} />
+        {(!error || eventos !== undefined) && (
+          <AgendaSummaryCards eventos={eventos ?? []} />
+        )}
 
         <CrudCard>
           {error && (
@@ -78,7 +80,11 @@ export default function AgendaPage() {
             </div>
           )}
 
-          {isLoading ? <CrudLoading /> : <AgendaView eventos={eventos} />}
+          {isLoading ? (
+            <CrudLoading />
+          ) : !error || eventos !== undefined ? (
+            <AgendaView eventos={eventos ?? []} />
+          ) : null}
         </CrudCard>
       </div>
     </AppLayout>

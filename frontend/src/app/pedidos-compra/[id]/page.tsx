@@ -1,5 +1,7 @@
 "use client";
 
+import { isAxiosError } from "axios";
+
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -137,7 +139,9 @@ export default function PedidoCompraDetalhesPage() {
     return (
       <AppLayout>
         <div className="rounded-lg bg-red-50 p-4 text-red-700">
-          Pedido de compra não encontrado.
+          {error && !(isAxiosError(error) && error.response?.status === 404)
+            ? "Erro ao carregar pedido de compra."
+            : "Pedido de compra não encontrado."}
         </div>
       </AppLayout>
     );

@@ -427,7 +427,7 @@ export default function ContasPagarPage() {
                       );
                     })}
 
-                    {contas.length === 0 && (
+                    {!error && contas.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9}>
                           <CrudEmpty message="Nenhuma conta a pagar encontrada." />
