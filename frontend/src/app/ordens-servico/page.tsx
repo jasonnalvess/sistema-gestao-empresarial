@@ -233,7 +233,7 @@ export default function OrdensServicoPage() {
                       </TableRow>
                     ))}
 
-                    {ordens.length === 0 && (
+                    {!error && ordens.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={7}>
                           <CrudEmpty message="Nenhuma ordem de serviço encontrada." />

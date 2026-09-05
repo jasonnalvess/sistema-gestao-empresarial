@@ -1,5 +1,7 @@
 "use client";
 
+import { isAxiosError } from "axios";
+
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -87,7 +89,13 @@ export default function OrdemServicoDetalhesPage() {
   if (error || !ordem) {
     return (
       <AppLayout>
-        <CrudEmpty message="Ordem de serviço não encontrada." />
+        <CrudEmpty
+          message={
+            error && !(isAxiosError(error) && error.response?.status === 404)
+              ? "Erro ao carregar ordem de serviço."
+              : "Ordem de serviço não encontrada."
+          }
+        />
       </AppLayout>
     );
   }

@@ -351,7 +351,7 @@ export default function PedidosCompraPage() {
                       );
                     })}
 
-                    {pedidos.length === 0 && (
+                    {!error && pedidos.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={8}>
                           <CrudEmpty message="Nenhum pedido de compra encontrado." />

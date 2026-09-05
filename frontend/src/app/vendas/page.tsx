@@ -423,7 +423,7 @@ export default function VendasPage() {
                       );
                     })}
 
-                    {vendas.length === 0 && (
+                    {!error && vendas.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9}>
                           <CrudEmpty message="Nenhuma venda encontrada." />

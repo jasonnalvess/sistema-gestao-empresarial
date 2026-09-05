@@ -1,5 +1,7 @@
 "use client";
 
+import { isAxiosError } from "axios";
+
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -83,7 +85,9 @@ export default function VendaDetalhesPage() {
     return (
       <AppLayout>
         <div className="rounded-lg bg-red-50 p-4 text-red-700">
-          Venda não encontrada.
+          {error && !(isAxiosError(error) && error.response?.status === 404)
+            ? "Erro ao carregar venda."
+            : "Venda não encontrada."}
         </div>
       </AppLayout>
     );
