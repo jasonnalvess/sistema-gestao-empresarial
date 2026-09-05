@@ -201,6 +201,7 @@ model Usuario {
   senha String
   tipo  UserType
   ativo Boolean  @default(true)
+  versaoAutorizacao Int @default(0)
 
   empresaId String?
   empresa   Empresa? @relation(fields: [empresaId], references: [id])

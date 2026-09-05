@@ -147,7 +147,10 @@ export class UsuariosService {
     dados: AtualizarUsuarioDados,
     usuarioLogado: AuthenticatedUser,
   ) {
-    await this.validarUsuarioGerenciavel(id, usuarioLogado);
+    const usuarioAtual = await this.validarUsuarioGerenciavel(
+      id,
+      usuarioLogado,
+    );
 
     if (
       usuarioLogado.tipo === 'ADMIN_EMPRESA' &&
@@ -164,6 +167,9 @@ export class UsuariosService {
         nome: dados.nome,
         email: dados.email,
         tipo: dados.tipo,
+        ...(dados.tipo !== undefined && dados.tipo !== usuarioAtual.tipo
+          ? { versaoAutorizacao: { increment: 1 } }
+          : {}),
       },
       select: this.selectSeguro,
     });
@@ -184,7 +190,7 @@ export class UsuariosService {
 
     return this.prisma.usuario.update({
       where: { id },
-      data: { ativo: false },
+      data: { ativo: false, versaoAutorizacao: { increment: 1 } },
       select: this.selectSeguro,
     });
   }
@@ -202,6 +208,7 @@ export class UsuariosService {
         'Administrador de empresa não pode gerenciar Super Admin',
       );
     }
+    return usuario;
   }
 
   buscarPorEmail(email: string) {
@@ -218,6 +225,7 @@ export class UsuariosService {
         nome: true,
         email: true,
         senha: true,
+        versaoAutorizacao: true,
         tipo: true,
         ativo: true,
         empresaId: true,

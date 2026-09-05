@@ -2,12 +2,14 @@
 
 import {
   createContext,
+  Fragment,
   ReactNode,
   useCallback,
   useContext,
   useEffect,
   useState,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 import { EMPRESA_SELECIONADA_STORAGE_KEY } from "@/lib/empresa-contexto";
@@ -19,6 +21,7 @@ import {
 } from "@/lib/auth";
 import {
   EVENTO_SESSAO_EXPIRADA,
+  invalidarRequisicoesDaSessao,
   limparEmpresaOperacional,
 } from "@/services/api";
 
@@ -36,12 +39,21 @@ const AuthContext = createContext<AuthContextData | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [geracaoSessao, setGeracaoSessao] = useState(0);
 
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
 
+  const limparCacheDaSessao = useCallback(() => {
+    invalidarRequisicoesDaSessao();
+    queryClient.clear();
+    setGeracaoSessao((geracao) => geracao + 1);
+  }, [queryClient]);
+
   const limparSessao = useCallback(() => {
+    limparCacheDaSessao();
     localStorage.removeItem("token");
     localStorage.removeItem("usuario");
     localStorage.removeItem(EMPRESA_SELECIONADA_STORAGE_KEY);
@@ -49,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setToken(null);
     setUsuario(null);
-  }, []);
+  }, [limparCacheDaSessao]);
 
   useEffect(() => {
     let efeitoAtivo = true;
@@ -90,9 +102,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     function sincronizarSessaoEntreAbas(evento: StorageEvent) {
-      if (evento.key === "token" && evento.newValue === null) {
+      if (
+        evento.key === "token" &&
+        evento.newValue === null &&
+        localStorage.getItem("token") === null
+      ) {
         limparSessao();
         router.replace("/login");
+      }
+      if (
+        evento.key === "usuario" &&
+        evento.newValue !== null &&
+        localStorage.getItem("usuario") === evento.newValue
+      ) {
+        const tokenAtual = localStorage.getItem("token");
+        if (!tokenAtual || tokenAtual === token) return;
+        try {
+          const usuarioAtual = normalizarUsuario(JSON.parse(evento.newValue));
+          limparCacheDaSessao();
+          limparEmpresaOperacional();
+          setToken(tokenAtual);
+          setUsuario(usuarioAtual);
+        } catch {
+          limparSessao();
+          router.replace("/login");
+        }
       }
     }
 
@@ -105,13 +139,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       window.removeEventListener("storage", sincronizarSessaoEntreAbas);
     };
-  }, [limparSessao, router]);
+  }, [limparSessao, limparCacheDaSessao, router, token]);
 
   function login(
     novoToken: string,
     novoUsuario: UsuarioComPermissoesOpcionais,
   ) {
     const usuarioNormalizado = normalizarUsuario(novoUsuario);
+    limparCacheDaSessao();
 
     localStorage.removeItem(EMPRESA_SELECIONADA_STORAGE_KEY);
     limparEmpresaOperacional();
@@ -142,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         temPermissao: (permissao) => verificarPermissao(usuario, permissao),
       }}
     >
-      {children}
+      <Fragment key={geracaoSessao}>{children}</Fragment>
     </AuthContext.Provider>
   );
 }
