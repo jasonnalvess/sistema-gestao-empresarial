@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { useAuth } from "@/contexts/AuthContext";
@@ -103,9 +104,10 @@ export default function CategoriasPage() {
           </CrudToolbar>
 
           {error && (
-            <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              Erro ao carregar categorias.
-            </div>
+            <ErrorMessage
+              className="mt-4"
+              message="Erro ao carregar categorias."
+            />
           )}
 
           {isLoading ? (
@@ -149,10 +151,16 @@ export default function CategoriasPage() {
                       </TableRow>
                     ))}
 
-                    {categorias.length === 0 && (
+                    {!error && categorias.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={4}>
-                          <CrudEmpty message="Nenhuma categoria encontrada." />
+                          <CrudEmpty
+                            message={
+                              searchAplicado
+                                ? "Nenhuma categoria encontrada para os filtros aplicados."
+                                : "Nenhuma categoria encontrada."
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     )}

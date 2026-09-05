@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { useAuth } from "@/contexts/AuthContext";
@@ -69,9 +70,7 @@ export default function MarcasProdutosPage() {
 
         <CrudCard>
           {error && (
-            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              Erro ao carregar marcas de produto.
-            </div>
+            <ErrorMessage message="Erro ao carregar marcas de produto." />
           )}
 
           {isLoading ? (
@@ -110,7 +109,7 @@ export default function MarcasProdutosPage() {
                       </TableRow>
                     ))}
 
-                    {marcas.length === 0 && (
+                    {!error && marcas.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={4}>
                           <CrudEmpty message="Nenhuma marca encontrada." />
