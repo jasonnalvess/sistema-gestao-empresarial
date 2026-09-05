@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { useAuth } from "@/contexts/AuthContext";
@@ -69,9 +70,7 @@ export default function UnidadesMedidaPage() {
 
         <CrudCard>
           {error && (
-            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              Erro ao carregar unidades de medida.
-            </div>
+            <ErrorMessage message="Erro ao carregar unidades de medida." />
           )}
 
           {isLoading ? (
@@ -110,7 +109,7 @@ export default function UnidadesMedidaPage() {
                       </TableRow>
                     ))}
 
-                    {unidades.length === 0 && (
+                    {!error && unidades.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={4}>
                           <CrudEmpty message="Nenhuma unidade de medida encontrada." />
