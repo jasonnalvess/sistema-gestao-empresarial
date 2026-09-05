@@ -247,7 +247,7 @@ export default function AuditoriaPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {logs.length === 0 && <TableRow><TableCell colSpan={8}><CrudEmpty message="Nenhum registro de auditoria encontrado." /></TableCell></TableRow>}
+                    {!query.error && logs.length === 0 && <TableRow><TableCell colSpan={8}><CrudEmpty message="Nenhum registro de auditoria encontrado." /></TableCell></TableRow>}
                   </TableBody>
                 </Table>
               </div>
