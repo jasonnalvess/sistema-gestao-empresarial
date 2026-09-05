@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
@@ -127,7 +128,12 @@ export default function ClientesPage() {
 
           <div className="mb-4 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3">
             <div className="min-w-0">
-              <label htmlFor="clientes-tipo" className="text-sm font-medium text-slate-700">Tipo</label>
+              <label
+                htmlFor="clientes-tipo"
+                className="text-sm font-medium text-slate-700"
+              >
+                Tipo
+              </label>
               <select
                 id="clientes-tipo"
                 value={tipoFiltro}
@@ -144,7 +150,10 @@ export default function ClientesPage() {
             </div>
 
             <div className="min-w-0">
-              <label htmlFor="clientes-status" className="text-sm font-medium text-slate-700">
+              <label
+                htmlFor="clientes-status"
+                className="text-sm font-medium text-slate-700"
+              >
                 Status
               </label>
               <select
@@ -164,9 +173,10 @@ export default function ClientesPage() {
           </div>
 
           {error && (
-            <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              Erro ao carregar clientes.
-            </div>
+            <ErrorMessage
+              className="mt-4"
+              message="Erro ao carregar clientes."
+            />
           )}
 
           {isLoading ? (
@@ -231,10 +241,16 @@ export default function ClientesPage() {
                       </TableRow>
                     ))}
 
-                    {clientes.length === 0 && (
+                    {!error && clientes.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={7}>
-                          <CrudEmpty message="Nenhum cliente encontrado." />
+                          <CrudEmpty
+                            message={
+                              searchAplicado || tipoFiltro || ativoFiltro
+                                ? "Nenhum cliente encontrado para os filtros aplicados."
+                                : "Nenhum cliente encontrado."
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     )}
