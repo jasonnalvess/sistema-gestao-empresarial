@@ -387,7 +387,7 @@ export default function MovimentacoesPage() {
                       );
                     })}
 
-                    {movimentacoes.length === 0 && (
+                    {!error && movimentacoes.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9}>
                           <CrudEmpty message="Nenhuma movimentação encontrada." />

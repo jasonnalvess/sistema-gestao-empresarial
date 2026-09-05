@@ -69,7 +69,7 @@ export default function InventariosPage() {
       {isLoading ? <CrudLoading /> : <>
         <div className="mt-5 min-w-0 max-w-full overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Número</TableHead><TableHead>Status</TableHead><TableHead>Depósito</TableHead><TableHead>Descrição</TableHead><TableHead>Itens</TableHead><TableHead>Abertura</TableHead><TableHead>Conclusão</TableHead><TableHead>Ações</TableHead></TableRow></TableHeader>
         <TableBody>{data?.data.map((item) => <TableRow key={item.id}><TableCell className="font-medium">#{String(item.numero).padStart(5, "0")}</TableCell><TableCell><InventarioStatusBadge status={item.status} /></TableCell><TableCell>{item.deposito.codigo} - {item.deposito.nome}</TableCell><TableCell>{item.descricao || "-"}</TableCell><TableCell>{item._count?.itens ?? "-"}</TableCell><TableCell>{new Date(item.dataAbertura).toLocaleString("pt-BR")}</TableCell><TableCell>{item.dataConclusao ? new Date(item.dataConclusao).toLocaleString("pt-BR") : "-"}</TableCell><TableCell><Button size="sm" variant="outline" asChild><Link href={`/inventarios/${item.id}`}><Eye />Detalhes</Link></Button></TableCell></TableRow>)}
-        {!data?.data.length && <TableRow><TableCell colSpan={8}><CrudEmpty message="Nenhum inventário encontrado." /></TableCell></TableRow>}</TableBody></Table></div>
+        {!error && !data?.data.length && <TableRow><TableCell colSpan={8}><CrudEmpty message="Nenhum inventário encontrado." /></TableCell></TableRow>}</TableBody></Table></div>
         <CrudPagination page={page} totalPages={data?.meta.totalPages ?? 1} onPageChange={setPage} />
       </>}
     </CrudCard>
