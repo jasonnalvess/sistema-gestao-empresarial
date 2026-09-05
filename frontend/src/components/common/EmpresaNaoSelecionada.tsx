@@ -11,7 +11,7 @@ export function EmpresaNaoSelecionada() {
         Selecione uma empresa
       </h1>
       <p className="mt-2 break-words text-sm text-amber-800">
-        Escolha uma empresa no cabeçalho para acessar o módulo Clientes.
+        Escolha uma empresa no cabeçalho para acessar este módulo.
       </p>
     </section>
   );
