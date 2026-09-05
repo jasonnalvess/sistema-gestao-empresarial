@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { NovoProdutoModal } from "@/components/produtos/NovoProdutoModal";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
@@ -196,7 +197,7 @@ export default function ProdutosPage() {
                 setUnidadeMedidaId(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filtrar produtos por status"
+              aria-label="Filtrar produtos por unidade de medida"
               className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todas as unidades</option>
@@ -214,7 +215,7 @@ export default function ProdutosPage() {
                 setAtivo(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filtrar produtos por situação de estoque"
+              aria-label="Filtrar produtos por status"
               className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos os status</option>
@@ -224,9 +225,10 @@ export default function ProdutosPage() {
           </div>
 
           {error && (
-            <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              Erro ao carregar produtos.
-            </div>
+            <ErrorMessage
+              className="mt-4"
+              message="Erro ao carregar produtos."
+            />
           )}
 
           {isLoading ? (
@@ -311,10 +313,20 @@ export default function ProdutosPage() {
                       </TableRow>
                     ))}
 
-                    {produtos.length === 0 && (
+                    {!error && produtos.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={10}>
-                          <CrudEmpty message="Nenhum produto encontrado." />
+                          <CrudEmpty
+                            message={
+                              searchAplicado ||
+                              categoriaId ||
+                              marcaId ||
+                              unidadeMedidaId ||
+                              ativo
+                                ? "Nenhum produto encontrado para os filtros aplicados."
+                                : "Nenhum produto encontrado."
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     )}
