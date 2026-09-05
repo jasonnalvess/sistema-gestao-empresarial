@@ -303,7 +303,7 @@ export default function CaixasPage() {
                       </TableRow>
                     ))}
 
-                    {caixas.length === 0 && (
+                    {!error && caixas.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={6}>
                           <CrudEmpty message="Nenhum caixa encontrado." />
