@@ -142,11 +142,15 @@ export default function FinanceiroPage() {
         <CrudCard>
           <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-end [&>*]:w-full lg:[&>*]:w-auto">
             <div>
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              <label
+                htmlFor="financeiro-vencimento-inicio"
+                className="text-xs font-medium uppercase tracking-wide text-slate-500"
+              >
                 Vencimento inicial
               </label>
 
               <Input
+                id="financeiro-vencimento-inicio"
                 type="date"
                 value={vencimentoInicio}
                 onChange={(event) => setVencimentoInicio(event.target.value)}
@@ -154,11 +158,15 @@ export default function FinanceiroPage() {
             </div>
 
             <div>
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              <label
+                htmlFor="financeiro-vencimento-fim"
+                className="text-xs font-medium uppercase tracking-wide text-slate-500"
+              >
                 Vencimento final
               </label>
 
               <Input
+                id="financeiro-vencimento-fim"
                 type="date"
                 value={vencimentoFim}
                 onChange={(event) => setVencimentoFim(event.target.value)}
