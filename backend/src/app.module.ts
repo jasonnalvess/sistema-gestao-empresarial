@@ -1,3 +1,5 @@
+import { PerfisModule } from './perfis/perfis.module';
+import { PermissoesModule } from './permissoes/permissoes.module';
 import { Module } from '@nestjs/common';
 import { RespostaInterceptor } from './common/interceptors/resposta.interceptor';
 import { ConfigModule } from '@nestjs/config';
@@ -40,6 +42,8 @@ import { VendasModule } from './vendas/vendas.module';
       isGlobal: true,
     }),
     PrismaModule,
+    PerfisModule,
+    PermissoesModule,
     EmpresasModule,
     UsuariosModule,
     AuthModule,
