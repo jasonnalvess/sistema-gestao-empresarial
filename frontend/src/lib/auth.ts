@@ -6,6 +6,14 @@ export const PERMISSAO_AUDITORIA_EMPRESA_VISUALIZAR =
   "auditoria.empresa.visualizar";
 export const PERMISSAO_DASHBOARD_VISUALIZAR = "dashboard.visualizar";
 
+export const PERMISSAO_PERFIS_VISUALIZAR = "perfis.visualizar";
+export const PERMISSAO_PERFIS_CRIAR = "perfis.criar";
+export const PERMISSAO_PERFIS_EDITAR = "perfis.editar";
+export const PERMISSAO_PERFIS_ATIVAR = "perfis.ativar";
+export const PERMISSAO_PERFIS_INATIVAR = "perfis.inativar";
+export const PERMISSAO_PERFIS_PERMISSOES_GERENCIAR =
+  "perfis.permissoes.gerenciar";
+
 export const PERMISSAO_VENDAS_VISUALIZAR = "vendas.visualizar";
 export const PERMISSAO_VENDAS_CRIAR = "vendas.criar";
 export const PERMISSAO_VENDAS_EDITAR = "vendas.editar";

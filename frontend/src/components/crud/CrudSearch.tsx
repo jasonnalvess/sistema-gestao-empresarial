@@ -12,9 +12,13 @@ type Props = {
 
 export function CrudSearch({ value, onChange, onSearch, placeholder }: Props) {
   return (
-    <div
+    <form
       className="flex w-full min-w-0 flex-col gap-3 md:flex-row"
       role="search"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSearch();
+      }}
     >
       <Input
         aria-label={placeholder ?? "Pesquisar"}
@@ -23,10 +27,10 @@ export function CrudSearch({ value, onChange, onSearch, placeholder }: Props) {
         placeholder={placeholder}
       />
 
-      <Button type="button" onClick={onSearch} className="w-full md:w-auto">
+      <Button type="submit" className="w-full md:w-auto">
         <Search aria-hidden="true" />
         Pesquisar
       </Button>
-    </div>
+    </form>
   );
 }
