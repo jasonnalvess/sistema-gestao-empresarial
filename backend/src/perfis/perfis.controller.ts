@@ -1,4 +1,8 @@
 import {
+  Body,
+  Post,
+  Patch,
+  Put,
   Controller,
   Get,
   Param,
@@ -15,6 +19,11 @@ import { EmpresaAtual } from '../common/decorators/empresa-atual.decorator';
 import { EmpresaContextoGuard } from '../common/guards/empresa-contexto.guard';
 import type { EmpresaContexto } from '../common/types/empresa-contexto.type';
 import { PerfisService } from './perfis.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { CriarPerfilDto } from './dto/criar-perfil.dto';
+import { EditarPerfilDto } from './dto/editar-perfil.dto';
+import { ConfigurarPermissoesDto } from './dto/configurar-permissoes.dto';
 import { FiltroPerfisDto } from './dto/filtro-perfis.dto';
 
 @Controller('perfis')
@@ -53,5 +62,72 @@ export class PerfisController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.service.buscar(empresa.empresaId, id);
+  }
+
+  @Post()
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('perfis.criar')
+  @UseGuards(EmpresaContextoGuard)
+  criar(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @CurrentUser() ator: AuthenticatedUser,
+    @Body() dados: CriarPerfilDto,
+  ) {
+    return this.service.criar(empresa.empresaId, ator, dados);
+  }
+
+  @Patch(':id')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('perfis.editar')
+  @UseGuards(EmpresaContextoGuard)
+  editar(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @CurrentUser() ator: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dados: EditarPerfilDto,
+  ) {
+    return this.service.editar(empresa.empresaId, ator, id, dados);
+  }
+
+  @Patch(':id/ativar')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('perfis.ativar')
+  @UseGuards(EmpresaContextoGuard)
+  ativar(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @CurrentUser() ator: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.alterarAtivo(empresa.empresaId, ator, id, true);
+  }
+
+  @Patch(':id/inativar')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('perfis.inativar')
+  @UseGuards(EmpresaContextoGuard)
+  inativar(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @CurrentUser() ator: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.alterarAtivo(empresa.empresaId, ator, id, false);
+  }
+
+  @Put(':id/permissoes')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('perfis.permissoes.gerenciar')
+  @UseGuards(EmpresaContextoGuard)
+  configurarPermissoes(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @CurrentUser() ator: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dados: ConfigurarPermissoesDto,
+  ) {
+    return this.service.configurarPermissoes(
+      empresa.empresaId,
+      ator,
+      id,
+      dados,
+    );
   }
 }
