@@ -21,6 +21,7 @@ import {
   BadgeDollarSign,
   Landmark,
   ReceiptText,
+  ShieldCheck,
 } from "lucide-react";
 
 export const menu = [
@@ -123,6 +124,11 @@ export const menu = [
     titulo: "Usuários",
     href: "/usuarios",
     icon: Users,
+  },
+  {
+    titulo: "Perfis e Permissões",
+    href: "/perfis",
+    icon: ShieldCheck,
   },
   {
     titulo: "Módulos",

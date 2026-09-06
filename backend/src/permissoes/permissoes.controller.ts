@@ -1,4 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { Permissoes } from '../auth/decorators/permissions.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -13,6 +15,11 @@ import { FiltroPermissoesDto } from './dto/filtro-permissoes.dto';
 @Permissoes('perfis.visualizar')
 export class PermissoesController {
   constructor(private readonly service: PermissoesService) {}
+
+  @Get('delegaveis')
+  listarDelegaveis(@CurrentUser() ator: AuthenticatedUser) {
+    return this.service.listarDelegaveis(ator);
+  }
 
   @Get()
   listar(@Query() filtros: FiltroPermissoesDto) {
