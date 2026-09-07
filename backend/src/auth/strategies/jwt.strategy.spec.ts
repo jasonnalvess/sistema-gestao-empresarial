@@ -41,6 +41,7 @@ describe('JwtStrategy', () => {
       where: { id: payload.id },
       select: {
         ativo: true,
+        trocaSenhaObrigatoria: true,
         versaoAutorizacao: true,
         tipo: true,
         empresaId: true,

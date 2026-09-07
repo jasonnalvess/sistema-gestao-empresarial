@@ -44,6 +44,7 @@ export class AuthService {
     ].sort();
 
     const payload = {
+      trocaSenhaObrigatoria: usuario.trocaSenhaObrigatoria,
       versaoAutorizacao: usuario.versaoAutorizacao,
       id: usuario.id,
       email: usuario.email,
@@ -59,6 +60,7 @@ export class AuthService {
       access_token: accessToken,
       usuario: {
         id: usuario.id,
+        trocaSenhaObrigatoria: usuario.trocaSenhaObrigatoria,
         nome: usuario.nome,
         email: usuario.email,
         tipo: usuario.tipo,

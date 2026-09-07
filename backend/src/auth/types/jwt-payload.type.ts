@@ -4,6 +4,7 @@ export type JwtPayload = {
   tipo: string;
   empresaId: string | null;
   versaoAutorizacao?: number;
+  trocaSenhaObrigatoria?: boolean;
   perfis?: string[];
   permissoes?: string[];
   iat?: number;

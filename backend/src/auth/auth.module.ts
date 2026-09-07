@@ -1,3 +1,4 @@
+import { TrocaSenhaService } from './troca-senha.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -28,6 +29,6 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, TrocaSenhaService],
 })
 export class AuthModule {}

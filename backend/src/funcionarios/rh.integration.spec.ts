@@ -1,3 +1,4 @@
+import * as bcrypt from 'bcrypt';
 import {
   ExecutionContext,
   INestApplication,
@@ -817,13 +818,10 @@ describeBanco('RH V3.4.3 — HTTP e integridade em PostgreSQL real', () => {
       }),
     ).toBe(0);
   });
-  it('não disponibiliza comandos de ciclo de vida ou acesso', async () => {
+  it('não disponibiliza exclusão nem comandos implícitos de desligamento/histórico', async () => {
     await request(server).delete(`/funcionarios/${funcionarioId}`).expect(404);
     await request(server)
       .patch(`/funcionarios/${funcionarioId}/desligar`)
-      .expect(404);
-    await request(server)
-      .post(`/funcionarios/${funcionarioId}/acesso`)
       .expect(404);
     await request(server)
       .post(`/funcionarios/${funcionarioId}/historico`)
@@ -1201,5 +1199,369 @@ describeBanco('RH V3.4.3 — HTTP e integridade em PostgreSQL real', () => {
         ).toMatchObject({ status, versaoRegistro: 0 });
       },
     );
+  });
+  describe('V3.4.5 — acesso explícito', () => {
+    let perfilAcessoId: string;
+    beforeEach(async () => {
+      await tx.usuario.update({
+        where: { id: usuarioId },
+        data: { tipo: 'ADMIN_EMPRESA' },
+      });
+      ator.tipo = 'ADMIN_EMPRESA';
+      const permissao = await tx.permissao.findUniqueOrThrow({
+        where: { chave: 'funcionarios.visualizar' },
+      });
+      perfilAcessoId = (
+        await tx.perfil.create({
+          data: {
+            empresaId,
+            chave: randomUUID(),
+            nome: 'Acesso fixture',
+            escopo: 'EMPRESA',
+            sistema: false,
+            permissoes: { create: { permissaoId: permissao.id } },
+          },
+        })
+      ).id;
+    });
+    const criar = (extra: object = {}, id = funcionarioId) =>
+      request(server)
+        .post(`/funcionarios/${id}/acesso`)
+        .send({
+          versaoRegistro: 0,
+          email: randomUUID() + '@example.invalid',
+          senhaInicial: 'Senha-fixture-123',
+          perfilId: perfilAcessoId,
+          ...extra,
+        });
+    const vincular = (id: string, versaoRegistro = 0) =>
+      request(server)
+        .post(`/funcionarios/${funcionarioId}/acesso/vincular`)
+        .send({ usuarioId: id, versaoRegistro });
+    const desvincular = (versaoRegistro = 1) =>
+      request(server)
+        .post(`/funcionarios/${funcionarioId}/acesso/desvincular`)
+        .send({ versaoRegistro });
+    const usuario = (extra: object = {}) =>
+      tx.usuario.create({
+        data: {
+          empresaId,
+          nome: 'Existente',
+          email: randomUUID() + '@example.invalid',
+          senha: 'hash-fixture',
+          tipo: 'USUARIO_EMPRESA',
+          ...extra,
+        },
+      });
+    const historico = () =>
+      tx.funcionarioHistorico.findMany({ where: { empresaId, funcionarioId } });
+    it('cria identidade restrita, perfil, vínculo e histórico sem expor credenciais', async () => {
+      const resposta = await criar().expect(201);
+      expect(detalhe(resposta).data).toMatchObject({
+        versaoRegistro: 1,
+        estadoAcesso: 'USUARIO_ATIVO',
+      });
+      const f = await tx.funcionario.findUniqueOrThrow({
+        where: { id: funcionarioId },
+      });
+      const u = await tx.usuario.findUniqueOrThrow({
+        where: { id: f.usuarioId! },
+        include: { perfis: true },
+      });
+      expect(u).toMatchObject({
+        nome: f.nome,
+        tipo: 'USUARIO_EMPRESA',
+        empresaId,
+        ativo: true,
+        trocaSenhaObrigatoria: true,
+      });
+      expect(await bcrypt.compare('Senha-fixture-123', u.senha)).toBe(true);
+      expect(u.perfis).toEqual([
+        expect.objectContaining({ perfilId: perfilAcessoId, ativo: true }),
+      ]);
+      expect(await historico()).toEqual([
+        expect.objectContaining({
+          tipo: 'CRIACAO_ACESSO',
+          acessoAnterior: 'SEM_USUARIO',
+          acessoNovo: 'USUARIO_ATIVO',
+          origem: 'RH',
+          atorUsuarioId: usuarioId,
+          usuarioAfetadoId: u.id,
+        }),
+      ]);
+      const logs = await tx.auditoriaLog.findMany({
+        where: { empresaId, entidadeId: funcionarioId },
+      });
+      expect(logs).toHaveLength(1);
+      expect(
+        JSON.stringify([resposta.body, logs, await historico()]),
+      ).not.toMatch(/Senha-fixture|\$2[aby]\$|senhaInicial/);
+      await criar({ versaoRegistro: 1 }).expect(409);
+    });
+    it('SUPER_ADMIN cria acesso na empresa explicitamente selecionada', async () => {
+      ator.tipo = 'SUPER_ADMIN';
+      ator.empresaId = null;
+      await tx.usuario.update({
+        where: { id: usuarioId },
+        data: { tipo: 'SUPER_ADMIN', empresaId: null },
+      });
+      await tx.perfil.update({
+        where: { id: perfilId },
+        data: { empresaId: null, escopo: 'SISTEMA' },
+      });
+      await criar().set('x-empresa-id', empresaId).expect(201);
+      const f = await tx.funcionario.findUniqueOrThrow({
+        where: { id: funcionarioId },
+        include: { usuario: true },
+      });
+      expect(f.usuario).toMatchObject({ empresaId, tipo: 'USUARIO_EMPRESA' });
+    });
+    it.each(['historico', 'auditoria'])(
+      'falha em %s reverte identidade, perfil e vínculo da criação',
+      async (alvo) => {
+        const antes = await tx.usuario.count({ where: { empresaId } });
+        const perfisAntes = await tx.usuarioPerfil.count({
+          where: { perfilId: perfilAcessoId },
+        });
+        const spy =
+          alvo === 'historico'
+            ? jest.spyOn(tx.funcionarioHistorico, 'createMany')
+            : jest.spyOn(tx.auditoriaLog, 'create');
+        spy.mockRejectedValueOnce(
+          new Error('Falha simulada na criação de acesso'),
+        );
+        try {
+          await criar().expect(500);
+        } finally {
+          spy.mockRestore();
+        }
+        expect(await tx.usuario.count({ where: { empresaId } })).toBe(antes);
+        expect(
+          await tx.usuarioPerfil.count({
+            where: { perfilId: perfilAcessoId },
+          }),
+        ).toBe(perfisAntes);
+        expect(
+          await tx.funcionario.findUniqueOrThrow({
+            where: { id: funcionarioId },
+          }),
+        ).toMatchObject({ usuarioId: null, versaoRegistro: 0 });
+        expect(await historico()).toHaveLength(0);
+        expect(
+          await tx.auditoriaLog.count({
+            where: { empresaId, entidadeId: funcionarioId },
+          }),
+        ).toBe(0);
+      },
+    );
+    it('exige permissão no JWT e no banco', async () => {
+      ator.permissoes = ['funcionarios.criar'];
+      await criar().expect(403);
+      ator.permissoes = [...permissoes];
+      await tx.perfilPermissao.updateMany({
+        where: {
+          perfilId,
+          permissao: { chave: 'funcionarios.acesso.gerenciar' },
+        },
+        data: { permitido: false },
+      });
+      await criar().expect(403);
+      expect(await historico()).toHaveLength(0);
+    });
+    it('rejeita empresa externa, versão stale e e-mail duplicado sem commit parcial', async () => {
+      await criar({}, externoId).expect(404);
+      await criar({ versaoRegistro: 9 }).expect(409);
+      const existente = await usuario();
+      await criar({ email: existente.email }).expect(409);
+      expect(await historico()).toHaveLength(0);
+      expect(
+        (
+          await tx.funcionario.findUniqueOrThrow({
+            where: { id: funcionarioId },
+          })
+        ).usuarioId,
+      ).toBeNull();
+    });
+    it.each(['inexistente', 'inativo', 'externo', 'global'])(
+      'bloqueia perfil %s',
+      async (caso) => {
+        let id = perfilAcessoId;
+        if (caso === 'inexistente') id = randomUUID();
+        if (caso === 'inativo')
+          await tx.perfil.update({ where: { id }, data: { ativo: false } });
+        if (caso === 'externo')
+          await tx.perfil.update({
+            where: { id },
+            data: { empresaId: outraEmpresaId },
+          });
+        if (caso === 'global')
+          await tx.perfil.update({
+            where: { id },
+            data: { empresaId: null, escopo: 'SISTEMA' },
+          });
+        await criar({ perfilId: id }).expect(400);
+      },
+    );
+    it.each([true, false])(
+      'não delega permissão administrativa mesmo permitido=%s',
+      async (permitido) => {
+        const p = await tx.permissao.findUniqueOrThrow({
+          where: { chave: 'funcionarios.acesso.gerenciar' },
+        });
+        await tx.perfilPermissao.create({
+          data: { perfilId: perfilAcessoId, permissaoId: p.id, permitido },
+        });
+        await criar().expect(403);
+      },
+    );
+    it('não delega permissão que o administrador não possui no banco', async () => {
+      await tx.perfilPermissao.updateMany({
+        where: { perfilId, permissao: { chave: 'funcionarios.visualizar' } },
+        data: { permitido: false },
+      });
+      await criar().expect(403);
+    });
+    it.each([true, false])(
+      'vincula e desvincula conta ativa=%s preservando identidade/perfis',
+      async (ativo) => {
+        const u = await usuario({ ativo });
+        await tx.usuarioPerfil.create({
+          data: { usuarioId: u.id, perfilId: perfilAcessoId },
+        });
+        await vincular(u.id).expect(201);
+        expect(await historico()).toEqual([
+          expect.objectContaining({
+            tipo: 'VINCULO_ACESSO',
+            origem: 'RH',
+            acessoAnterior: 'SEM_USUARIO',
+            acessoNovo: ativo ? 'USUARIO_ATIVO' : 'USUARIO_INATIVO',
+            atorUsuarioId: usuarioId,
+            usuarioAfetadoId: u.id,
+            operacaoId: expect.any(String) as string,
+          }),
+        ]);
+        expect(
+          await tx.usuario.findUniqueOrThrow({ where: { id: u.id } }),
+        ).toEqual(u);
+        await desvincular().expect(201);
+        expect(
+          await tx.usuario.findUniqueOrThrow({ where: { id: u.id } }),
+        ).toMatchObject({
+          ativo: false,
+          versaoAutorizacao: ativo ? 1 : 0,
+          senha: u.senha,
+          nome: u.nome,
+        });
+        expect(
+          await tx.usuarioPerfil.count({
+            where: { usuarioId: u.id, perfilId: perfilAcessoId },
+          }),
+        ).toBe(1);
+        expect(
+          await tx.funcionario.findUniqueOrThrow({
+            where: { id: funcionarioId },
+          }),
+        ).toMatchObject({
+          usuarioId: null,
+          versaoRegistro: 2,
+          status: 'ATIVO',
+        });
+        const eventos = (await historico()).filter(
+          (h) => h.tipo !== 'VINCULO_ACESSO',
+        );
+        expect(eventos).toHaveLength(ativo ? 2 : 1);
+        expect(new Set(eventos.map((h) => h.operacaoId)).size).toBe(1);
+        expect(eventos).toContainEqual(
+          expect.objectContaining({
+            tipo: 'DESVINCULO_ACESSO',
+            acessoAnterior: 'USUARIO_INATIVO',
+            acessoNovo: 'SEM_USUARIO',
+            usuarioAfetadoId: u.id,
+          }),
+        );
+        if (ativo)
+          expect(eventos).toContainEqual(
+            expect.objectContaining({
+              tipo: 'INATIVACAO_ACESSO',
+              acessoAnterior: 'USUARIO_ATIVO',
+              acessoNovo: 'USUARIO_INATIVO',
+            }),
+          );
+      },
+    );
+    it.each(['ADMIN_EMPRESA', 'SUPER_ADMIN', 'externo', 'vinculado'])(
+      'bloqueia associação de usuário %s',
+      async (caso) => {
+        const u = await usuario(
+          caso === 'externo'
+            ? { empresaId: outraEmpresaId }
+            : caso === 'ADMIN_EMPRESA'
+              ? { tipo: 'ADMIN_EMPRESA' }
+              : caso === 'SUPER_ADMIN'
+                ? { tipo: 'SUPER_ADMIN', empresaId: null }
+                : {},
+        );
+        if (caso === 'vinculado')
+          await funcionario(empresaId, { usuarioId: u.id });
+        await vincular(u.id).expect(caso === 'vinculado' ? 409 : 400);
+      },
+    );
+    it('edição de usuário não promove conta associada a ADMIN_EMPRESA', async () => {
+      const u = await usuario();
+      await vincular(u.id).expect(201);
+      await expect(
+        new UsuariosService(adapter).atualizar(
+          u.id,
+          { tipo: 'ADMIN_EMPRESA' },
+          ator,
+        ),
+      ).rejects.toThrow('deve permanecer USUARIO_EMPRESA');
+      expect(
+        (await tx.usuario.findUniqueOrThrow({ where: { id: u.id } })).tipo,
+      ).toBe('USUARIO_EMPRESA');
+    });
+    it.each(['FERIAS', 'AFASTADO', 'LICENCA'] as const)(
+      'permite criar acesso em %s sem alterar status',
+      async (status) => {
+        await tx.funcionario.update({
+          where: { id: funcionarioId },
+          data: { status },
+        });
+        await criar().expect(201);
+        expect(
+          (
+            await tx.funcionario.findUniqueOrThrow({
+              where: { id: funcionarioId },
+            })
+          ).status,
+        ).toBe(status);
+      },
+    );
+    it.each(['INATIVO', 'DESLIGADO'] as const)(
+      '%s rejeita acesso ativo mas aceita vínculo inativo',
+      async (status) => {
+        await tx.funcionario.update({
+          where: { id: funcionarioId },
+          data: {
+            status,
+            dataDesligamento: status === 'DESLIGADO' ? new Date() : null,
+          },
+        });
+        await criar().expect(409);
+        await vincular((await usuario()).id).expect(409);
+        await vincular((await usuario({ ativo: false })).id).expect(201);
+      },
+    );
+    it.each([
+      { empresaId: 'extra' },
+      { tipo: 'ADMIN_EMPRESA' },
+      { ativo: true },
+      { trocaSenhaObrigatoria: false },
+      { senhaInicial: '123' },
+      { perfilId: 'invalido' },
+      { email: 'invalido' },
+    ])('DTO rejeita %j', async (extra) => {
+      await criar(extra).expect(400);
+    });
   });
 });

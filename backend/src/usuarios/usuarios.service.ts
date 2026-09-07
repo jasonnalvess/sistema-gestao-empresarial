@@ -164,6 +164,76 @@ export class UsuariosService {
       );
     }
 
+    if (dados.tipo !== undefined) {
+      for (let tentativa = 0; tentativa < 3; tentativa++) {
+        try {
+          return await this.prisma.$transaction(
+            async (tx) => {
+              await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${usuarioLogado.id} FOR UPDATE`;
+              const empresaId = usuarioAtual.empresaId;
+              const vinculo = empresaId
+                ? await tx.funcionario.findFirst({
+                    where: { empresaId, usuarioId: id },
+                    select: { id: true },
+                  })
+                : null;
+              if (vinculo)
+                await tx.$queryRaw`SELECT "id" FROM "Funcionario" WHERE "id" = ${vinculo.id} AND "empresaId" = ${empresaId} FOR UPDATE`;
+              await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${id} AND "empresaId" IS NOT DISTINCT FROM ${empresaId} FOR UPDATE`;
+              const atual = await tx.usuario.findFirst({
+                where: { id, empresaId },
+                select: this.selectSeguro,
+              });
+              if (
+                !atual ||
+                (usuarioLogado.tipo === 'ADMIN_EMPRESA' &&
+                  atual.tipo === 'SUPER_ADMIN')
+              )
+                throw new ConflictException(
+                  'Usuário alterado durante a operação.',
+                );
+              const associado = empresaId
+                ? await tx.funcionario.findFirst({
+                    where: { empresaId, usuarioId: id },
+                    select: { id: true },
+                  })
+                : null;
+              if (associado && dados.tipo !== 'USUARIO_EMPRESA')
+                throw new ConflictException(
+                  'Usuário associado a funcionário deve permanecer USUARIO_EMPRESA.',
+                );
+              return tx.usuario.update({
+                where: { id },
+                data: {
+                  nome: dados.nome,
+                  email: dados.email,
+                  tipo: dados.tipo,
+                  ...(dados.tipo !== atual.tipo
+                    ? { versaoAutorizacao: { increment: 1 } }
+                    : {}),
+                },
+                select: this.selectSeguro,
+              });
+            },
+            { isolationLevel: 'Serializable' },
+          );
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            (error.code === 'P2034' ||
+              (error.code === 'P2010' &&
+                ['40001', '40P01'].includes(String(error.meta?.code))))
+          ) {
+            if (tentativa < 2) continue;
+            throw new ConflictException(
+              'Alteração concorrente. Tente novamente.',
+            );
+          }
+          throw error;
+        }
+      }
+      throw new ConflictException('Alteração concorrente. Tente novamente.');
+    }
     return this.prisma.usuario.update({
       where: { id },
       data: {
@@ -192,6 +262,15 @@ export class UsuariosService {
     ativo: boolean,
   ) {
     const alvoInicial = await this.validarUsuarioGerenciavel(id, ator);
+    // Mantém a decisão inicial entre retries: uma desvinculação concorrente
+    // não transforma esta ativação em ativação de uma conta independente.
+    const vinculoInicial =
+      ativo && alvoInicial.empresaId
+        ? await this.prisma.funcionario.findFirst({
+            where: { empresaId: alvoInicial.empresaId, usuarioId: id },
+            select: { id: true },
+          })
+        : null;
     for (let tentativa = 0; tentativa < 3; tentativa++) {
       try {
         return await this.prisma.$transaction(
@@ -250,6 +329,10 @@ export class UsuariosService {
                   select: { id: true },
                 })
               : null;
+            if (ativo && vinculo?.id !== vinculoInicial?.id)
+              throw new ConflictException(
+                'Vínculo alterado durante a operação. Tente novamente.',
+              );
             if (vinculo)
               await tx.$queryRaw`SELECT "id" FROM "Funcionario" WHERE "id" = ${vinculo.id} AND "empresaId" = ${empresaId} FOR UPDATE`;
             await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${id} AND "empresaId" IS NOT DISTINCT FROM ${empresaId} FOR UPDATE`;
@@ -365,6 +448,7 @@ export class UsuariosService {
         nome: true,
         email: true,
         senha: true,
+        trocaSenhaObrigatoria: true,
         versaoAutorizacao: true,
         tipo: true,
         ativo: true,

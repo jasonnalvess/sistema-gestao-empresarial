@@ -34,6 +34,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         where: { id: payload.id },
         select: {
           ativo: true,
+          trocaSenhaObrigatoria: true,
           versaoAutorizacao: true,
           tipo: true,
           empresaId: true,
@@ -54,6 +55,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Sessão inválida. Faça login novamente.');
     }
     return {
+      trocaSenhaObrigatoria: usuario.trocaSenhaObrigatoria,
       versaoAutorizacao: payload.versaoAutorizacao,
       id: payload.id,
       email: payload.email,

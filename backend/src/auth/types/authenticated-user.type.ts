@@ -4,6 +4,7 @@ export type AuthenticatedUser = {
   tipo: string;
   empresaId: string | null;
   versaoAutorizacao?: number;
+  trocaSenhaObrigatoria?: boolean;
   perfis?: string[];
   permissoes?: string[];
 };

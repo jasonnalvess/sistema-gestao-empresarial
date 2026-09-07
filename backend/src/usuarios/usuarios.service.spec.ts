@@ -396,6 +396,7 @@ describe('UsuariosService', () => {
         nome: true,
         email: true,
         senha: true,
+        trocaSenhaObrigatoria: true,
         versaoAutorizacao: true,
         tipo: true,
         ativo: true,

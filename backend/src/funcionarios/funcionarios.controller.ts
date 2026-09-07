@@ -1,3 +1,8 @@
+import {
+  CriarAcessoFuncionarioDto,
+  VincularAcessoFuncionarioDto,
+  VersaoAcessoFuncionarioDto,
+} from './dto/acesso-funcionario.dto';
 import { AlterarSituacaoFuncionarioDto } from './dto/alterar-situacao.dto';
 import {
   Body,
@@ -77,6 +82,39 @@ export class FuncionariosController {
     @Body() dados: AlterarSituacaoFuncionarioDto,
   ) {
     return this.service.alterarSituacao(empresa.empresaId, ator, id, dados);
+  }
+  @Post(':id/acesso')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('funcionarios.acesso.gerenciar')
+  criarAcesso(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @CurrentUser() ator: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dados: CriarAcessoFuncionarioDto,
+  ) {
+    return this.service.criarAcesso(empresa.empresaId, ator, id, dados);
+  }
+  @Post(':id/acesso/vincular')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('funcionarios.acesso.gerenciar')
+  vincularAcesso(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @CurrentUser() ator: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dados: VincularAcessoFuncionarioDto,
+  ) {
+    return this.service.vincularAcesso(empresa.empresaId, ator, id, dados);
+  }
+  @Post(':id/acesso/desvincular')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('funcionarios.acesso.gerenciar')
+  desvincularAcesso(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @CurrentUser() ator: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dados: VersaoAcessoFuncionarioDto,
+  ) {
+    return this.service.desvincularAcesso(empresa.empresaId, ator, id, dados);
   }
   @Get(':id/dados-pessoais')
   @Permissoes(

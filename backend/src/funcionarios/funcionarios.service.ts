@@ -1,3 +1,11 @@
+import * as bcrypt from 'bcrypt';
+import { EstadoAcessoFuncionario, StatusFuncionario } from '@prisma/client';
+import { PERMISSOES_EMPRESARIAIS_DELEGAVEIS } from '../perfis/permissoes-delegaveis';
+import {
+  CriarAcessoFuncionarioDto,
+  VincularAcessoFuncionarioDto,
+  VersaoAcessoFuncionarioDto,
+} from './dto/acesso-funcionario.dto';
 import { AlterarSituacaoFuncionarioDto } from './dto/alterar-situacao.dto';
 import { planejarSituacao } from './situacao-funcionario';
 import {
@@ -280,6 +288,328 @@ export class FuncionariosService {
     );
   }
 
+  criarAcesso(
+    empresaId: string,
+    ator: AuthenticatedUser,
+    id: string,
+    dados: CriarAcessoFuncionarioDto,
+  ) {
+    return this.escrever(
+      empresaId,
+      ator,
+      ['funcionarios.acesso.gerenciar'],
+      async (tx, permissoesAtuais) => {
+        this.validarAtorAcesso(ator);
+        const funcionario = await this.funcionarioParaAcesso(
+          tx,
+          empresaId,
+          id,
+          dados.versaoRegistro,
+        );
+        if (funcionario.usuarioId)
+          throw new ConflictException(
+            'Funcionário já possui acesso associado.',
+          );
+        this.validarStatusAcesso(funcionario.status, true);
+        await tx.$queryRaw`SELECT "id" FROM "Perfil" WHERE "id" = ${dados.perfilId} AND "empresaId" = ${empresaId} FOR UPDATE`;
+        const perfil = await tx.perfil.findFirst({
+          where: {
+            id: dados.perfilId,
+            empresaId,
+            escopo: 'EMPRESA',
+            ativo: true,
+          },
+          select: {
+            id: true,
+            permissoes: {
+              select: {
+                permitido: true,
+                permissao: { select: { chave: true, ativo: true } },
+              },
+            },
+          },
+        });
+        if (!perfil)
+          throw new BadRequestException(
+            'Perfil indisponível para este acesso.',
+          );
+        // O limite considera todas as associações, inclusive permitido=false,
+        // conforme a semântica de delegação de PerfisService.
+        for (const item of perfil.permissoes) {
+          const chave = item.permissao.chave;
+          if (
+            !PERMISSOES_EMPRESARIAIS_DELEGAVEIS.includes(chave) ||
+            (ator.tipo === 'ADMIN_EMPRESA' &&
+              (!ator.permissoes?.includes(chave) ||
+                !permissoesAtuais.has(chave)))
+          )
+            throw new ForbiddenException(
+              'Permissão fora do limite de delegação.',
+            );
+        }
+        const email = dados.email.trim().toLowerCase();
+        if (
+          await tx.usuario.findUnique({
+            where: { email },
+            select: { id: true },
+          })
+        )
+          throw new ConflictException('Não foi possível utilizar este e-mail.');
+        const senha = await bcrypt.hash(dados.senhaInicial, 10);
+        const usuario = await tx.usuario.create({
+          data: {
+            nome: funcionario.nome,
+            email,
+            senha,
+            empresaId,
+            tipo: 'USUARIO_EMPRESA',
+            ativo: true,
+            trocaSenhaObrigatoria: true,
+            perfis: { create: { perfilId: perfil.id, ativo: true } },
+          },
+          select: { id: true },
+        });
+        const depois = await tx.funcionario.update({
+          where: { id, empresaId, versaoRegistro: dados.versaoRegistro },
+          data: { usuarioId: usuario.id, versaoRegistro: { increment: 1 } },
+          select: operacionalSelect,
+        });
+        await this.registrarAcesso(
+          tx,
+          empresaId,
+          ator.id,
+          id,
+          usuario.id,
+          randomUUID(),
+          [
+            {
+              tipo: 'CRIACAO_ACESSO',
+              acessoAnterior: 'SEM_USUARIO',
+              acessoNovo: 'USUARIO_ATIVO',
+            },
+          ],
+        );
+        return apresentarFuncionario(depois);
+      },
+    );
+  }
+
+  vincularAcesso(
+    empresaId: string,
+    ator: AuthenticatedUser,
+    id: string,
+    dados: VincularAcessoFuncionarioDto,
+  ) {
+    return this.escrever(
+      empresaId,
+      ator,
+      ['funcionarios.acesso.gerenciar'],
+      async (tx) => {
+        this.validarAtorAcesso(ator);
+        const funcionario = await this.funcionarioParaAcesso(
+          tx,
+          empresaId,
+          id,
+          dados.versaoRegistro,
+        );
+        if (funcionario.usuarioId)
+          throw new ConflictException(
+            'Funcionário já possui acesso associado.',
+          );
+        const usuario = await this.usuarioParaAcesso(
+          tx,
+          empresaId,
+          dados.usuarioId,
+        );
+        this.validarStatusAcesso(funcionario.status, usuario.ativo);
+        if (
+          await tx.funcionario.findFirst({
+            where: { empresaId, usuarioId: dados.usuarioId },
+            select: { id: true },
+          })
+        )
+          throw new ConflictException('Usuário já associado a um funcionário.');
+        const depois = await tx.funcionario.update({
+          where: { id, empresaId, versaoRegistro: dados.versaoRegistro },
+          data: {
+            usuarioId: dados.usuarioId,
+            versaoRegistro: { increment: 1 },
+          },
+          select: operacionalSelect,
+        });
+        await this.registrarAcesso(
+          tx,
+          empresaId,
+          ator.id,
+          id,
+          dados.usuarioId,
+          randomUUID(),
+          [
+            {
+              tipo: 'VINCULO_ACESSO',
+              acessoAnterior: 'SEM_USUARIO',
+              acessoNovo: usuario.ativo ? 'USUARIO_ATIVO' : 'USUARIO_INATIVO',
+            },
+          ],
+        );
+        return apresentarFuncionario(depois);
+      },
+    );
+  }
+
+  desvincularAcesso(
+    empresaId: string,
+    ator: AuthenticatedUser,
+    id: string,
+    dados: VersaoAcessoFuncionarioDto,
+  ) {
+    return this.escrever(
+      empresaId,
+      ator,
+      ['funcionarios.acesso.gerenciar'],
+      async (tx) => {
+        this.validarAtorAcesso(ator);
+        const funcionario = await this.funcionarioParaAcesso(
+          tx,
+          empresaId,
+          id,
+          dados.versaoRegistro,
+        );
+        if (!funcionario.usuarioId)
+          throw new ConflictException(
+            'Funcionário não possui acesso associado.',
+          );
+        const usuario = await this.usuarioParaAcesso(
+          tx,
+          empresaId,
+          funcionario.usuarioId,
+        );
+        if (usuario.ativo)
+          await tx.usuario.update({
+            where: { id: funcionario.usuarioId, empresaId },
+            data: { ativo: false, versaoAutorizacao: { increment: 1 } },
+            select: { id: true },
+          });
+        const depois = await tx.funcionario.update({
+          where: { id, empresaId, versaoRegistro: dados.versaoRegistro },
+          data: { usuarioId: null, versaoRegistro: { increment: 1 } },
+          select: operacionalSelect,
+        });
+        await this.registrarAcesso(
+          tx,
+          empresaId,
+          ator.id,
+          id,
+          funcionario.usuarioId,
+          randomUUID(),
+          [
+            ...(usuario.ativo
+              ? [
+                  {
+                    tipo: 'INATIVACAO_ACESSO' as const,
+                    acessoAnterior: 'USUARIO_ATIVO' as const,
+                    acessoNovo: 'USUARIO_INATIVO' as const,
+                  },
+                ]
+              : []),
+            {
+              tipo: 'DESVINCULO_ACESSO',
+              acessoAnterior: 'USUARIO_INATIVO',
+              acessoNovo: 'SEM_USUARIO',
+            },
+          ],
+        );
+        return apresentarFuncionario(depois);
+      },
+    );
+  }
+
+  private validarAtorAcesso(ator: AuthenticatedUser) {
+    if (!['SUPER_ADMIN', 'ADMIN_EMPRESA'].includes(ator.tipo))
+      throw new ForbiddenException('Gestão de acesso exige um administrador.');
+  }
+  private validarStatusAcesso(status: StatusFuncionario, ativo: boolean) {
+    if (ativo && ['INATIVO', 'DESLIGADO'].includes(status))
+      throw new ConflictException(
+        'Funcionário inativo ou desligado não pode receber acesso ativo.',
+      );
+  }
+  private async funcionarioParaAcesso(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    id: string,
+    versao: number,
+  ) {
+    await this.bloquear(tx, empresaId, id);
+    const funcionario = await tx.funcionario.findFirst({
+      where: { id, empresaId },
+      select: {
+        id: true,
+        nome: true,
+        status: true,
+        usuarioId: true,
+        versaoRegistro: true,
+      },
+    });
+    if (!funcionario)
+      throw new NotFoundException('Funcionário não encontrado.');
+    this.validarVersao(funcionario.versaoRegistro, versao);
+    return funcionario;
+  }
+  private async usuarioParaAcesso(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    id: string,
+  ) {
+    await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${id} AND "empresaId" = ${empresaId} FOR UPDATE`;
+    const usuario = await tx.usuario.findFirst({
+      where: { id, empresaId, tipo: 'USUARIO_EMPRESA' },
+      select: { ativo: true },
+    });
+    if (!usuario)
+      throw new BadRequestException('Usuário indisponível para associação.');
+    return usuario;
+  }
+  private async registrarAcesso(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    atorUsuarioId: string,
+    funcionarioId: string,
+    usuarioAfetadoId: string,
+    operacaoId: string,
+    eventos: {
+      tipo: TipoEventoFuncionarioHistorico;
+      acessoAnterior: EstadoAcessoFuncionario;
+      acessoNovo: EstadoAcessoFuncionario;
+    }[],
+  ) {
+    await tx.funcionarioHistorico.createMany({
+      data: eventos.map((evento) => ({
+        ...evento,
+        empresaId,
+        funcionarioId,
+        origem: 'RH',
+        atorUsuarioId,
+        usuarioAfetadoId,
+        operacaoId,
+      })),
+    });
+    await tx.auditoriaLog.create({
+      data: {
+        empresaId,
+        usuarioId: atorUsuarioId,
+        entidade: 'FUNCIONARIO',
+        entidadeId: funcionarioId,
+        acao: eventos[eventos.length - 1].tipo,
+        dadosNovos: prepararJsonAuditoria({
+          operacaoId,
+          usuarioAfetadoId,
+          eventos,
+        }),
+      },
+    });
+  }
+
   alterarSituacao(
     empresaId: string,
     ator: AuthenticatedUser,
@@ -511,7 +841,10 @@ export class FuncionariosService {
     empresaId: string,
     ator: AuthenticatedUser,
     permissoes: string[],
-    operacao: (tx: Prisma.TransactionClient) => Promise<T>,
+    operacao: (
+      tx: Prisma.TransactionClient,
+      permissoesAtuais: ReadonlySet<string>,
+    ) => Promise<T>,
   ): Promise<T> {
     for (let tentativa = 0; tentativa < 3; tentativa++) {
       try {
@@ -587,7 +920,7 @@ export class FuncionariosService {
               throw new NotFoundException('Empresa não encontrada.');
             if (!empresa.ativa)
               throw new ForbiddenException('Empresa inativa.');
-            return operacao(tx);
+            return operacao(tx, atuais);
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
@@ -603,6 +936,17 @@ export class FuncionariosService {
               'Alteração concorrente. Tente novamente.',
             );
           }
+          if (e.code === 'P2002' && String(e.meta?.target).includes('email'))
+            throw new ConflictException(
+              'Não foi possível utilizar este e-mail.',
+            );
+          if (
+            e.code === 'P2002' &&
+            String(e.meta?.target).includes('usuarioId')
+          )
+            throw new ConflictException(
+              'Usuário já associado a um funcionário.',
+            );
           if (e.code === 'P2002')
             throw new ConflictException(
               String(e.meta?.target).includes('cpf')
