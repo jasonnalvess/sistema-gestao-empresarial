@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -43,8 +44,8 @@ export function EditarUsuarioModal({ usuario }: Props) {
       queryClient.invalidateQueries({
         queryKey: ["usuarios"],
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao atualizar usuário");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar usuário"));
     } finally {
       setSalvando(false);
     }
@@ -98,7 +99,7 @@ export function EditarUsuarioModal({ usuario }: Props) {
           </select>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 bg-white pt-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

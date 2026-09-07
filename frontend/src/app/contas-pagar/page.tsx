@@ -13,6 +13,8 @@ import {
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
 import { CrudSearch } from "@/components/crud/CrudSearch";
@@ -32,34 +34,47 @@ import {
 } from "@/components/ui/table";
 
 import {
+  buscarResumoContasPagar,
+  contasPagarQueryKeys,
   listarContasPagar,
   OrigemContaPagar,
   StatusContaPagar,
 } from "@/services/contas-pagar.service";
 
 import { listarFornecedores } from "@/services/fornecedores.service";
-import { buscarResumoFinanceiro } from "@/services/financeiro.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_CONTAS_PAGAR_CRIAR,
+  PERMISSAO_CONTAS_PAGAR_VISUALIZAR,
+  PERMISSAO_FORNECEDORES_VISUALIZAR,
+} from "@/lib/auth";
 
 export default function ContasPagarPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarContas = temPermissao(PERMISSAO_CONTAS_PAGAR_VISUALIZAR);
+  const podeCriarConta = temPermissao(PERMISSAO_CONTAS_PAGAR_CRIAR);
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR,
+  );
   const [search, setSearch] = useState("");
-  const [searchAplicado, setSearchAplicado] =
-    useState("");
+  const [searchAplicado, setSearchAplicado] = useState("");
 
   const [status, setStatus] = useState("");
   const [origem, setOrigem] = useState("");
-  const [fornecedorId, setFornecedorId] =
-    useState("");
+  const [fornecedorId, setFornecedorId] = useState("");
 
-  const [vencimentoInicio, setVencimentoInicio] =
-    useState("");
+  const [vencimentoInicio, setVencimentoInicio] = useState("");
 
-  const [vencimentoFim, setVencimentoFim] =
-    useState("");
+  const [vencimentoFim, setVencimentoFim] = useState("");
 
   const [page, setPage] = useState(1);
 
   const { data: fornecedoresResponse } = useQuery({
-    queryKey: ["fornecedores-select-contas-pagar"],
+    queryKey: ["fornecedores-select-contas-pagar", empresaEfetivaId],
     queryFn: () =>
       listarFornecedores({
         ativo: true,
@@ -68,67 +83,73 @@ export default function ContasPagarPage() {
         sortBy: "razaoSocial",
         order: "asc",
       }),
+    enabled:
+      podeVisualizarContas &&
+      podeVisualizarFornecedores &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
-  const {
-    data,
-    isLoading,
-    error,
-  } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: [
-      "contas-pagar",
+      ...contasPagarQueryKeys.listas(empresaEfetivaId ?? ""),
       searchAplicado,
       status,
       origem,
       fornecedorId,
+      "",
       vencimentoInicio,
       vencimentoFim,
       page,
+      10,
+      "dataVencimento",
+      "asc",
     ],
 
     queryFn: () =>
       listarContasPagar({
         search: searchAplicado || undefined,
 
-        status: status
-          ? (status as StatusContaPagar)
-          : undefined,
+        status: status ? (status as StatusContaPagar) : undefined,
 
-        origem: origem
-          ? (origem as OrigemContaPagar)
-          : undefined,
+        origem: origem ? (origem as OrigemContaPagar) : undefined,
 
-        fornecedorId:
-          fornecedorId || undefined,
+        fornecedorId: fornecedorId || undefined,
 
-        vencimentoInicio:
-          vencimentoInicio || undefined,
+        vencimentoInicio: vencimentoInicio || undefined,
 
-        vencimentoFim:
-          vencimentoFim || undefined,
+        vencimentoFim: vencimentoFim || undefined,
 
         page,
         limit: 10,
         sortBy: "dataVencimento",
         order: "asc",
       }),
+    enabled:
+      podeVisualizarContas &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
-  const { data: resumoFinanceiro } = useQuery({
+  const { data: resumoContasPagar } = useQuery({
     queryKey: [
-      "financeiro-resumo-contas-pagar",
+      ...contasPagarQueryKeys.resumo(empresaEfetivaId ?? ""),
       vencimentoInicio,
       vencimentoFim,
     ],
 
     queryFn: () =>
-      buscarResumoFinanceiro({
-        vencimentoInicio:
-          vencimentoInicio || undefined,
-
-        vencimentoFim:
-          vencimentoFim || undefined,
+      buscarResumoContasPagar({
+        vencimentoInicio: vencimentoInicio || undefined,
+        vencimentoFim: vencimentoFim || undefined,
       }),
+    enabled:
+      podeVisualizarContas &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const contas = data?.data ?? [];
@@ -150,45 +171,61 @@ export default function ContasPagarPage() {
     setPage(1);
   }
 
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+
+  if (!podeVisualizarContas) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+
+  if (!possuiEmpresaEfetiva || !empresaEfetivaId) {
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Contas a Pagar"
           description="Controle vencimentos, pagamentos e obrigações financeiras da empresa."
-          actions={<NovaContaPagarModal />}
+          actions={podeCriarConta ? <NovaContaPagarModal /> : undefined}
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <ResumoCard
             titulo="Valor lançado"
-            valor={
-              resumoFinanceiro?.pagar.valorOriginal ?? 0
-            }
+            valor={resumoContasPagar?.pagar.valorOriginal ?? 0}
             icone={<Banknote size={20} />}
           />
 
           <ResumoCard
             titulo="Valor pago"
-            valor={
-              resumoFinanceiro?.pagar.valorPago ?? 0
-            }
+            valor={resumoContasPagar?.pagar.valorPago ?? 0}
             icone={<CheckCircle2 size={20} />}
           />
 
           <ResumoCard
             titulo="Saldo em aberto"
-            valor={
-              resumoFinanceiro?.pagar.valorAberto ?? 0
-            }
+            valor={resumoContasPagar?.pagar.valorAberto ?? 0}
             icone={<Clock3 size={20} />}
           />
 
           <ResumoCard
             titulo="Valor vencido"
-            valor={
-              resumoFinanceiro?.pagar.valorVencido ?? 0
-            }
+            valor={resumoContasPagar?.pagar.valorVencido ?? 0}
             icone={<AlertTriangle size={20} />}
           />
         </div>
@@ -203,7 +240,7 @@ export default function ContasPagarPage() {
             />
           </CrudToolbar>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <select
               value={status}
               onChange={(event) => {
@@ -212,29 +249,17 @@ export default function ContasPagarPage() {
               }}
               className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="">
-                Todos os status
-              </option>
+              <option value="">Todos os status</option>
 
-              <option value="PENDENTE">
-                Pendente
-              </option>
+              <option value="PENDENTE">Pendente</option>
 
-              <option value="PARCIALMENTE_PAGA">
-                Parcialmente paga
-              </option>
+              <option value="PARCIALMENTE_PAGA">Parcialmente paga</option>
 
-              <option value="PAGA">
-                Paga
-              </option>
+              <option value="PAGA">Paga</option>
 
-              <option value="VENCIDA">
-                Vencida
-              </option>
+              <option value="VENCIDA">Vencida</option>
 
-              <option value="CANCELADA">
-                Cancelada
-              </option>
+              <option value="CANCELADA">Cancelada</option>
             </select>
 
             <select
@@ -245,21 +270,13 @@ export default function ContasPagarPage() {
               }}
               className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="">
-                Todas as origens
-              </option>
+              <option value="">Todas as origens</option>
 
-              <option value="MANUAL">
-                Manual
-              </option>
+              <option value="MANUAL">Manual</option>
 
-              <option value="PEDIDO_COMPRA">
-                Pedido de compra
-              </option>
+              <option value="PEDIDO_COMPRA">Pedido de compra</option>
 
-              <option value="OUTRA">
-                Outra
-              </option>
+              <option value="OUTRA">Outra</option>
             </select>
 
             <select
@@ -270,21 +287,13 @@ export default function ContasPagarPage() {
               }}
               className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="">
-                Todos os fornecedores
-              </option>
+              <option value="">Todos os fornecedores</option>
 
-              {fornecedoresResponse?.data.map(
-                (fornecedor) => (
-                  <option
-                    key={fornecedor.id}
-                    value={fornecedor.id}
-                  >
-                    {fornecedor.nomeFantasia ||
-                      fornecedor.razaoSocial}
-                  </option>
-                )
-              )}
+              {fornecedoresResponse?.data.map((fornecedor) => (
+                <option key={fornecedor.id} value={fornecedor.id}>
+                  {fornecedor.nomeFantasia || fornecedor.razaoSocial}
+                </option>
+              ))}
             </select>
 
             <div>
@@ -296,9 +305,7 @@ export default function ContasPagarPage() {
                 type="date"
                 value={vencimentoInicio}
                 onChange={(event) => {
-                  setVencimentoInicio(
-                    event.target.value
-                  );
+                  setVencimentoInicio(event.target.value);
                   setPage(1);
                 }}
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -314,9 +321,7 @@ export default function ContasPagarPage() {
                 type="date"
                 value={vencimentoFim}
                 onChange={(event) => {
-                  setVencimentoFim(
-                    event.target.value
-                  );
+                  setVencimentoFim(event.target.value);
                   setPage(1);
                 }}
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -342,7 +347,7 @@ export default function ContasPagarPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -357,30 +362,20 @@ export default function ContasPagarPage() {
                         Valor original
                       </TableHead>
 
-                      <TableHead className="text-right">
-                        Saldo
-                      </TableHead>
+                      <TableHead className="text-right">Saldo</TableHead>
 
-                      <TableHead className="text-right">
-                        Ações
-                      </TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
 
                   <TableBody>
                     {contas.map((conta) => {
-                      const statusVisual =
-                        obterStatusVisual(
-                          conta.status
-                        );
+                      const statusVisual = obterStatusVisual(conta.status);
 
                       return (
                         <TableRow key={conta.id}>
                           <TableCell className="font-medium">
-                            #
-                            {String(
-                              conta.numero
-                            ).padStart(5, "0")}
+                            #{String(conta.numero).padStart(5, "0")}
                           </TableCell>
 
                           <TableCell>
@@ -397,18 +392,12 @@ export default function ContasPagarPage() {
 
                           <TableCell>
                             {conta.fornecedor
-                              ? conta.fornecedor
-                                  .nomeFantasia ||
-                                conta.fornecedor
-                                  .razaoSocial
+                              ? conta.fornecedor.nomeFantasia ||
+                                conta.fornecedor.razaoSocial
                               : "-"}
                           </TableCell>
 
-                          <TableCell>
-                            {formatarOrigem(
-                              conta.origem
-                            )}
-                          </TableCell>
+                          <TableCell>{formatarOrigem(conta.origem)}</TableCell>
 
                           <TableCell>
                             <span
@@ -420,33 +409,25 @@ export default function ContasPagarPage() {
                           </TableCell>
 
                           <TableCell>
-                            {formatarData(
-                              conta.dataVencimento
-                            )}
+                            {formatarData(conta.dataVencimento)}
                           </TableCell>
 
                           <TableCell className="text-right">
-                            {formatarMoeda(
-                              conta.valorOriginal
-                            )}
+                            {formatarMoeda(conta.valorOriginal)}
                           </TableCell>
 
                           <TableCell className="text-right font-medium">
-                            {formatarMoeda(
-                              conta.valorAberto
-                            )}
+                            {formatarMoeda(conta.valorAberto)}
                           </TableCell>
 
                           <TableCell className="text-right">
-                            <DetailsButton
-                              href={`/contas-pagar/${conta.id}`}
-                            />
+                            <DetailsButton href={`/contas-pagar/${conta.id}`} />
                           </TableCell>
                         </TableRow>
                       );
                     })}
 
-                    {contas.length === 0 && (
+                    {!error && contas.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9}>
                           <CrudEmpty message="Nenhuma conta a pagar encontrada." />
@@ -483,9 +464,7 @@ function ResumoCard({
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-slate-500">
-            {titulo}
-          </p>
+          <p className="text-sm text-slate-500">{titulo}</p>
 
           <p className="mt-2 text-2xl font-bold text-slate-900">
             {formatarMoeda(valor)}
@@ -500,59 +479,47 @@ function ResumoCard({
   );
 }
 
-function obterStatusVisual(
-  status: StatusContaPagar
-) {
+function obterStatusVisual(status: StatusContaPagar) {
   switch (status) {
     case "PENDENTE":
       return {
         label: "Pendente",
-        classe:
-          "bg-amber-100 text-amber-700",
+        classe: "bg-amber-100 text-amber-700",
         icone: <Clock3 size={14} />,
       };
 
     case "PARCIALMENTE_PAGA":
       return {
         label: "Parcialmente paga",
-        classe:
-          "bg-blue-100 text-blue-700",
+        classe: "bg-blue-100 text-blue-700",
         icone: <HandCoins size={14} />,
       };
 
     case "PAGA":
       return {
         label: "Paga",
-        classe:
-          "bg-green-100 text-green-700",
+        classe: "bg-green-100 text-green-700",
         icone: <CheckCircle2 size={14} />,
       };
 
     case "VENCIDA":
       return {
         label: "Vencida",
-        classe:
-          "bg-red-100 text-red-700",
+        classe: "bg-red-100 text-red-700",
         icone: <AlertTriangle size={14} />,
       };
 
     case "CANCELADA":
       return {
         label: "Cancelada",
-        classe:
-          "bg-slate-200 text-slate-700",
+        classe: "bg-slate-200 text-slate-700",
         icone: <XCircle size={14} />,
       };
   }
 }
 
-function formatarOrigem(
-  origem: OrigemContaPagar
-) {
-  const mapa: Record<
-    OrigemContaPagar,
-    string
-  > = {
+function formatarOrigem(origem: OrigemContaPagar) {
+  const mapa: Record<OrigemContaPagar, string> = {
     MANUAL: "Manual",
     PEDIDO_COMPRA: "Pedido de compra",
     OUTRA: "Outra",
@@ -561,23 +528,15 @@ function formatarOrigem(
   return mapa[origem];
 }
 
-function formatarMoeda(
-  valor: string | number
-) {
-  return Number(valor).toLocaleString(
-    "pt-BR",
-    {
-      style: "currency",
-      currency: "BRL",
-    }
-  );
+function formatarMoeda(valor: string | number) {
+  return Number(valor).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }
 
 function formatarData(valor: string) {
-  return new Date(valor).toLocaleDateString(
-    "pt-BR",
-    {
-      timeZone: "UTC",
-    }
-  );
+  return new Date(valor).toLocaleDateString("pt-BR", {
+    timeZone: "UTC",
+  });
 }

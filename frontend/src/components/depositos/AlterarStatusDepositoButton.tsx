@@ -12,6 +12,11 @@ import {
   Deposito,
   desativarDeposito,
 } from "@/services/depositos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_DEPOSITOS_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   deposito: Deposito;
@@ -19,8 +24,12 @@ type Props = {
 
 export function AlterarStatusDepositoButton({ deposito }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_DEPOSITOS_EDITAR);
 
   async function alterarStatus() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     try {
       if (deposito.ativo) {
         await desativarDeposito(deposito.id);
@@ -31,14 +40,14 @@ export function AlterarStatusDepositoButton({ deposito }: Props) {
       }
 
       queryClient.invalidateQueries({
-        queryKey: ["depositos"],
+        queryKey: estoqueQueryKeys.depositos(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao alterar status do depósito"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao alterar status do depósito"));
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <ConfirmDialog
@@ -54,7 +63,7 @@ export function AlterarStatusDepositoButton({ deposito }: Props) {
           variant={deposito.ativo ? "destructive" : "outline"}
           size="sm"
         >
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {deposito.ativo ? "Desativar" : "Ativar"}
         </Button>
       }

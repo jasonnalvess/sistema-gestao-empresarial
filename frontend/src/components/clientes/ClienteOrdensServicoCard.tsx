@@ -15,18 +15,16 @@ type OrdemServicoResumo = {
 };
 
 type Props = {
-  clienteId: string;
   ordens?: OrdemServicoResumo[];
 };
 
 export function ClienteOrdensServicoCard({
-  clienteId,
   ordens = [],
 }: Props) {
   if (ordens.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-center">
-        <Wrench size={28} className="mx-auto mb-3 text-slate-400" />
+        <Wrench className="mx-auto mb-3 text-slate-400" aria-hidden="true" />
 
         <p className="font-medium text-slate-900">
           Nenhuma ordem de serviço vinculada.
@@ -40,15 +38,15 @@ export function ClienteOrdensServicoCard({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       {ordens.map((ordem) => (
         <div
           key={ordem.id}
-          className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+          className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4"
         >
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="font-semibold text-slate-900">
+            <div className="min-w-0">
+              <p className="break-words font-semibold text-slate-900">
                 OS #{ordem.numero} — {ordem.titulo}
               </p>
 
@@ -58,7 +56,7 @@ export function ClienteOrdensServicoCard({
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <OrdemServicoStatusBadge status={ordem.status} />
               <OrdemServicoPrioridadeBadge prioridade={ordem.prioridade} />
 

@@ -5,6 +5,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { obterMensagemErro } from "@/lib/api-error";
+import {
+  PERMISSAO_CLIENTES_VISUALIZAR,
+  PERMISSAO_ORDENS_SERVICO_CRIAR,
+} from "@/lib/auth";
+import { ordensServicoQueryKeys } from "@/lib/ordens-servico-query-keys";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +24,10 @@ import { criarOrdemServico } from "@/services/ordens-servico.service";
 
 export function NovaOrdemServicoModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriar = temPermissao(PERMISSAO_ORDENS_SERVICO_CRIAR);
+  const podeVisualizarClientes = temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -30,15 +42,30 @@ export function NovaOrdemServicoModal() {
   const [observacao, setObservacao] = useState("");
 
   const { data: clientesResponse } = useQuery({
-    queryKey: ["clientes-select"],
+    queryKey: ["clientes-select", empresaEfetivaId],
     queryFn: () =>
       listarClientes({
         page: 1,
         limit: 100,
       }),
+    enabled:
+      aberto &&
+      podeCriar &&
+      podeVisualizarClientes &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   async function salvar() {
+    if (
+      !podeCriar ||
+      !podeVisualizarClientes ||
+      !empresaEfetivaId ||
+      carregando
+    ) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     if (!clienteId) {
       toast.error("Selecione um cliente cadastrado antes de criar a OS.");
       return;
@@ -69,16 +96,17 @@ export function NovaOrdemServicoModal() {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["ordens-servico"],
+        queryKey: ordensServicoQueryKeys.listas(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao criar ordem de serviço"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao criar ordem de serviço"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriar || !podeVisualizarClientes || !empresaEfetivaId || carregando)
+    return null;
 
   return (
     <FormDialog
@@ -141,7 +169,7 @@ export function NovaOrdemServicoModal() {
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Prioridade
@@ -151,7 +179,7 @@ export function NovaOrdemServicoModal() {
               value={prioridade}
               onChange={(e) =>
                 setPrioridade(
-                  e.target.value as "BAIXA" | "NORMAL" | "ALTA" | "URGENTE"
+                  e.target.value as "BAIXA" | "NORMAL" | "ALTA" | "URGENTE",
                 )
               }
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -185,7 +213,7 @@ export function NovaOrdemServicoModal() {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 bg-white pt-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

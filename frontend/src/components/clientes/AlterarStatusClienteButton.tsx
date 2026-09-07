@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useQueryClient } from "@tanstack/react-query";
 import { Power } from "lucide-react";
 import { toast } from "sonner";
@@ -7,6 +8,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/actions/ConfirmDialog";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { PERMISSAO_CLIENTES_EDITAR } from "@/lib/auth";
 import {
   Cliente,
   ativarCliente,
@@ -19,8 +22,15 @@ type Props = {
 
 export function AlterarStatusClienteButton({ cliente }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const podeEditarCliente = temPermissao(PERMISSAO_CLIENTES_EDITAR);
 
   async function alterarStatus() {
+    if (!podeEditarCliente) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+
     try {
       if (cliente.ativo) {
         await desativarCliente(cliente.id);
@@ -33,11 +43,13 @@ export function AlterarStatusClienteButton({ cliente }: Props) {
       queryClient.invalidateQueries({
         queryKey: ["clientes"],
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao alterar status do cliente"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao alterar status do cliente"));
     }
+  }
+
+  if (!podeEditarCliente) {
+    return null;
   }
 
   return (
@@ -51,7 +63,7 @@ export function AlterarStatusClienteButton({ cliente }: Props) {
       onConfirm={alterarStatus}
       trigger={
         <Button variant={cliente.ativo ? "destructive" : "outline"} size="sm">
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {cliente.ativo ? "Desativar" : "Ativar"}
         </Button>
       }

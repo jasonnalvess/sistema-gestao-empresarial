@@ -13,6 +13,8 @@ import {
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
 import { CrudSearch } from "@/components/crud/CrudSearch";
@@ -33,15 +35,28 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import {
-  listarVendas,
-  StatusVenda,
-} from "@/services/vendas.service";
+import { listarVendas, StatusVenda } from "@/services/vendas.service";
 
 import { listarClientes } from "@/services/clientes.service";
 import { listarDepositos } from "@/services/depositos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_CLIENTES_VISUALIZAR,
+  PERMISSAO_DEPOSITOS_VISUALIZAR,
+  PERMISSAO_VENDAS_CRIAR,
+  PERMISSAO_VENDAS_VISUALIZAR,
+} from "@/lib/auth";
+import { vendasQueryKeys } from "@/lib/vendas-query-keys";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 export default function VendasPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_VENDAS_VISUALIZAR);
+  const podeCriar = temPermissao(PERMISSAO_VENDAS_CRIAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [status, setStatus] = useState("");
@@ -52,17 +67,25 @@ export default function VendasPage() {
   const [page, setPage] = useState(1);
 
   const { data: clientesResponse } = useQuery({
-    queryKey: ["clientes-select-vendas"],
+    queryKey: vendasQueryKeys.clientesSelect(empresaEfetivaId ?? ""),
     queryFn: () =>
       listarClientes({
         ativo: "true",
         page: 1,
         limit: 100,
       }),
+    enabled:
+      podeVisualizar &&
+      temPermissao(PERMISSAO_CLIENTES_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-vendas"],
+    queryKey: estoqueQueryKeys.depositosSelect(
+      empresaEfetivaId ?? "",
+      "vendas",
+    ),
     queryFn: () =>
       listarDepositos({
         ativo: true,
@@ -71,49 +94,51 @@ export default function VendasPage() {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled:
+      podeVisualizar &&
+      temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
-  const {
-    data,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: [
-      "vendas",
-      searchAplicado,
-      status,
-      clienteId,
-      depositoId,
-      dataInicio,
-      dataFim,
+  const { data, isLoading, error } = useQuery({
+    queryKey: vendasQueryKeys.lista(empresaEfetivaId ?? "", {
+      search: searchAplicado || undefined,
+      status: status ? (status as StatusVenda) : undefined,
+      clienteId: clienteId || undefined,
+      depositoId: depositoId || undefined,
+      dataInicio: dataInicio || undefined,
+      dataFim: dataFim || undefined,
       page,
-    ],
+      limit: 10,
+      sortBy: "dataVenda",
+      order: "desc",
+    }),
 
     queryFn: () =>
       listarVendas({
         search: searchAplicado || undefined,
 
-        status: status
-          ? (status as StatusVenda)
-          : undefined,
+        status: status ? (status as StatusVenda) : undefined,
 
-        clienteId:
-          clienteId || undefined,
+        clienteId: clienteId || undefined,
 
-        depositoId:
-          depositoId || undefined,
+        depositoId: depositoId || undefined,
 
-        dataInicio:
-          dataInicio || undefined,
+        dataInicio: dataInicio || undefined,
 
-        dataFim:
-          dataFim || undefined,
+        dataFim: dataFim || undefined,
 
         page,
         limit: 10,
         sortBy: "dataVenda",
         order: "desc",
       }),
+    enabled:
+      podeVisualizar &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   function pesquisar() {
@@ -133,16 +158,34 @@ export default function VendasPage() {
   }
 
   const vendas = data?.data ?? [];
-  const totalPages =
-    data?.meta.totalPages ?? 1;
+  const totalPages = data?.meta.totalPages ?? 1;
+
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  if (!podeVisualizar)
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  if (!possuiEmpresaEfetiva)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Vendas"
           description="Gerencie vendas, aprovações, faturamentos e recebimentos."
-          actions={<NovaVendaModal />}
+          actions={podeCriar ? <NovaVendaModal /> : undefined}
         />
 
         <VendasDashboard
@@ -162,103 +205,67 @@ export default function VendasPage() {
             />
           </CrudToolbar>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <select
               value={status}
               onChange={(event) => {
-                setStatus(
-                  event.target.value,
-                );
+                setStatus(event.target.value);
 
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
-              <option value="">
-                Todos os status
-              </option>
+              <option value="">Todos os status</option>
 
-              <option value="RASCUNHO">
-                Rascunho
-              </option>
+              <option value="RASCUNHO">Rascunho</option>
 
-              <option value="PENDENTE">
-                Pendente
-              </option>
+              <option value="PENDENTE">Pendente</option>
 
-              <option value="APROVADA">
-                Aprovada
-              </option>
+              <option value="APROVADA">Aprovada</option>
 
-              <option value="FATURADA">
-                Faturada
-              </option>
+              <option value="FATURADA">Faturada</option>
 
-              <option value="CONCLUIDA">
-                Concluída
-              </option>
+              <option value="CONCLUIDA">Concluída</option>
 
-              <option value="CANCELADA">
-                Cancelada
-              </option>
+              <option value="CANCELADA">Cancelada</option>
             </select>
 
             <select
               value={clienteId}
               onChange={(event) => {
-                setClienteId(
-                  event.target.value,
-                );
+                setClienteId(event.target.value);
 
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
-              <option value="">
-                Todos os clientes
-              </option>
+              <option value="">Todos os clientes</option>
 
-              {clientesResponse?.data.map(
-                (cliente) => (
-                  <option
-                    key={cliente.id}
-                    value={cliente.id}
-                  >
-                    {cliente.nome}
-                  </option>
-                ),
-              )}
+              {clientesResponse?.data.map((cliente) => (
+                <option key={cliente.id} value={cliente.id}>
+                  {cliente.nome}
+                </option>
+              ))}
             </select>
 
             <select
               value={depositoId}
               onChange={(event) => {
-                setDepositoId(
-                  event.target.value,
-                );
+                setDepositoId(event.target.value);
 
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
-              <option value="">
-                Todos os depósitos
-              </option>
+              <option value="">Todos os depósitos</option>
 
-              {depositosResponse?.data.map(
-                (deposito) => (
-                  <option
-                    key={deposito.id}
-                    value={deposito.id}
-                  >
-                    {deposito.codigo
-                      ? `${deposito.codigo} - `
-                      : ""}
+              {depositosResponse?.data.map((deposito) => (
+                <option key={deposito.id} value={deposito.id}>
+                  {deposito.codigo ? `${deposito.codigo} - ` : ""}
 
-                    {deposito.nome}
-                  </option>
-                ),
-              )}
+                  {deposito.nome}
+                </option>
+              ))}
             </select>
 
             <button
@@ -270,7 +277,7 @@ export default function VendasPage() {
             </button>
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
                 Data inicial
@@ -280,9 +287,7 @@ export default function VendasPage() {
                 type="date"
                 value={dataInicio}
                 onChange={(event) => {
-                  setDataInicio(
-                    event.target.value,
-                  );
+                  setDataInicio(event.target.value);
 
                   setPage(1);
                 }}
@@ -299,9 +304,7 @@ export default function VendasPage() {
                 type="date"
                 value={dataFim}
                 onChange={(event) => {
-                  setDataFim(
-                    event.target.value,
-                  );
+                  setDataFim(event.target.value);
 
                   setPage(1);
                 }}
@@ -320,81 +323,48 @@ export default function VendasPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+          <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>
-                        Número
-                      </TableHead>
+                      <TableHead>Número</TableHead>
 
-                      <TableHead>
-                        Cliente
-                      </TableHead>
+                      <TableHead>Cliente</TableHead>
 
-                      <TableHead>
-                        Depósito
-                      </TableHead>
+                      <TableHead>Depósito</TableHead>
 
-                      <TableHead>
-                        Status
-                      </TableHead>
+                      <TableHead>Status</TableHead>
 
-                      <TableHead>
-                        Data
-                      </TableHead>
+                      <TableHead>Data</TableHead>
 
-                      <TableHead>
-                        Pagamento
-                      </TableHead>
+                      <TableHead>Pagamento</TableHead>
 
-                      <TableHead className="text-center">
-                        Itens
-                      </TableHead>
+                      <TableHead className="text-center">Itens</TableHead>
 
-                      <TableHead className="text-right">
-                        Valor total
-                      </TableHead>
+                      <TableHead className="text-right">Valor total</TableHead>
 
-                      <TableHead className="text-right">
-                        Ações
-                      </TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
 
                   <TableBody>
                     {vendas.map((venda) => {
-                      const statusVisual =
-                        obterStatusVisual(
-                          venda.status,
-                        );
+                      const statusVisual = obterStatusVisual(venda.status);
 
                       return (
                         <TableRow key={venda.id}>
                           <TableCell className="font-medium">
-                            #
-                            {String(
-                              venda.numero,
-                            ).padStart(
-                              5,
-                              "0",
-                            )}
+                            #{String(venda.numero).padStart(5, "0")}
                           </TableCell>
 
                           <TableCell>
                             <p className="font-medium text-slate-900">
-                              {venda.cliente
-                                ?.nome ?? "-"}
+                              {venda.cliente?.nome ?? "-"}
                             </p>
 
-                            {venda.cliente
-                              ?.documento && (
+                            {venda.cliente?.documento && (
                               <p className="text-xs text-slate-500">
-                                {
-                                  venda
-                                    .cliente
-                                    .documento
-                                }
+                                {venda.cliente.documento}
                               </p>
                             )}
                           </TableCell>
@@ -402,9 +372,7 @@ export default function VendasPage() {
                           <TableCell>
                             {venda.deposito
                               ? `${
-                                  venda
-                                    .deposito
-                                    .codigo
+                                  venda.deposito.codigo
                                     ? `${venda.deposito.codigo} - `
                                     : ""
                                 }${venda.deposito.nome}`
@@ -415,52 +383,35 @@ export default function VendasPage() {
                             <span
                               className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${statusVisual.classe}`}
                             >
-                              {
-                                statusVisual.icone
-                              }
+                              {statusVisual.icone}
 
-                              {
-                                statusVisual.label
-                              }
+                              {statusVisual.label}
                             </span>
                           </TableCell>
 
-                          <TableCell>
-                            {formatarData(
-                              venda.dataVenda,
-                            )}
-                          </TableCell>
+                          <TableCell>{formatarData(venda.dataVenda)}</TableCell>
 
                           <TableCell>
-                            {formatarCondicaoPagamento(
-                              venda.condicaoPagamento,
-                            )}
+                            {formatarCondicaoPagamento(venda.condicaoPagamento)}
 
                             {venda.formaPagamento && (
                               <p className="text-xs text-slate-500">
-                                {formatarFormaPagamento(
-                                  venda.formaPagamento,
-                                )}
+                                {formatarFormaPagamento(venda.formaPagamento)}
                               </p>
                             )}
                           </TableCell>
 
                           <TableCell className="text-center">
-                            {venda._count
-                              ?.itens ?? 0}
+                            {venda._count?.itens ?? 0}
                           </TableCell>
 
                           <TableCell className="text-right font-medium">
-                            {formatarMoeda(
-                              venda.valorTotal,
-                            )}
+                            {formatarMoeda(venda.valorTotal)}
                           </TableCell>
 
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <DetailsButton
-                                href={`/vendas/${venda.id}`}
-                              />
+                      <div className="flex min-w-max justify-end gap-2">
+                              <DetailsButton href={`/vendas/${venda.id}`} />
 
                               <VendaAcoes
                                 vendaId={venda.id}
@@ -472,11 +423,9 @@ export default function VendasPage() {
                       );
                     })}
 
-                    {vendas.length === 0 && (
+                    {!error && vendas.length === 0 && (
                       <TableRow>
-                        <TableCell
-                          colSpan={9}
-                        >
+                        <TableCell colSpan={9}>
                           <CrudEmpty message="Nenhuma venda encontrada." />
                         </TableCell>
                       </TableRow>
@@ -498,112 +447,77 @@ export default function VendasPage() {
   );
 }
 
-function obterStatusVisual(
-  status: StatusVenda,
-) {
+function obterStatusVisual(status: StatusVenda) {
   switch (status) {
     case "RASCUNHO":
       return {
         label: "Rascunho",
-        classe:
-          "bg-slate-100 text-slate-700",
+        classe: "bg-slate-100 text-slate-700",
         icone: <FileEdit size={14} />,
       };
 
     case "PENDENTE":
       return {
         label: "Pendente",
-        classe:
-          "bg-amber-100 text-amber-700",
+        classe: "bg-amber-100 text-amber-700",
         icone: <Clock3 size={14} />,
       };
 
     case "APROVADA":
       return {
         label: "Aprovada",
-        classe:
-          "bg-blue-100 text-blue-700",
-        icone: (
-          <CheckCircle2 size={14} />
-        ),
+        classe: "bg-blue-100 text-blue-700",
+        icone: <CheckCircle2 size={14} />,
       };
 
     case "FATURADA":
       return {
         label: "Faturada",
-        classe:
-          "bg-purple-100 text-purple-700",
-        icone: (
-          <ReceiptText size={14} />
-        ),
+        classe: "bg-purple-100 text-purple-700",
+        icone: <ReceiptText size={14} />,
       };
 
     case "CONCLUIDA":
       return {
         label: "Concluída",
-        classe:
-          "bg-green-100 text-green-700",
-        icone: (
-          <BadgeCheck size={14} />
-        ),
+        classe: "bg-green-100 text-green-700",
+        icone: <BadgeCheck size={14} />,
       };
 
     case "CANCELADA":
       return {
         label: "Cancelada",
-        classe:
-          "bg-red-100 text-red-700",
+        classe: "bg-red-100 text-red-700",
         icone: <Ban size={14} />,
       };
   }
 }
 
-function formatarMoeda(
-  valor: string | number,
-) {
-  return Number(valor).toLocaleString(
-    "pt-BR",
-    {
-      style: "currency",
-      currency: "BRL",
-    },
-  );
+function formatarMoeda(valor: string | number) {
+  return Number(valor).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }
 
 function formatarData(valor: string) {
-  return new Date(
-    valor,
-  ).toLocaleDateString("pt-BR", {
+  return new Date(valor).toLocaleDateString("pt-BR", {
     timeZone: "UTC",
   });
 }
 
-function formatarCondicaoPagamento(
-  condicao:
-    | "AVISTA"
-    | "APRAZO",
-) {
-  return condicao === "AVISTA"
-    ? "À vista"
-    : "A prazo";
+function formatarCondicaoPagamento(condicao: "AVISTA" | "APRAZO") {
+  return condicao === "AVISTA" ? "À vista" : "A prazo";
 }
 
-function formatarFormaPagamento(
-  forma: string,
-) {
-  const nomes: Record<
-    string,
-    string
-  > = {
+function formatarFormaPagamento(forma: string) {
+  const nomes: Record<string, string> = {
     DINHEIRO: "Dinheiro",
     PIX: "Pix",
-    CARTAO_CREDITO:
-      "Cartão de crédito",
-    CARTAO_DEBITO:
-      "Cartão de débito",
+    CARTAO_CREDITO: "Cartão de crédito",
+    CARTAO_DEBITO: "Cartão de débito",
     BOLETO: "Boleto",
-    TRANSFERENCIA:
-      "Transferência",
+    TRANSFERENCIA: "Transferência",
   };
 
   return nomes[forma] ?? forma;

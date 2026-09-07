@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,7 +9,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
-import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 import { CriarEstoqueProdutoDto } from './dto/criar-estoque-produto.dto';
 import { AtualizarEstoqueProdutoDto } from './dto/atualizar-estoque-produto.dto';
 import { FiltroEstoqueDto } from './dto/filtro-estoque.dto';
@@ -22,41 +20,62 @@ import {
   validarProdutoEstoque,
 } from './estoque-transacional';
 
+type EstoqueComRelacoes = Prisma.EstoqueProdutoGetPayload<{
+  include: { produto: true; deposito: true };
+}>;
+
 @Injectable()
 export class EstoqueService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async criar(dados: CriarEstoqueProdutoDto, usuario: AuthenticatedUser) {
-    const empresaId = obterEmpresaId(usuario);
+  private readonly camposOrdenacao: Record<
+    string,
+    keyof Prisma.EstoqueProdutoOrderByWithRelationInput
+  > = {
+    quantidadeAtual: 'quantidadeAtual',
+    estoqueMinimo: 'estoqueMinimo',
+    estoqueMaximo: 'estoqueMaximo',
+    custoMedio: 'custoMedio',
+    ultimoCusto: 'ultimoCusto',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  };
+
+  async criar(
+    empresaId: string,
+    dados: CriarEstoqueProdutoDto,
+    usuario: AuthenticatedUser,
+  ) {
     const quantidadeInicial = new Prisma.Decimal(dados.quantidadeAtual ?? 0);
     if (!quantidadeInicial.isFinite() || quantidadeInicial.lt(0)) {
       throw new BadRequestException(
         'A quantidade inicial não pode ser negativa',
       );
     }
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        await validarProdutoEstoque(tx, dados.produtoId, empresaId);
-        await validarDepositoEstoque(tx, dados.depositoId, empresaId);
-        await bloquearEstoques(tx, [
-          chaveLockEstoque(empresaId, dados.produtoId, dados.depositoId),
-        ]);
-        const existente = await tx.estoqueProduto.findUnique({
-          where: {
-            empresaId_produtoId_depositoId: {
-              empresaId,
-              produtoId: dados.produtoId,
-              depositoId: dados.depositoId,
-            },
+    return this.prisma.$transaction(async (tx) => {
+      await validarProdutoEstoque(tx, empresaId, dados.produtoId);
+      await validarDepositoEstoque(tx, empresaId, dados.depositoId);
+      await bloquearEstoques(tx, empresaId, [
+        chaveLockEstoque(empresaId, dados.produtoId, dados.depositoId),
+      ]);
+      const existente = await tx.estoqueProduto.findUnique({
+        where: {
+          empresaId_produtoId_depositoId: {
+            empresaId,
+            produtoId: dados.produtoId,
+            depositoId: dados.depositoId,
           },
-          select: { id: true },
-        });
-        if (existente) {
-          throw new ConflictException(
-            'Já existe estoque para o produto neste depósito',
-          );
-        }
-        const estoque = await tx.estoqueProduto.create({
+        },
+        select: { id: true },
+      });
+      if (existente) {
+        throw new ConflictException(
+          'Já existe estoque para o produto neste depósito',
+        );
+      }
+      let estoque: EstoqueComRelacoes;
+      try {
+        estoque = await tx.estoqueProduto.create({
           data: {
             produtoId: dados.produtoId,
             depositoId: dados.depositoId,
@@ -70,37 +89,37 @@ export class EstoqueService {
           },
           include: { produto: true, deposito: true },
         });
-        if (quantidadeInicial.gt(0)) {
-          await tx.movimentacaoEstoque.create({
-            data: {
-              tipo: TipoMovimentacaoEstoque.ENTRADA,
-              quantidade: quantidadeInicial,
-              saldoAnterior: new Prisma.Decimal(0),
-              saldoPosterior: quantidadeInicial,
-              observacao:
-                dados.motivoAjuste?.trim() ||
-                'Saldo inicial informado no cadastro do estoque.',
-              documentoReferencia: `ESTOQUE-${estoque.id}`,
-              empresaId,
-              produtoId: dados.produtoId,
-              depositoId: dados.depositoId,
-              usuarioId: usuario.id,
-            },
-          });
-        }
-        return estoque;
-      });
-    } catch (error) {
-      tratarP2002Estoque(error);
-    }
+      } catch (error) {
+        tratarP2002Estoque(error);
+      }
+      if (quantidadeInicial.gt(0)) {
+        await tx.movimentacaoEstoque.create({
+          data: {
+            tipo: TipoMovimentacaoEstoque.ENTRADA,
+            quantidade: quantidadeInicial,
+            saldoAnterior: new Prisma.Decimal(0),
+            saldoPosterior: quantidadeInicial,
+            observacao:
+              dados.motivoAjuste?.trim() ||
+              'Saldo inicial informado no cadastro do estoque.',
+            documentoReferencia: `ESTOQUE-${estoque.id}`,
+            empresaId,
+            produtoId: dados.produtoId,
+            depositoId: dados.depositoId,
+            usuarioId: usuario.id,
+          },
+        });
+      }
+      return estoque;
+    });
   }
 
-  async listar(usuario: AuthenticatedUser, filtros: FiltroEstoqueDto) {
+  async listar(empresaId: string, filtros: FiltroEstoqueDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
     const where: Prisma.EstoqueProdutoWhereInput = {
-      empresaId: obterEmpresaId(usuario),
+      empresaId,
     };
     if (filtros.produtoId) where.produtoId = filtros.produtoId;
     if (filtros.depositoId) where.depositoId = filtros.depositoId;
@@ -111,11 +130,16 @@ export class EstoqueService {
           { codigo: { contains: filtros.search, mode: 'insensitive' } },
         ],
       };
+    const campoOrdenacao =
+      this.camposOrdenacao[filtros.sortBy ?? 'updatedAt'] ?? 'updatedAt';
+    const orderBy: Prisma.EstoqueProdutoOrderByWithRelationInput = {
+      [campoOrdenacao]: filtros.order ?? 'desc',
+    };
     const [data, total] = await this.prisma.$transaction([
       this.prisma.estoqueProduto.findMany({
         where,
         include: { produto: true, deposito: true },
-        orderBy: { [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc' },
+        orderBy,
         skip,
         take,
       }),
@@ -124,31 +148,29 @@ export class EstoqueService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuario: AuthenticatedUser) {
-    const estoque = await this.prisma.estoqueProduto.findUnique({
-      where: { id },
+  async buscarPorId(empresaId: string, id: string) {
+    const estoque = await this.prisma.estoqueProduto.findFirst({
+      where: { id, empresaId },
       include: { produto: true, deposito: true },
     });
     if (!estoque)
       throw new NotFoundException('Estoque do produto não encontrado');
-    if (estoque.empresaId !== obterEmpresaId(usuario)) {
-      throw new ForbiddenException('Acesso negado a estoque de outra empresa');
-    }
     return estoque;
   }
 
   async buscarPorProdutoDeposito(
+    empresaId: string,
     produtoId: string,
     depositoId: string,
-    usuario: AuthenticatedUser,
   ) {
     return this.prisma.estoqueProduto.findFirst({
-      where: { produtoId, depositoId, empresaId: obterEmpresaId(usuario) },
+      where: { produtoId, depositoId, empresaId },
       include: { produto: true, deposito: true },
     });
   }
 
   async atualizar(
+    empresaId: string,
     id: string,
     dados: AtualizarEstoqueProdutoDto,
     usuario: AuthenticatedUser,
@@ -164,29 +186,26 @@ export class EstoqueService {
       throw new BadRequestException('A quantidade atual não pode ser negativa');
     }
     return this.prisma.$transaction(async (tx) => {
-      const minimo = await tx.estoqueProduto.findUnique({
-        where: { id },
-        select: { empresaId: true, produtoId: true, depositoId: true },
+      const minimo = await tx.estoqueProduto.findFirst({
+        where: { id, empresaId },
+        select: { produtoId: true, depositoId: true },
       });
       if (!minimo)
         throw new NotFoundException('Estoque do produto não encontrado');
-      if (minimo.empresaId !== obterEmpresaId(usuario)) {
-        throw new ForbiddenException(
-          'Acesso negado a estoque de outra empresa',
-        );
-      }
-      await bloquearEstoques(tx, [
-        chaveLockEstoque(minimo.empresaId, minimo.produtoId, minimo.depositoId),
+      await bloquearEstoques(tx, empresaId, [
+        chaveLockEstoque(empresaId, minimo.produtoId, minimo.depositoId),
       ]);
-      const estoque = await tx.estoqueProduto.findUnique({ where: { id } });
-      if (!estoque || estoque.empresaId !== obterEmpresaId(usuario)) {
+      const estoque = await tx.estoqueProduto.findFirst({
+        where: { id, empresaId },
+      });
+      if (!estoque) {
         throw new NotFoundException('Estoque do produto não encontrado');
       }
       const saldoAnterior = new Prisma.Decimal(estoque.quantidadeAtual);
       const saldoPosterior = saldoInformado ?? saldoAnterior;
       const diferenca = saldoPosterior.minus(saldoAnterior);
-      const atualizado = await tx.estoqueProduto.update({
-        where: { id },
+      const alteracao = await tx.estoqueProduto.updateMany({
+        where: { id, empresaId },
         data: {
           quantidadeAtual: diferenca.eq(0) ? undefined : saldoPosterior,
           estoqueMinimo:
@@ -198,8 +217,10 @@ export class EstoqueService {
               ? undefined
               : new Prisma.Decimal(dados.estoqueMaximo),
         },
-        include: { produto: true, deposito: true },
       });
+      if (alteracao.count !== 1) {
+        throw new NotFoundException('Estoque do produto não encontrado');
+      }
       if (!diferenca.eq(0)) {
         const sentido = diferenca.gt(0) ? 'Aumento' : 'Redução';
         await tx.movimentacaoEstoque.create({
@@ -219,7 +240,10 @@ export class EstoqueService {
           },
         });
       }
-      return atualizado;
+      return tx.estoqueProduto.findFirstOrThrow({
+        where: { id, empresaId },
+        include: { produto: true, deposito: true },
+      });
     });
   }
 }

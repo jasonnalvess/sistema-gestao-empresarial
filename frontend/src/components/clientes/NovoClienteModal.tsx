@@ -1,5 +1,6 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -10,10 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { PERMISSAO_CLIENTES_CRIAR } from "@/lib/auth";
 import { criarCliente } from "@/services/clientes.service";
 
 export function NovoClienteModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const podeCriarCliente = temPermissao(PERMISSAO_CLIENTES_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -31,6 +36,11 @@ export function NovoClienteModal() {
   const [observacao, setObservacao] = useState("");
 
   async function salvar() {
+    if (!podeCriarCliente) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+
     try {
       setSalvando(true);
 
@@ -66,11 +76,15 @@ export function NovoClienteModal() {
       queryClient.invalidateQueries({
         queryKey: ["clientes"],
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao cadastrar cliente");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao cadastrar cliente"));
     } finally {
       setSalvando(false);
     }
+  }
+
+  if (!podeCriarCliente) {
+    return null;
   }
 
   return (
@@ -79,14 +93,14 @@ export function NovoClienteModal() {
       onOpenChange={setAberto}
       title="Novo cliente"
       trigger={
-        <Button>
-          <Plus size={16} className="mr-2" />
+        <Button className="w-full md:w-auto">
+          <Plus aria-hidden="true" />
           Novo cliente
         </Button>
       }
     >
-      <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
+      <div className="min-w-0 space-y-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-700">Nome</label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} />
@@ -97,7 +111,7 @@ export function NovoClienteModal() {
             <select
               value={tipo}
               onChange={(e) => setTipo(e.target.value as "PF" | "PJ")}
-              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="mt-1 h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="PF">Pessoa Física</option>
               <option value="PJ">Pessoa Jurídica</option>
@@ -105,7 +119,7 @@ export function NovoClienteModal() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Documento
@@ -127,7 +141,7 @@ export function NovoClienteModal() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Telefone
@@ -151,7 +165,7 @@ export function NovoClienteModal() {
           <Input value={endereco} onChange={(e) => setEndereco(e.target.value)} />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <label className="text-sm font-medium text-slate-700">Cidade</label>
             <Input value={cidade} onChange={(e) => setCidade(e.target.value)} />
@@ -183,8 +197,9 @@ export function NovoClienteModal() {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end sm:gap-3">
           <Button
+            className="w-full sm:w-auto"
             variant="outline"
             onClick={() => setAberto(false)}
             disabled={salvando}
@@ -192,7 +207,7 @@ export function NovoClienteModal() {
             Cancelar
           </Button>
 
-          <Button onClick={salvar} disabled={salvando}>
+          <Button className="w-full sm:w-auto" onClick={salvar} disabled={salvando}>
             {salvando ? "Salvando..." : "Salvar cliente"}
           </Button>
         </div>

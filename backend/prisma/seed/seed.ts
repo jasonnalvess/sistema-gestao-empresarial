@@ -1,10 +1,112 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
+type SeedConfig = {
+  databaseName: string;
+  adminEmail: string;
+  adminPassword: string;
+  createDemoUsers: boolean;
+  demoAdminEmail?: string;
+  demoUserEmail?: string;
+  demoPassword?: string;
+};
+
+const BANCOS_AUTORIZADOS = new Set(['sistema_gestao_teste']);
+const SENHAS_FRACAS = new Set(['123456', 'password', 'senha', 'admin']);
+
+function exigirEmail(valor: string | undefined, variavel: string): string {
+  const email = valor?.trim().toLowerCase();
+  if (!email || !email.includes('@')) {
+    throw new Error(`${variavel} deve conter um e-mail válido.`);
+  }
+  return email;
+}
+
+function exigirSenha(valor: string | undefined, variavel: string): string {
+  if (!valor) throw new Error(`${variavel} é obrigatória.`);
+  if (valor.length < 12) {
+    throw new Error(`${variavel} deve possuir no mínimo 12 caracteres.`);
+  }
+  const normalizada = valor.trim().toLowerCase();
+  if (
+    [...SENHAS_FRACAS].some((senhaFraca) => normalizada.includes(senhaFraca))
+  ) {
+    throw new Error(`${variavel} não pode utilizar uma senha previsível.`);
+  }
+  return valor;
+}
+
+function carregarConfiguracaoSeed(
+  ambiente: NodeJS.ProcessEnv = process.env,
+): SeedConfig {
+  if (ambiente.ALLOW_DATABASE_SEED !== 'true') {
+    throw new Error(
+      'Seed não autorizado. Defina ALLOW_DATABASE_SEED=true conscientemente.',
+    );
+  }
+  if (ambiente.NODE_ENV?.trim().toLowerCase() === 'production') {
+    throw new Error('Seed bloqueado em ambiente de produção.');
+  }
+
+  const databaseUrl = ambiente.DATABASE_URL?.trim();
+  if (!databaseUrl) throw new Error('DATABASE_URL é obrigatória para o seed.');
+
+  let databaseName: string;
+  try {
+    const url = new URL(databaseUrl);
+    databaseName = decodeURIComponent(url.pathname.replace(/^\//, '')).trim();
+  } catch {
+    throw new Error('DATABASE_URL inválida; não foi possível validar o banco.');
+  }
+  if (!databaseName || !BANCOS_AUTORIZADOS.has(databaseName)) {
+    throw new Error(
+      `Banco não autorizado para seed: ${databaseName || 'não identificado'}.`,
+    );
+  }
+
+  const createDemoUsers = ambiente.SEED_CREATE_DEMO_USERS === 'true';
+  const config: SeedConfig = {
+    databaseName,
+    adminEmail: exigirEmail(ambiente.SEED_ADMIN_EMAIL, 'SEED_ADMIN_EMAIL'),
+    adminPassword: exigirSenha(
+      ambiente.SEED_ADMIN_PASSWORD,
+      'SEED_ADMIN_PASSWORD',
+    ),
+    createDemoUsers,
+  };
+
+  if (createDemoUsers) {
+    config.demoAdminEmail = exigirEmail(
+      ambiente.SEED_DEMO_ADMIN_EMAIL,
+      'SEED_DEMO_ADMIN_EMAIL',
+    );
+    config.demoUserEmail = exigirEmail(
+      ambiente.SEED_DEMO_USER_EMAIL,
+      'SEED_DEMO_USER_EMAIL',
+    );
+    config.demoPassword = exigirSenha(
+      ambiente.SEED_DEMO_PASSWORD,
+      'SEED_DEMO_PASSWORD',
+    );
+    if (
+      new Set([config.adminEmail, config.demoAdminEmail, config.demoUserEmail])
+        .size !== 3
+    ) {
+      throw new Error(
+        'Os e-mails administrativos e demonstrativos devem ser distintos.',
+      );
+    }
+  }
+
+  return config;
+}
+
+const seedConfig = carregarConfiguracaoSeed();
 const prisma = new PrismaClient();
 
 async function main() {
-  const senhaPadrao = await bcrypt.hash('123456', 10);
+  console.log(`Seed autorizado para o banco ${seedConfig.databaseName}.`);
+  const senhaAdministrador = await bcrypt.hash(seedConfig.adminPassword, 10);
 
   const empresa = await prisma.empresa.upsert({
     where: { cnpj: '00000000000100' },
@@ -17,29 +119,44 @@ async function main() {
   });
 
   await prisma.usuario.upsert({
-    where: { email: 'admin@sistema.com' },
-    update: {},
+    where: { email: seedConfig.adminEmail },
+    update: { senha: senhaAdministrador, ativo: true },
     create: {
       nome: 'Super Admin',
-      email: 'admin@sistema.com',
-      senha: senhaPadrao,
+      email: seedConfig.adminEmail,
+      senha: senhaAdministrador,
       tipo: 'SUPER_ADMIN',
       ativo: true,
     },
   });
 
-  await prisma.usuario.upsert({
-    where: { email: 'admin.empresa@sistema.com' },
-    update: {},
-    create: {
-      nome: 'Admin Empresa',
-      email: 'admin.empresa@sistema.com',
-      senha: senhaPadrao,
-      tipo: 'ADMIN_EMPRESA',
-      ativo: true,
-      empresaId: empresa.id,
-    },
-  });
+  if (seedConfig.createDemoUsers) {
+    const senhaDemonstracao = await bcrypt.hash(seedConfig.demoPassword!, 10);
+    await prisma.usuario.upsert({
+      where: { email: seedConfig.demoAdminEmail! },
+      update: { senha: senhaDemonstracao, ativo: true },
+      create: {
+        nome: 'Admin Empresa',
+        email: seedConfig.demoAdminEmail!,
+        senha: senhaDemonstracao,
+        tipo: 'ADMIN_EMPRESA',
+        ativo: true,
+        empresaId: empresa.id,
+      },
+    });
+    await prisma.usuario.upsert({
+      where: { email: seedConfig.demoUserEmail! },
+      update: { senha: senhaDemonstracao, ativo: true },
+      create: {
+        nome: 'Usuário Demonstração',
+        email: seedConfig.demoUserEmail!,
+        senha: senhaDemonstracao,
+        tipo: 'USUARIO_EMPRESA',
+        ativo: true,
+        empresaId: empresa.id,
+      },
+    });
+  }
 
   const modulos = [
     {
@@ -63,6 +180,18 @@ async function main() {
       descricao: 'Agenda de clientes e atendimentos',
     },
     {
+      nome: 'Ordens de Serviço',
+      chave: 'ordens_servico',
+      descricao:
+        'Gerenciamento de ordens de serviço, acompanhamento de status e histórico.',
+    },
+    {
+      nome: 'Vendas',
+      chave: 'vendas',
+      descricao:
+        'Gerenciamento de vendas, aprovação, faturamento, histórico e cancelamentos.',
+    },
+    {
       nome: 'Funcionários',
       chave: 'funcionarios',
       descricao: 'Cadastro e controle de funcionários',
@@ -80,12 +209,1134 @@ async function main() {
     });
   }
 
-  console.log('Seed executado com sucesso!');
+  const permissoes = [
+    // Sistema
+    {
+      nome: 'Visualizar configurações do sistema',
+      chave: 'sistema.visualizar',
+      descricao: 'Permite visualizar configurações gerais do sistema',
+      modulo: 'sistema',
+    },
+    {
+      nome: 'Editar configurações do sistema',
+      chave: 'sistema.editar',
+      descricao: 'Permite alterar configurações gerais do sistema',
+      modulo: 'sistema',
+    },
+    {
+      nome: 'Visualizar Auditoria Global',
+      chave: 'sistema.auditoria.visualizar',
+      descricao:
+        'Permite consultar registros administrativos e empresariais de Auditoria em escopo global.',
+      modulo: 'sistema',
+    },
+    {
+      nome: 'Visualizar Auditoria da Empresa',
+      chave: 'auditoria.empresa.visualizar',
+      descricao:
+        'Permite consultar os registros de Auditoria da empresa atual.',
+      modulo: 'sistema',
+    },
+    {
+      nome: 'Visualizar Dashboard',
+      chave: 'dashboard.visualizar',
+      descricao:
+        'Permite visualizar os indicadores operacionais da empresa selecionada.',
+      modulo: 'sistema',
+    },
+
+    // Empresas
+    {
+      nome: 'Visualizar empresas',
+      chave: 'empresas.visualizar',
+      descricao: 'Permite consultar empresas cadastradas',
+      modulo: 'empresas',
+    },
+    {
+      nome: 'Criar empresas',
+      chave: 'empresas.criar',
+      descricao: 'Permite cadastrar novas empresas',
+      modulo: 'empresas',
+    },
+    {
+      nome: 'Editar empresas',
+      chave: 'empresas.editar',
+      descricao: 'Permite alterar empresas cadastradas',
+      modulo: 'empresas',
+    },
+    {
+      nome: 'Ativar empresas',
+      chave: 'empresas.ativar',
+      descricao: 'Permite ativar empresas',
+      modulo: 'empresas',
+    },
+    {
+      nome: 'Inativar empresas',
+      chave: 'empresas.inativar',
+      descricao: 'Permite inativar empresas',
+      modulo: 'empresas',
+    },
+    {
+      nome: 'Gerenciar módulos da empresa',
+      chave: 'empresas.modulos.gerenciar',
+      descricao: 'Permite ativar ou desativar módulos de uma empresa',
+      modulo: 'empresas',
+    },
+
+    // Usuários
+    {
+      nome: 'Visualizar usuários',
+      chave: 'usuarios.visualizar',
+      descricao: 'Permite consultar usuários',
+      modulo: 'usuarios',
+    },
+    {
+      nome: 'Criar usuários',
+      chave: 'usuarios.criar',
+      descricao: 'Permite cadastrar usuários',
+      modulo: 'usuarios',
+    },
+    {
+      nome: 'Editar usuários',
+      chave: 'usuarios.editar',
+      descricao: 'Permite alterar usuários',
+      modulo: 'usuarios',
+    },
+    {
+      nome: 'Ativar usuários',
+      chave: 'usuarios.ativar',
+      descricao: 'Permite ativar usuários',
+      modulo: 'usuarios',
+    },
+    {
+      nome: 'Inativar usuários',
+      chave: 'usuarios.inativar',
+      descricao: 'Permite inativar usuários',
+      modulo: 'usuarios',
+    },
+    {
+      nome: 'Redefinir senha de usuários',
+      chave: 'usuarios.senha.redefinir',
+      descricao: 'Permite redefinir a senha de outros usuários',
+      modulo: 'usuarios',
+    },
+    {
+      nome: 'Gerenciar perfis dos usuários',
+      chave: 'usuarios.perfis.gerenciar',
+      descricao: 'Permite atribuir ou remover perfis de usuários',
+      modulo: 'usuarios',
+    },
+
+    // Perfis e permissões
+    {
+      nome: 'Visualizar perfis',
+      chave: 'perfis.visualizar',
+      descricao: 'Permite consultar perfis de acesso',
+      modulo: 'perfis',
+    },
+    {
+      nome: 'Criar perfis',
+      chave: 'perfis.criar',
+      descricao: 'Permite criar perfis de acesso',
+      modulo: 'perfis',
+    },
+    {
+      nome: 'Editar perfis',
+      chave: 'perfis.editar',
+      descricao: 'Permite alterar perfis de acesso',
+      modulo: 'perfis',
+    },
+    {
+      nome: 'Ativar perfis',
+      chave: 'perfis.ativar',
+      descricao: 'Permite ativar perfis de acesso',
+      modulo: 'perfis',
+    },
+    {
+      nome: 'Inativar perfis',
+      chave: 'perfis.inativar',
+      descricao: 'Permite inativar perfis de acesso',
+      modulo: 'perfis',
+    },
+    {
+      nome: 'Gerenciar permissões dos perfis',
+      chave: 'perfis.permissoes.gerenciar',
+      descricao: 'Permite definir as permissões atribuídas aos perfis',
+      modulo: 'perfis',
+    },
+
+    // Clientes
+    {
+      nome: 'Visualizar clientes',
+      chave: 'clientes.visualizar',
+      descricao: 'Permite consultar clientes',
+      modulo: 'clientes',
+    },
+    {
+      nome: 'Criar clientes',
+      chave: 'clientes.criar',
+      descricao: 'Permite cadastrar clientes',
+      modulo: 'clientes',
+    },
+    {
+      nome: 'Editar clientes',
+      chave: 'clientes.editar',
+      descricao: 'Permite alterar clientes',
+      modulo: 'clientes',
+    },
+    {
+      nome: 'Excluir clientes',
+      chave: 'clientes.excluir',
+      descricao: 'Permite excluir clientes',
+      modulo: 'clientes',
+    },
+
+    // Fornecedores
+    {
+      nome: 'Visualizar fornecedores',
+      chave: 'fornecedores.visualizar',
+      descricao: 'Permite consultar fornecedores',
+      modulo: 'fornecedores',
+    },
+    {
+      nome: 'Criar fornecedores',
+      chave: 'fornecedores.criar',
+      descricao: 'Permite cadastrar fornecedores',
+      modulo: 'fornecedores',
+    },
+    {
+      nome: 'Editar fornecedores',
+      chave: 'fornecedores.editar',
+      descricao: 'Permite alterar fornecedores',
+      modulo: 'fornecedores',
+    },
+
+    // Pedidos de compra
+    {
+      nome: 'Visualizar pedidos de compra',
+      chave: 'pedidos_compra.visualizar',
+      descricao: 'Permite consultar pedidos de compra',
+      modulo: 'pedidos_compra',
+    },
+    {
+      nome: 'Criar pedidos de compra',
+      chave: 'pedidos_compra.criar',
+      descricao: 'Permite cadastrar pedidos de compra',
+      modulo: 'pedidos_compra',
+    },
+    {
+      nome: 'Editar pedidos de compra',
+      chave: 'pedidos_compra.editar',
+      descricao: 'Permite alterar pedidos de compra',
+      modulo: 'pedidos_compra',
+    },
+
+    // Agenda
+    {
+      nome: 'Visualizar agenda',
+      chave: 'agenda.visualizar',
+      descricao: 'Permite consultar compromissos e atendimentos',
+      modulo: 'agenda',
+    },
+    {
+      nome: 'Criar agendamentos',
+      chave: 'agenda.criar',
+      descricao: 'Permite criar compromissos e atendimentos',
+      modulo: 'agenda',
+    },
+    {
+      nome: 'Editar agendamentos',
+      chave: 'agenda.editar',
+      descricao: 'Permite alterar compromissos e atendimentos',
+      modulo: 'agenda',
+    },
+    {
+      nome: 'Cancelar agendamentos',
+      chave: 'agenda.cancelar',
+      descricao: 'Permite cancelar compromissos e atendimentos',
+      modulo: 'agenda',
+    },
+
+    // Vendas
+    {
+      nome: 'Visualizar Vendas',
+      chave: 'vendas.visualizar',
+      descricao:
+        'Permite listar, detalhar, consultar o dashboard e visualizar o histórico das Vendas.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Criar Vendas',
+      chave: 'vendas.criar',
+      descricao: 'Permite cadastrar novas Vendas.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Editar Vendas',
+      chave: 'vendas.editar',
+      descricao:
+        'Permite alterar Vendas em estados editáveis e enviá-las para aprovação.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Aprovar Vendas',
+      chave: 'vendas.aprovar',
+      descricao: 'Permite aprovar Vendas pendentes de aprovação.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Faturar Vendas',
+      chave: 'vendas.faturar',
+      descricao: 'Permite faturar Vendas aprovadas.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Cancelar Vendas',
+      chave: 'vendas.cancelar',
+      descricao:
+        'Permite cancelar Vendas conforme as regras de estado e recebimento.',
+      modulo: 'vendas',
+    },
+    {
+      nome: 'Adicionar histórico de Vendas',
+      chave: 'vendas.historico.adicionar',
+      descricao: 'Permite incluir registros manuais no histórico das Vendas.',
+      modulo: 'vendas',
+    },
+
+    // Funcionários
+    {
+      nome: 'Visualizar funcionários',
+      chave: 'funcionarios.visualizar',
+      descricao: 'Permite consultar funcionários',
+      modulo: 'funcionarios',
+    },
+    {
+      nome: 'Criar funcionários',
+      chave: 'funcionarios.criar',
+      descricao: 'Permite cadastrar funcionários',
+      modulo: 'funcionarios',
+    },
+    {
+      nome: 'Editar funcionários',
+      chave: 'funcionarios.editar',
+      descricao: 'Permite alterar funcionários',
+      modulo: 'funcionarios',
+    },
+    {
+      nome: 'Inativar funcionários',
+      chave: 'funcionarios.inativar',
+      descricao: 'Permite inativar funcionários',
+      modulo: 'funcionarios',
+    },
+
+    // Ordens de Serviço
+    {
+      nome: 'Visualizar Ordens de Serviço',
+      chave: 'ordens_servico.visualizar',
+      descricao:
+        'Permite listar, detalhar e consultar o histórico das Ordens de Serviço.',
+      modulo: 'ordens_servico',
+    },
+    {
+      nome: 'Criar Ordens de Serviço',
+      chave: 'ordens_servico.criar',
+      descricao: 'Permite cadastrar novas Ordens de Serviço.',
+      modulo: 'ordens_servico',
+    },
+    {
+      nome: 'Adicionar histórico de Ordens de Serviço',
+      chave: 'ordens_servico.historico.adicionar',
+      descricao:
+        'Permite incluir registros manuais no histórico das Ordens de Serviço.',
+      modulo: 'ordens_servico',
+    },
+    {
+      nome: 'Alterar status de Ordens de Serviço',
+      chave: 'ordens_servico.status.alterar',
+      descricao:
+        'Permite alterar o status das Ordens de Serviço conforme as transições permitidas.',
+      modulo: 'ordens_servico',
+    },
+
+    // Estoque
+    {
+      nome: 'Visualizar produtos',
+      chave: 'estoque.produtos.visualizar',
+      descricao: 'Permite consultar produtos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Criar produtos',
+      chave: 'estoque.produtos.criar',
+      descricao: 'Permite cadastrar produtos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Editar produtos',
+      chave: 'estoque.produtos.editar',
+      descricao: 'Permite alterar e ativar ou desativar produtos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Visualizar categorias de produtos',
+      chave: 'estoque.categorias.visualizar',
+      descricao: 'Permite consultar categorias de produtos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Criar categorias de produtos',
+      chave: 'estoque.categorias.criar',
+      descricao: 'Permite cadastrar categorias de produtos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Editar categorias de produtos',
+      chave: 'estoque.categorias.editar',
+      descricao: 'Permite alterar e ativar ou desativar categorias de produtos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Visualizar marcas de produtos',
+      chave: 'estoque.marcas.visualizar',
+      descricao: 'Permite consultar marcas de produtos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Criar marcas de produtos',
+      chave: 'estoque.marcas.criar',
+      descricao: 'Permite cadastrar marcas de produtos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Editar marcas de produtos',
+      chave: 'estoque.marcas.editar',
+      descricao: 'Permite alterar e ativar ou desativar marcas de produtos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Visualizar unidades de medida',
+      chave: 'estoque.unidades.visualizar',
+      descricao: 'Permite consultar unidades de medida',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Criar unidades de medida',
+      chave: 'estoque.unidades.criar',
+      descricao: 'Permite cadastrar unidades de medida',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Editar unidades de medida',
+      chave: 'estoque.unidades.editar',
+      descricao: 'Permite alterar e ativar ou desativar unidades de medida',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Visualizar depósitos',
+      chave: 'estoque.depositos.visualizar',
+      descricao: 'Permite consultar depósitos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Criar depósitos',
+      chave: 'estoque.depositos.criar',
+      descricao: 'Permite cadastrar depósitos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Editar depósitos',
+      chave: 'estoque.depositos.editar',
+      descricao: 'Permite alterar e ativar ou desativar depósitos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Visualizar estoque',
+      chave: 'estoque.visualizar',
+      descricao: 'Permite consultar saldos de estoque',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Realizar ajustes de estoque',
+      chave: 'estoque.ajustes.realizar',
+      descricao: 'Permite realizar ajustes de saldo no estoque',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Visualizar movimentações de estoque',
+      chave: 'estoque.movimentacoes.visualizar',
+      descricao: 'Permite consultar movimentações de estoque',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Registrar entradas de estoque',
+      chave: 'estoque.entradas.registrar',
+      descricao: 'Permite registrar entradas de estoque',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Registrar saídas de estoque',
+      chave: 'estoque.saidas.registrar',
+      descricao: 'Permite registrar saídas de estoque',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Realizar transferências de estoque',
+      chave: 'estoque.transferencias.realizar',
+      descricao: 'Permite transferir estoque entre depósitos',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Visualizar inventários',
+      chave: 'estoque.inventarios.visualizar',
+      descricao: 'Permite consultar inventários de estoque',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Criar inventários',
+      chave: 'estoque.inventarios.criar',
+      descricao: 'Permite criar inventários de estoque',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Editar inventários',
+      chave: 'estoque.inventarios.editar',
+      descricao: 'Permite alterar inventários e registrar contagens',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Finalizar inventários',
+      chave: 'estoque.inventarios.finalizar',
+      descricao:
+        'Permite finalizar inventários e aplicar os ajustes de estoque',
+      modulo: 'estoque',
+    },
+    {
+      nome: 'Cancelar inventários',
+      chave: 'estoque.inventarios.cancelar',
+      descricao: 'Permite cancelar inventários de estoque',
+      modulo: 'estoque',
+    },
+
+    // Caixa
+    {
+      nome: 'Visualizar caixa',
+      chave: 'caixa.visualizar',
+      descricao: 'Permite consultar caixas e movimentações',
+      modulo: 'caixa',
+    },
+    {
+      nome: 'Criar Caixas',
+      chave: 'caixa.criar',
+      descricao: 'Permite cadastrar novos Caixas para a empresa.',
+      modulo: 'caixa',
+    },
+    {
+      nome: 'Editar Caixas',
+      chave: 'caixa.editar',
+      descricao:
+        'Permite alterar os dados cadastrais e o estado ativo dos Caixas.',
+      modulo: 'caixa',
+    },
+    {
+      nome: 'Abrir caixa',
+      chave: 'caixa.abrir',
+      descricao: 'Permite abrir caixas',
+      modulo: 'caixa',
+    },
+    {
+      nome: 'Fechar caixa',
+      chave: 'caixa.fechar',
+      descricao: 'Permite fechar caixas',
+      modulo: 'caixa',
+    },
+    {
+      nome: 'Registrar movimentações',
+      chave: 'caixa.movimentacoes.registrar',
+      descricao: 'Permite registrar entradas e saídas no caixa',
+      modulo: 'caixa',
+    },
+    {
+      nome: 'Cancelar movimentações',
+      chave: 'caixa.movimentacoes.cancelar',
+      descricao: 'Permite cancelar movimentações do caixa',
+      modulo: 'caixa',
+    },
+
+    // Financeiro
+    {
+      nome: 'Visualizar financeiro',
+      chave: 'financeiro.visualizar',
+      descricao: 'Permite consultar informações financeiras',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Visualizar contas a pagar',
+      chave: 'financeiro.contas_pagar.visualizar',
+      descricao: 'Permite consultar contas a pagar e seus históricos',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Criar contas a pagar',
+      chave: 'financeiro.contas_pagar.criar',
+      descricao: 'Permite cadastrar contas a pagar',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Editar contas a pagar',
+      chave: 'financeiro.contas_pagar.editar',
+      descricao:
+        'Permite alterar contas a pagar e adicionar históricos manuais',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Pagar contas',
+      chave: 'financeiro.contas_pagar.pagar',
+      descricao: 'Permite registrar o pagamento de contas',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Cancelar contas a pagar',
+      chave: 'financeiro.contas_pagar.cancelar',
+      descricao: 'Permite cancelar contas a pagar sem pagamentos registrados',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Visualizar contas a receber',
+      chave: 'financeiro.contas_receber.visualizar',
+      descricao: 'Permite consultar contas a receber',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Criar contas a receber',
+      chave: 'financeiro.contas_receber.criar',
+      descricao: 'Permite cadastrar contas a receber',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Editar contas a receber',
+      chave: 'financeiro.contas_receber.editar',
+      descricao: 'Permite alterar contas a receber',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Receber contas',
+      chave: 'financeiro.contas_receber.receber',
+      descricao: 'Permite registrar recebimentos de contas',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Cancelar contas a receber',
+      chave: 'financeiro.contas_receber.cancelar',
+      descricao:
+        'Permite cancelar contas a receber sem recebimentos registrados',
+      modulo: 'financeiro',
+    },
+    {
+      nome: 'Visualizar relatórios financeiros',
+      chave: 'financeiro.relatorios.visualizar',
+      descricao: 'Permite consultar relatórios financeiros',
+      modulo: 'financeiro',
+    },
+
+    // Fiscal
+    {
+      nome: 'Visualizar notas fiscais',
+      chave: 'fiscal.notas.visualizar',
+      descricao: 'Permite consultar notas fiscais',
+      modulo: 'fiscal',
+    },
+    {
+      nome: 'Emitir notas fiscais',
+      chave: 'fiscal.notas.emitir',
+      descricao: 'Permite emitir notas fiscais',
+      modulo: 'fiscal',
+    },
+    {
+      nome: 'Cancelar notas fiscais',
+      chave: 'fiscal.notas.cancelar',
+      descricao: 'Permite cancelar notas fiscais',
+      modulo: 'fiscal',
+    },
+    {
+      nome: 'Inutilizar numeração fiscal',
+      chave: 'fiscal.notas.inutilizar',
+      descricao: 'Permite inutilizar numerações de notas fiscais',
+      modulo: 'fiscal',
+    },
+    {
+      nome: 'Visualizar relatórios fiscais',
+      chave: 'fiscal.relatorios.visualizar',
+      descricao: 'Permite consultar relatórios fiscais',
+      modulo: 'fiscal',
+    },
+  ];
+
+  for (const permissao of permissoes) {
+    await prisma.permissao.upsert({
+      where: { chave: permissao.chave },
+      update: {
+        nome: permissao.nome,
+        descricao: permissao.descricao,
+        modulo: permissao.modulo,
+        ativo: true,
+      },
+      create: {
+        ...permissao,
+        ativo: true,
+      },
+    });
+  }
+
+  // ============================================================
+  // PERFIS PADRÃO DO IAM
+  // ============================================================
+
+  const permissoesCadastradas = await prisma.permissao.findMany({
+    where: {
+      ativo: true,
+    },
+    select: {
+      id: true,
+      chave: true,
+      modulo: true,
+    },
+    orderBy: {
+      chave: 'asc',
+    },
+  });
+
+  if (permissoesCadastradas.length !== permissoes.length) {
+    throw new Error(
+      `Quantidade inesperada de permissões ativas. Esperado: ${permissoes.length}. Encontrado: ${permissoesCadastradas.length}.`,
+    );
+  }
+
+  const todasAsChaves = permissoesCadastradas.map(
+    (permissao) => permissao.chave,
+  );
+
+  const selecionarPermissoes = ({
+    modulos = [],
+    chavesAdicionais = [],
+    chavesExcluidas = [],
+  }: {
+    modulos?: string[];
+    chavesAdicionais?: string[];
+    chavesExcluidas?: string[];
+  }): string[] => {
+    const selecionadas = permissoesCadastradas
+      .filter(
+        (permissao) =>
+          modulos.includes(permissao.modulo) ||
+          chavesAdicionais.includes(permissao.chave),
+      )
+      .filter((permissao) => !chavesExcluidas.includes(permissao.chave))
+      .map((permissao) => permissao.chave);
+
+    return [...new Set(selecionadas)].sort();
+  };
+
+  const permissoesAdministradorSistema = todasAsChaves.filter(
+    (chave) => !['sistema.editar'].includes(chave),
+  );
+
+  const permissoesAdministradorEmpresa = selecionarPermissoes({
+    modulos: [
+      'usuarios',
+      'perfis',
+      'clientes',
+      'fornecedores',
+      'pedidos_compra',
+      'agenda',
+      'vendas',
+      'ordens_servico',
+      'funcionarios',
+      'estoque',
+      'caixa',
+      'financeiro',
+      'fiscal',
+    ],
+    chavesAdicionais: [
+      'dashboard.visualizar',
+      'auditoria.empresa.visualizar',
+      'empresas.visualizar',
+      'empresas.editar',
+      'empresas.modulos.gerenciar',
+    ],
+  });
+
+  const permissoesSupervisor = selecionarPermissoes({
+    modulos: [
+      'clientes',
+      'fornecedores',
+      'pedidos_compra',
+      'agenda',
+      'ordens_servico',
+      'estoque',
+      'caixa',
+    ],
+    chavesAdicionais: [
+      'dashboard.visualizar',
+      'vendas.visualizar',
+      'vendas.aprovar',
+      'vendas.faturar',
+      'vendas.historico.adicionar',
+      'funcionarios.visualizar',
+      'financeiro.contas_pagar.visualizar',
+      'financeiro.contas_pagar.criar',
+      'financeiro.contas_pagar.editar',
+      'financeiro.contas_pagar.pagar',
+      'financeiro.contas_pagar.cancelar',
+      'financeiro.contas_receber.visualizar',
+      'financeiro.contas_receber.criar',
+      'financeiro.contas_receber.editar',
+      'financeiro.contas_receber.receber',
+      'financeiro.contas_receber.cancelar',
+    ],
+    chavesExcluidas: [
+      'clientes.excluir',
+      'agenda.excluir',
+      'caixa.criar',
+      'caixa.editar',
+      'caixa.movimentacoes.cancelar',
+    ],
+  });
+
+  const permissoesRh = selecionarPermissoes({
+    modulos: ['funcionarios', 'agenda'],
+    chavesAdicionais: ['clientes.visualizar', 'dashboard.visualizar'],
+    chavesExcluidas: ['agenda.excluir'],
+  });
+
+  const permissoesColaborador = selecionarPermissoes({
+    chavesAdicionais: [
+      'dashboard.visualizar',
+      'vendas.visualizar',
+      'vendas.criar',
+      'vendas.editar',
+      'clientes.visualizar',
+      'fornecedores.visualizar',
+      'pedidos_compra.visualizar',
+      'financeiro.contas_pagar.visualizar',
+      'financeiro.contas_receber.visualizar',
+      'agenda.visualizar',
+      'agenda.criar',
+      'agenda.editar',
+      'funcionarios.visualizar',
+      'estoque.produtos.visualizar',
+      'estoque.categorias.visualizar',
+      'estoque.marcas.visualizar',
+      'estoque.unidades.visualizar',
+      'estoque.depositos.visualizar',
+      'estoque.visualizar',
+      'estoque.movimentacoes.visualizar',
+      'estoque.inventarios.visualizar',
+      'ordens_servico.visualizar',
+      'caixa.visualizar',
+    ],
+  });
+
+  type PerfilPadrao = {
+    nome: string;
+    chave: string;
+    descricao: string;
+    sistema: boolean;
+    escopo: 'SISTEMA' | 'EMPRESA';
+    empresaId: string | null;
+    permissoes: string[];
+  };
+
+  const perfisPadrao: PerfilPadrao[] = [
+    {
+      nome: 'Super Administrador',
+      chave: 'super_administrador',
+      descricao:
+        'Perfil global com acesso integral a todos os recursos do sistema',
+      sistema: true,
+      escopo: 'SISTEMA',
+      empresaId: null,
+      permissoes: todasAsChaves,
+    },
+    {
+      nome: 'Administrador do Sistema',
+      chave: 'administrador_sistema',
+      descricao:
+        'Perfil global responsável pela gestão operacional das empresas',
+      sistema: true,
+      escopo: 'SISTEMA',
+      empresaId: null,
+      permissoes: permissoesAdministradorSistema,
+    },
+    {
+      nome: 'Administrador da Empresa',
+      chave: 'administrador_empresa',
+      descricao:
+        'Perfil responsável pela administração dos recursos da própria empresa',
+      sistema: true,
+      escopo: 'EMPRESA',
+      empresaId: empresa.id,
+      permissoes: permissoesAdministradorEmpresa,
+    },
+    {
+      nome: 'Supervisor',
+      chave: 'supervisor',
+      descricao:
+        'Perfil empresarial responsável pelo acompanhamento das operações',
+      sistema: true,
+      escopo: 'EMPRESA',
+      empresaId: empresa.id,
+      permissoes: permissoesSupervisor,
+    },
+    {
+      nome: 'RH',
+      chave: 'rh',
+      descricao:
+        'Perfil empresarial direcionado à gestão de funcionários e agendas',
+      sistema: true,
+      escopo: 'EMPRESA',
+      empresaId: empresa.id,
+      permissoes: permissoesRh,
+    },
+    {
+      nome: 'Colaborador',
+      chave: 'colaborador',
+      descricao: 'Perfil empresarial com acesso operacional básico e restrito',
+      sistema: true,
+      escopo: 'EMPRESA',
+      empresaId: empresa.id,
+      permissoes: permissoesColaborador,
+    },
+  ];
+
+  const permissoesPorChave = new Map(
+    permissoesCadastradas.map((permissao) => [permissao.chave, permissao]),
+  );
+
+  for (const perfilPadrao of perfisPadrao) {
+    const chavesInexistentes = perfilPadrao.permissoes.filter(
+      (chave) => !permissoesPorChave.has(chave),
+    );
+
+    if (chavesInexistentes.length > 0) {
+      throw new Error(
+        `O perfil ${perfilPadrao.chave} referencia permissões inexistentes: ${chavesInexistentes.join(', ')}`,
+      );
+    }
+
+    const perfilExistente = await prisma.perfil.findFirst({
+      where: {
+        empresaId: perfilPadrao.empresaId,
+        chave: perfilPadrao.chave,
+      },
+    });
+
+    const perfil = perfilExistente
+      ? await prisma.perfil.update({
+          where: {
+            id: perfilExistente.id,
+          },
+          data: {
+            nome: perfilPadrao.nome,
+            descricao: perfilPadrao.descricao,
+            sistema: perfilPadrao.sistema,
+            escopo: perfilPadrao.escopo,
+            ativo: true,
+          },
+        })
+      : await prisma.perfil.create({
+          data: {
+            nome: perfilPadrao.nome,
+            chave: perfilPadrao.chave,
+            descricao: perfilPadrao.descricao,
+            sistema: perfilPadrao.sistema,
+            escopo: perfilPadrao.escopo,
+            ativo: true,
+            empresaId: perfilPadrao.empresaId,
+          },
+        });
+
+    const vinculos = perfilPadrao.permissoes.map((chave) => {
+      const permissao = permissoesPorChave.get(chave);
+
+      if (!permissao) {
+        throw new Error(`Permissão não encontrada: ${chave}`);
+      }
+
+      return {
+        perfilId: perfil.id,
+        permissaoId: permissao.id,
+        permitido: true,
+      };
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.perfilPermissao.deleteMany({
+        where: {
+          perfilId: perfil.id,
+        },
+      });
+
+      if (vinculos.length > 0) {
+        await tx.perfilPermissao.createMany({
+          data: vinculos,
+        });
+      }
+    });
+
+    console.log(
+      `Perfil sincronizado: ${perfilPadrao.nome} (${vinculos.length} permissões)`,
+    );
+  }
+
+  // ============================================================
+  // VÍNCULOS PADRÃO ENTRE USUÁRIOS E PERFIS
+  // ============================================================
+
+  type VinculoUsuarioPerfilPadrao = {
+    emailUsuario: string;
+    chavePerfil: string;
+  };
+
+  const vinculosUsuarioPerfilPadrao: VinculoUsuarioPerfilPadrao[] = [
+    {
+      emailUsuario: seedConfig.adminEmail,
+      chavePerfil: 'super_administrador',
+    },
+  ];
+
+  if (seedConfig.createDemoUsers) {
+    vinculosUsuarioPerfilPadrao.push(
+      {
+        emailUsuario: seedConfig.demoAdminEmail!,
+        chavePerfil: 'administrador_empresa',
+      },
+      {
+        emailUsuario: seedConfig.demoUserEmail!,
+        chavePerfil: 'colaborador',
+      },
+    );
+  }
+
+  for (const vinculoPadrao of vinculosUsuarioPerfilPadrao) {
+    const usuario = await prisma.usuario.findUnique({
+      where: {
+        email: vinculoPadrao.emailUsuario,
+      },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        empresaId: true,
+      },
+    });
+
+    if (!usuario) {
+      throw new Error(
+        `Usuário padrão não encontrado: ${vinculoPadrao.emailUsuario}`,
+      );
+    }
+
+    const perfil = await prisma.perfil.findFirst({
+      where: {
+        chave: vinculoPadrao.chavePerfil,
+        ativo: true,
+        OR: [
+          {
+            empresaId: usuario.empresaId,
+          },
+          {
+            empresaId: null,
+          },
+        ],
+      },
+      select: {
+        id: true,
+        nome: true,
+        chave: true,
+        escopo: true,
+        empresaId: true,
+        ativo: true,
+      },
+    });
+
+    if (!perfil) {
+      throw new Error(
+        `Perfil ativo não encontrado para o usuário ${usuario.email}: ${vinculoPadrao.chavePerfil}`,
+      );
+    }
+
+    if (perfil.escopo === 'SISTEMA') {
+      if (perfil.empresaId !== null) {
+        throw new Error(
+          `Perfil de sistema associado indevidamente a uma empresa: ${perfil.chave}`,
+        );
+      }
+
+      if (usuario.empresaId !== null) {
+        throw new Error(
+          `Usuário empresarial ${usuario.email} não pode receber o perfil global ${perfil.chave}`,
+        );
+      }
+    }
+
+    if (perfil.escopo === 'EMPRESA') {
+      if (usuario.empresaId === null) {
+        throw new Error(
+          `Usuário global ${usuario.email} não pode receber o perfil empresarial ${perfil.chave}`,
+        );
+      }
+
+      if (perfil.empresaId === null) {
+        throw new Error(
+          `Perfil empresarial ${perfil.chave} não possui empresa vinculada`,
+        );
+      }
+
+      if (perfil.empresaId !== usuario.empresaId) {
+        throw new Error(
+          `O perfil ${perfil.chave} pertence a uma empresa diferente da empresa do usuário ${usuario.email}`,
+        );
+      }
+    }
+
+    const vinculo = await prisma.usuarioPerfil.upsert({
+      where: {
+        usuarioId_perfilId: {
+          usuarioId: usuario.id,
+          perfilId: perfil.id,
+        },
+      },
+      update: {
+        ativo: true,
+      },
+      create: {
+        usuarioId: usuario.id,
+        perfilId: perfil.id,
+        ativo: true,
+      },
+    });
+
+    console.log(
+      `Vínculo sincronizado: ${usuario.email} -> ${perfil.nome} (${vinculo.ativo ? 'ativo' : 'inativo'})`,
+    );
+  }
+
+  console.log(
+    'Seed executado com sucesso: catálogo, perfis e conta administrativa sincronizados.',
+  );
+  console.log(
+    seedConfig.createDemoUsers
+      ? 'Usuários demonstrativos sincronizados.'
+      : 'Usuários demonstrativos não solicitados.',
+  );
 }
 
 main()
-  .catch((error) => {
-    console.error(error);
+  .catch((error: unknown) => {
+    console.error(
+      error instanceof Error ? error.message : 'Falha ao executar o seed.',
+    );
     process.exit(1);
   })
   .finally(async () => {

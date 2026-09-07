@@ -19,6 +19,10 @@ import {
   dashboardVendas,
   DashboardVendasResponse,
 } from "@/services/vendas.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_VENDAS_VISUALIZAR } from "@/lib/auth";
+import { vendasQueryKeys } from "@/lib/vendas-query-keys";
 
 import {
   DashboardCard,
@@ -45,33 +49,28 @@ export function VendasDashboard({
   dataInicio,
   dataFim,
 }: VendasDashboardProps) {
-  const {
-    data,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: [
-      "vendas-dashboard",
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeVisualizar = temPermissao(PERMISSAO_VENDAS_VISUALIZAR);
+  const { data, isLoading, error } = useQuery({
+    queryKey: vendasQueryKeys.dashboard(empresaEfetivaId ?? "", {
       clienteId,
       depositoId,
       dataInicio,
       dataFim,
-    ],
+    }),
 
     queryFn: () =>
       dashboardVendas({
-        clienteId:
-          clienteId || undefined,
+        clienteId: clienteId || undefined,
 
-        depositoId:
-          depositoId || undefined,
+        depositoId: depositoId || undefined,
 
-        dataInicio:
-          dataInicio || undefined,
+        dataInicio: dataInicio || undefined,
 
-        dataFim:
-          dataFim || undefined,
+        dataFim: dataFim || undefined,
       }),
+    enabled: podeVisualizar && Boolean(empresaEfetivaId) && !carregando,
   });
 
   if (isLoading) {
@@ -93,12 +92,36 @@ export function VendasDashboard({
     }));
 
   const vendasPorStatus: PieChartDataItem[] = [
-    { label: "Rascunho", value: data.vendasPorStatus.rascunho, color: "#64748b" },
-    { label: "Pendente", value: data.vendasPorStatus.pendente, color: "#d97706" },
-    { label: "Aprovada", value: data.vendasPorStatus.aprovada, color: "#2563eb" },
-    { label: "Faturada", value: data.vendasPorStatus.faturada, color: "#7c3aed" },
-    { label: "Concluída", value: data.vendasPorStatus.concluida, color: "#16a34a" },
-    { label: "Cancelada", value: data.vendasPorStatus.cancelada, color: "#dc2626" },
+    {
+      label: "Rascunho",
+      value: data.vendasPorStatus.rascunho,
+      color: "#64748b",
+    },
+    {
+      label: "Pendente",
+      value: data.vendasPorStatus.pendente,
+      color: "#d97706",
+    },
+    {
+      label: "Aprovada",
+      value: data.vendasPorStatus.aprovada,
+      color: "#2563eb",
+    },
+    {
+      label: "Faturada",
+      value: data.vendasPorStatus.faturada,
+      color: "#7c3aed",
+    },
+    {
+      label: "Concluída",
+      value: data.vendasPorStatus.concluida,
+      color: "#16a34a",
+    },
+    {
+      label: "Cancelada",
+      value: data.vendasPorStatus.cancelada,
+      color: "#dc2626",
+    },
   ].filter((status) => status.value > 0);
 
   return (
@@ -106,108 +129,74 @@ export function VendasDashboard({
       <DashboardGrid>
         <DashboardCard
           title="Total vendido"
-          value={formatarMoeda(
-            data.indicadores
-              .valorTotalVendido,
-          )}
+          value={formatarMoeda(data.indicadores.valorTotalVendido)}
           description={`${data.indicadores.totalVendas} venda(s)`}
-          icon={
-            <ShoppingCart size={20} />
-          }
+          icon={<ShoppingCart size={20} />}
         />
 
         <DashboardCard
           title="Ticket médio"
-          value={formatarMoeda(
-            data.indicadores.ticketMedio,
-          )}
+          value={formatarMoeda(data.indicadores.ticketMedio)}
           description="Valor médio por venda"
-          icon={
-            <TrendingUp size={20} />
-          }
+          icon={<TrendingUp size={20} />}
         />
 
         <DashboardCard
           title="Valor recebido"
-          value={formatarMoeda(
-            data.financeiro.valorRecebido,
-          )}
+          value={formatarMoeda(data.financeiro.valorRecebido)}
           description={`${formatarPercentual(
-            data.financeiro
-              .percentualRecebido,
+            data.financeiro.percentualRecebido,
           )} recebido`}
           icon={<HandCoins size={20} />}
         />
 
         <DashboardCard
           title="Valor em aberto"
-          value={formatarMoeda(
-            data.financeiro.valorEmAberto,
-          )}
+          value={formatarMoeda(data.financeiro.valorEmAberto)}
           description={`${data.financeiro.quantidadeContas} conta(s) gerada(s)`}
-          icon={
-            <WalletCards size={20} />
-          }
+          icon={<WalletCards size={20} />}
         />
       </DashboardGrid>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <DashboardStatusCard
           title="Rascunho"
-          value={
-            data.vendasPorStatus.rascunho
-          }
+          value={data.vendasPorStatus.rascunho}
           color="bg-slate-100 text-slate-700"
           icon={<FileEdit size={18} />}
         />
 
         <DashboardStatusCard
           title="Pendente"
-          value={
-            data.vendasPorStatus.pendente
-          }
+          value={data.vendasPorStatus.pendente}
           color="bg-amber-100 text-amber-700"
           icon={<Clock3 size={18} />}
         />
 
         <DashboardStatusCard
           title="Aprovada"
-          value={
-            data.vendasPorStatus.aprovada
-          }
+          value={data.vendasPorStatus.aprovada}
           color="bg-blue-100 text-blue-700"
-          icon={
-            <CheckCircle2 size={18} />
-          }
+          icon={<CheckCircle2 size={18} />}
         />
 
         <DashboardStatusCard
           title="Faturada"
-          value={
-            data.vendasPorStatus.faturada
-          }
+          value={data.vendasPorStatus.faturada}
           color="bg-purple-100 text-purple-700"
-          icon={
-            <ReceiptText size={18} />
-          }
+          icon={<ReceiptText size={18} />}
         />
 
         <DashboardStatusCard
           title="Concluída"
-          value={
-            data.vendasPorStatus.concluida
-          }
+          value={data.vendasPorStatus.concluida}
           color="bg-green-100 text-green-700"
-          icon={
-            <BadgeCheck size={18} />
-          }
+          icon={<BadgeCheck size={18} />}
         />
 
         <DashboardStatusCard
           title="Cancelada"
-          value={
-            data.vendasPorStatus.cancelada
-          }
+          value={data.vendasPorStatus.cancelada}
           color="bg-red-100 text-red-700"
           icon={<Ban size={18} />}
         />
@@ -215,7 +204,7 @@ export function VendasDashboard({
 
       <ResumoFinanceiro data={data} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
         <BarChartCard
           title="Produtos mais vendidos"
           description="Quantidade vendida por produto no período"
@@ -235,46 +224,31 @@ export function VendasDashboard({
   );
 }
 
-function ResumoFinanceiro({
-  data,
-}: {
-  data: DashboardVendasResponse;
-}) {
+function ResumoFinanceiro({ data }: { data: DashboardVendasResponse }) {
   return (
     <DashboardGrid>
       <DashboardCard
         title="Valor dos produtos"
-        value={formatarMoeda(
-          data.indicadores.valorProdutos,
-        )}
+        value={formatarMoeda(data.indicadores.valorProdutos)}
         icon={<Banknote size={20} />}
       />
 
       <DashboardCard
         title="Descontos concedidos"
-        value={formatarMoeda(
-          data.indicadores
-            .valorDescontos,
-        )}
+        value={formatarMoeda(data.indicadores.valorDescontos)}
         icon={<TrendingUp size={20} />}
       />
 
       <DashboardCard
         title="Fretes"
-        value={formatarMoeda(
-          data.indicadores.valorFretes,
-        )}
+        value={formatarMoeda(data.indicadores.valorFretes)}
         icon={<ReceiptText size={20} />}
       />
 
       <DashboardCard
         title="Outros valores"
-        value={formatarMoeda(
-          data.indicadores.valorOutros,
-        )}
-        icon={
-          <WalletCards size={20} />
-        }
+        value={formatarMoeda(data.indicadores.valorOutros)}
+        icon={<WalletCards size={20} />}
       />
     </DashboardGrid>
   );
@@ -283,7 +257,7 @@ function ResumoFinanceiro({
 function DashboardLoading() {
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({
           length: 4,
         }).map((_, index) => (
@@ -294,7 +268,7 @@ function DashboardLoading() {
         ))}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {Array.from({
           length: 6,
         }).map((_, index) => (
@@ -305,7 +279,7 @@ function DashboardLoading() {
         ))}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({
           length: 4,
         }).map((_, index) => (
@@ -319,23 +293,16 @@ function DashboardLoading() {
   );
 }
 
-function formatarMoeda(
-  valor: number,
-) {
+function formatarMoeda(valor: number) {
   return valor.toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
 }
 
-function formatarPercentual(
-  valor: number,
-) {
-  return `${valor.toLocaleString(
-    "pt-BR",
-    {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    },
-  )}%`;
+function formatarPercentual(valor: number) {
+  return `${valor.toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}%`;
 }

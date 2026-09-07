@@ -37,14 +37,14 @@ export function DashboardMovementsChart({ movimentacoes }: Props) {
   ];
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <h2 className="break-words text-lg font-semibold text-slate-900">
         Resumo de movimentações
       </h2>
 
-      <div className="mt-6 h-72">
+      <div className="mt-6 h-64 min-w-0 sm:h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
+          <BarChart data={data} margin={{ left: -20, right: 4 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="tipo" />
             <YAxis />
@@ -56,4 +56,3 @@ export function DashboardMovementsChart({ movimentacoes }: Props) {
     </div>
   );
 }
-
