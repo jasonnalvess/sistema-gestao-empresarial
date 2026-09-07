@@ -16,6 +16,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { RespostaInterceptor } from '../common/interceptors/resposta.interceptor';
 import { operacionalSelect, pessoalSelect } from './funcionarios.select';
+import { UsuariosModule } from '../usuarios/usuarios.module';
+import { UsuariosService } from '../usuarios/usuarios.service';
 import { seedRh } from '../../prisma/seed/seed-rh';
 
 type RegistroResposta = {
@@ -197,7 +199,12 @@ describeBanco('RH V3.4.3 — HTTP e integridade em PostgreSQL real', () => {
       await tx.departamento.create({ data: { empresaId, nome: 'Tecnologia' } })
     ).id;
     const module = await Test.createTestingModule({
-      imports: [CargosModule, DepartamentosModule, FuncionariosModule],
+      imports: [
+        CargosModule,
+        DepartamentosModule,
+        FuncionariosModule,
+        UsuariosModule,
+      ],
     })
       .overrideProvider(PrismaService)
       .useValue(adapter)
@@ -872,5 +879,327 @@ describeBanco('RH V3.4.3 — HTTP e integridade em PostgreSQL real', () => {
       if (original === undefined) delete process.env.ALLOW_DATABASE_SEED;
       else process.env.ALLOW_DATABASE_SEED = original;
     }
+  });
+  describe('V3.4.4 — ciclo de vida', () => {
+    const situacao = (body: object, id = funcionarioId) =>
+      request(server).patch(`/funcionarios/${id}/situacao`).send(body);
+    async function vincular(ativo = true) {
+      const usuario = await tx.usuario.create({
+        data: {
+          empresaId,
+          nome: 'Acesso fixture',
+          email: randomUUID() + '@example.invalid',
+          senha: 'sem-login',
+          tipo: 'USUARIO_EMPRESA',
+          ativo,
+        },
+      });
+      await tx.funcionario.update({
+        where: { id: funcionarioId },
+        data: { usuarioId: usuario.id },
+      });
+      return usuario.id;
+    }
+    async function autorizarAcesso() {
+      const chaves = ['usuarios.ativar', 'usuarios.inativar'];
+      const catalogo = await tx.permissao.findMany({
+        where: { chave: { in: chaves } },
+      });
+      expect(catalogo).toHaveLength(2);
+      await tx.perfilPermissao.createMany({
+        data: catalogo.map((p) => ({ perfilId, permissaoId: p.id })),
+        skipDuplicates: true,
+      });
+      ator.permissoes = [...permissoes, ...chaves];
+    }
+    async function administrador() {
+      await autorizarAcesso();
+      await tx.usuario.update({
+        where: { id: usuarioId },
+        data: { tipo: 'ADMIN_EMPRESA' },
+      });
+      ator.tipo = 'ADMIN_EMPRESA';
+      return new UsuariosService(adapter);
+    }
+    const eventos = () =>
+      tx.funcionarioHistorico.findMany({
+        where: { empresaId, funcionarioId },
+        orderBy: { tipo: 'asc' },
+      });
+    it('altera versão/statusDesde, cria histórico sanitizado e preserva privacidade', async () => {
+      await tx.funcionario.update({
+        where: { id: funcionarioId },
+        data: { statusDesde: new Date('2026-01-01') },
+      });
+      const inicio = Date.now();
+      const resposta = await situacao({
+        status: 'FERIAS',
+        versaoRegistro: 0,
+      }).expect(200);
+      expect(detalhe(resposta).data.versaoRegistro).toBe(1);
+      expect(detalhe(resposta).data).not.toHaveProperty('statusDesde');
+      expect(detalhe(resposta).data).not.toHaveProperty('dataDesligamento');
+      expect(detalhe(resposta).data).not.toHaveProperty('cpf');
+      const atual = await tx.funcionario.findUniqueOrThrow({
+        where: { id: funcionarioId },
+      });
+      expect(atual.statusDesde.getTime()).toBeGreaterThanOrEqual(inicio);
+      expect(atual.status).toBe('FERIAS');
+      expect(atual.dataDesligamento).toBeNull();
+      const historico = await eventos();
+      expect(historico).toHaveLength(1);
+      expect(historico[0]).toMatchObject({
+        tipo: 'ALTERACAO_STATUS',
+        origem: 'RH',
+        statusAnterior: 'ATIVO',
+        statusNovo: 'FERIAS',
+        acessoAnterior: 'SEM_USUARIO',
+        acessoNovo: 'SEM_USUARIO',
+        atorUsuarioId: usuarioId,
+      });
+      expect(historico[0].operacaoId).toBeTruthy();
+      const auditoria = await tx.auditoriaLog.findMany({
+        where: { empresaId, entidadeId: funcionarioId },
+      });
+      expect(auditoria).toHaveLength(1);
+      expect(JSON.stringify([historico, auditoria])).not.toMatch(
+        /12345678900|privado@example|Cidade privada/,
+      );
+    });
+    it('rejeita versão stale sem histórico', async () => {
+      await situacao({ status: 'FERIAS', versaoRegistro: 7 }).expect(409);
+      expect(await eventos()).toHaveLength(0);
+    });
+    it('isola empresa e exige permissão de situação', async () => {
+      await situacao({ status: 'FERIAS', versaoRegistro: 0 }, externoId).expect(
+        404,
+      );
+      await autorizarAcesso();
+      ator.permissoes = ['usuarios.inativar'];
+      await situacao({ status: 'INATIVO', versaoRegistro: 0 }).expect(403);
+      expect(await eventos()).toHaveLength(0);
+    });
+    it.each([
+      { empresaId: 'extra' },
+      { usuarioId: 'extra' },
+      { statusDesde: '2026-01-01' },
+      { acaoAcesso: 'REATIVAR' },
+      { acaoAcesso: null },
+      { versaoRegistro: -1 },
+      { versaoRegistro: 0.5 },
+      { versaoRegistro: null },
+      { status: null },
+      { status: 'INVALIDO' },
+      { dataDesligamento: 'invalida' },
+      { dataDesligamento: null },
+    ])('validação estrita %j', async (extra) => {
+      await situacao({ status: 'FERIAS', versaoRegistro: 0, ...extra }).expect(
+        400,
+      );
+      expect(await eventos()).toHaveLength(0);
+    });
+    it('rejeita UUID inválido', async () => {
+      await situacao(
+        { status: 'FERIAS', versaoRegistro: 0 },
+        'invalido',
+      ).expect(400);
+    });
+    it('revalida permissão de situação persistida sem commit parcial', async () => {
+      const id = await vincular();
+      await tx.perfilPermissao.updateMany({
+        where: {
+          perfilId,
+          permissao: { chave: 'funcionarios.situacao.gerenciar' },
+        },
+        data: { permitido: false },
+      });
+      await situacao({ status: 'INATIVO', versaoRegistro: 0 }).expect(403);
+      expect(
+        (await tx.usuario.findUniqueOrThrow({ where: { id } })).ativo,
+      ).toBe(true);
+      expect(
+        (
+          await tx.funcionario.findUniqueOrThrow({
+            where: { id: funcionarioId },
+          })
+        ).versaoRegistro,
+      ).toBe(0);
+      expect(await eventos()).toHaveLength(0);
+    });
+    it.each(['FERIAS', 'AFASTADO', 'LICENCA'])(
+      '%s exige decisão explícita e PRESERVAR mantém autorização',
+      async (status) => {
+        const id = await vincular();
+        await situacao({ status, versaoRegistro: 0 }).expect(400);
+        await situacao({
+          status,
+          versaoRegistro: 0,
+          acaoAcesso: 'PRESERVAR',
+        }).expect(200);
+        expect(
+          await tx.usuario.findUniqueOrThrow({ where: { id } }),
+        ).toMatchObject({ ativo: true, versaoAutorizacao: 0 });
+        expect(await eventos()).toHaveLength(1);
+      },
+    );
+    it.each(['FERIAS', 'AFASTADO', 'LICENCA', 'INATIVO', 'DESLIGADO'])(
+      '%s suspende somente com permissão de situação e correlaciona eventos',
+      async (status) => {
+        ator.permissoes = ['funcionarios.situacao.gerenciar'];
+        expect(
+          await tx.perfilPermissao.count({
+            where: {
+              perfilId,
+              permitido: true,
+              permissao: { chave: 'usuarios.inativar' },
+            },
+          }),
+        ).toBe(0);
+        const id = await vincular();
+        const body = {
+          status,
+          versaoRegistro: 0,
+          ...(status === 'DESLIGADO'
+            ? { dataDesligamento: new Date().toISOString().slice(0, 10) }
+            : {}),
+          ...(['FERIAS', 'AFASTADO', 'LICENCA'].includes(status)
+            ? { acaoAcesso: 'SUSPENDER' }
+            : {}),
+        };
+        await situacao(body).expect(200);
+        expect(
+          await tx.usuario.findUniqueOrThrow({ where: { id } }),
+        ).toMatchObject({ ativo: false, versaoAutorizacao: 1 });
+        const historico = await eventos();
+        expect(historico.map((h) => h.tipo)).toEqual([
+          'ALTERACAO_STATUS',
+          'INATIVACAO_ACESSO',
+        ]);
+        expect(new Set(historico.map((h) => h.operacaoId)).size).toBe(1);
+        for (const h of historico)
+          expect(h).toMatchObject({
+            acessoAnterior: 'USUARIO_ATIVO',
+            acessoNovo: 'USUARIO_INATIVO',
+            usuarioAfetadoId: id,
+          });
+        await situacao(body).expect(409);
+        expect(await eventos()).toHaveLength(2);
+      },
+    );
+    it.each(['FERIAS', 'AFASTADO', 'LICENCA', 'INATIVO', 'DESLIGADO'])(
+      '%s com acesso já inativo não repete revogação',
+      async (status) => {
+        const id = await vincular(false);
+        await situacao({
+          status,
+          versaoRegistro: 0,
+          ...(status === 'DESLIGADO'
+            ? { dataDesligamento: new Date().toISOString().slice(0, 10) }
+            : {}),
+        }).expect(200);
+        expect(
+          await tx.usuario.findUniqueOrThrow({ where: { id } }),
+        ).toMatchObject({ ativo: false, versaoAutorizacao: 0 });
+        expect(await eventos()).toHaveLength(1);
+      },
+    );
+    it('retorno ATIVO não reativa e DESLIGADO permanece terminal', async () => {
+      const id = await vincular(false);
+      await situacao({ status: 'INATIVO', versaoRegistro: 0 }).expect(200);
+      await situacao({ status: 'ATIVO', versaoRegistro: 1 }).expect(200);
+      expect(
+        (await tx.usuario.findUniqueOrThrow({ where: { id } })).ativo,
+      ).toBe(false);
+      await situacao({
+        status: 'DESLIGADO',
+        versaoRegistro: 2,
+        dataDesligamento: new Date().toISOString().slice(0, 10),
+      }).expect(200);
+      await situacao({ status: 'ATIVO', versaoRegistro: 3 }).expect(400);
+      expect(await eventos()).toHaveLength(3);
+    });
+    it.each(['INATIVO', 'DESLIGADO'] as const)(
+      'UsuariosService bloqueia ativação de %s',
+      async (status) => {
+        const service = await administrador();
+        const id = await vincular(false);
+        await situacao({
+          status,
+          versaoRegistro: 0,
+          ...(status === 'DESLIGADO'
+            ? { dataDesligamento: new Date().toISOString().slice(0, 10) }
+            : {}),
+        }).expect(200);
+        await expect(service.ativar(id, ator)).rejects.toThrow(
+          'Funcionário inativo ou desligado',
+        );
+        expect(
+          (await tx.usuario.findUniqueOrThrow({ where: { id } })).ativo,
+        ).toBe(false);
+        expect(await eventos()).toHaveLength(1);
+      },
+    );
+    it('rota de usuários e serviço continuam exigindo usuarios.inativar', async () => {
+      const service = await administrador();
+      const id = await vincular();
+      ator.permissoes = ['funcionarios.situacao.gerenciar'];
+      await request(server).patch(`/usuarios/${id}/desativar`).expect(403);
+      await expect(service.desativar(id, ator)).rejects.toThrow(
+        'Operação não autorizada.',
+      );
+      expect(
+        (await tx.usuario.findUniqueOrThrow({ where: { id } })).ativo,
+      ).toBe(true);
+      expect(await eventos()).toHaveLength(0);
+      ator.permissoes = ['usuarios.inativar'];
+      await request(server).patch(`/usuarios/${id}/desativar`).expect(200);
+      expect(
+        (await tx.usuario.findUniqueOrThrow({ where: { id } })).ativo,
+      ).toBe(false);
+      expect(await eventos()).toHaveLength(1);
+    });
+    it.each(['ATIVO', 'FERIAS', 'AFASTADO', 'LICENCA'] as const)(
+      'UsuariosService permite %s e registra somente mudanças efetivas',
+      async (status) => {
+        const service = await administrador();
+        const id = await vincular(false);
+        await tx.funcionario.update({
+          where: { id: funcionarioId },
+          data: { status },
+        });
+        await service.ativar(id, ator);
+        await service.ativar(id, ator);
+        let historico = await eventos();
+        expect(historico).toHaveLength(1);
+        expect(historico[0]).toMatchObject({
+          tipo: 'REATIVACAO_ACESSO',
+          origem: 'USUARIO',
+          statusAnterior: status,
+          statusNovo: status,
+          acessoAnterior: 'USUARIO_INATIVO',
+          acessoNovo: 'USUARIO_ATIVO',
+          atorUsuarioId: usuarioId,
+          usuarioAfetadoId: id,
+        });
+        await service.desativar(id, ator);
+        await service.desativar(id, ator);
+        historico = await eventos();
+        expect(historico).toHaveLength(2);
+        expect(historico[0]).toMatchObject({
+          tipo: 'INATIVACAO_ACESSO',
+          origem: 'USUARIO',
+          acessoAnterior: 'USUARIO_ATIVO',
+          acessoNovo: 'USUARIO_INATIVO',
+        });
+        expect(
+          await tx.usuario.findUniqueOrThrow({ where: { id } }),
+        ).toMatchObject({ ativo: false, versaoAutorizacao: 1 });
+        expect(
+          await tx.funcionario.findUniqueOrThrow({
+            where: { id: funcionarioId },
+          }),
+        ).toMatchObject({ status, versaoRegistro: 0 });
+      },
+    );
   });
 });

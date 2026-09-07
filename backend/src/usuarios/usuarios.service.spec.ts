@@ -16,11 +16,16 @@ describe('UsuariosService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       count: jest.fn(),
       update: jest.fn(),
     },
     empresa: { findUnique: jest.fn() },
     $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
+    usuarioPerfil: { count: jest.fn() },
+    funcionario: { findFirst: jest.fn() },
+    funcionarioHistorico: { create: jest.fn() },
   };
 
   beforeEach(async () => {
@@ -35,6 +40,24 @@ describe('UsuariosService', () => {
     }).compile();
 
     service = module.get<UsuariosService>(UsuariosService);
+    prismaServiceMock.$transaction.mockImplementation(
+      (callback: (tx: typeof prismaServiceMock) => Promise<unknown>) =>
+        callback(prismaServiceMock),
+    );
+    prismaServiceMock.usuarioPerfil.count.mockResolvedValue(1);
+    prismaServiceMock.funcionario.findFirst.mockResolvedValue(null);
+    prismaServiceMock.usuario.findFirst.mockImplementation(
+      async ({ where }: { where: { id: string } }) => {
+        if (where.id === 'admin' || where.id === 'super')
+          return {
+            ...(where.id === 'admin' ? admin : superAdmin),
+            ativo: true,
+          };
+        const result = prismaServiceMock.usuario.findUnique.mock.results.at(-1)
+          ?.value as Promise<Record<string, unknown>>;
+        return await result;
+      },
+    );
   });
 
   afterEach(() => {
@@ -46,12 +69,16 @@ describe('UsuariosService', () => {
     email: 'super@example.com',
     tipo: 'SUPER_ADMIN',
     empresaId: null,
+    versaoAutorizacao: 0,
+    permissoes: ['usuarios.ativar', 'usuarios.inativar'],
   };
   const admin: AuthenticatedUser = {
     id: 'admin',
     email: 'admin@example.com',
     tipo: 'ADMIN_EMPRESA',
     empresaId: 'empresa-a',
+    versaoAutorizacao: 0,
+    permissoes: ['usuarios.ativar', 'usuarios.inativar'],
   };
   const dadosCriacao = {
     nome: 'Novo usuário',
@@ -224,13 +251,17 @@ describe('UsuariosService', () => {
       async (operacao) => {
         prismaServiceMock.usuario.findUnique.mockResolvedValueOnce({
           id: 'alvo',
+          ativo: operacao === 'desativar',
           tipo: 'ADMIN_EMPRESA',
           empresaId: 'empresa-a',
         });
         await executar(operacao, admin);
         expect(prismaServiceMock.usuario.update).toHaveBeenCalledWith(
           expect.objectContaining({
-            where: { id: 'alvo' },
+            where:
+              operacao === 'atualizar'
+                ? { id: 'alvo' }
+                : { id: 'alvo', empresaId: 'empresa-a' },
             data:
               operacao === 'atualizar'
                 ? { nome: 'Nome atualizado', email: undefined, tipo: undefined }
@@ -247,6 +278,7 @@ describe('UsuariosService', () => {
       async (operacao) => {
         prismaServiceMock.usuario.findUnique.mockResolvedValueOnce({
           id: 'alvo',
+          ativo: operacao === 'desativar',
           tipo: 'USUARIO_EMPRESA',
           empresaId: 'empresa-b',
         });
@@ -260,6 +292,7 @@ describe('UsuariosService', () => {
       async (operacao) => {
         prismaServiceMock.usuario.findUnique.mockResolvedValueOnce({
           id: 'alvo',
+          ativo: operacao === 'desativar',
           tipo: 'SUPER_ADMIN',
           empresaId: null,
         });
@@ -285,6 +318,7 @@ describe('UsuariosService', () => {
     beforeEach(() => {
       prismaServiceMock.usuario.findUnique.mockResolvedValue({
         id: 'alvo',
+        ativo: true,
         tipo: 'USUARIO_EMPRESA',
         empresaId: 'empresa-a',
       });
@@ -294,7 +328,7 @@ describe('UsuariosService', () => {
       await service.desativar('alvo', admin);
       expect(prismaServiceMock.usuario.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'alvo' },
+          where: { id: 'alvo', empresaId: 'empresa-a' },
           data: { ativo: false, versaoAutorizacao: { increment: 1 } },
         }),
       );
@@ -332,6 +366,12 @@ describe('UsuariosService', () => {
     });
 
     it('reativa sem restaurar nem incrementar a versão', async () => {
+      prismaServiceMock.usuario.findUnique.mockResolvedValueOnce({
+        id: 'alvo',
+        empresaId: 'empresa-a',
+        tipo: 'USUARIO_EMPRESA',
+        ativo: false,
+      });
       await service.ativar('alvo', admin);
       expect(prismaServiceMock.usuario.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { ativo: true } }),

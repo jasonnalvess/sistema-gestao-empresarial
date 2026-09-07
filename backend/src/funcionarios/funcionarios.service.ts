@@ -1,3 +1,5 @@
+import { AlterarSituacaoFuncionarioDto } from './dto/alterar-situacao.dto';
+import { planejarSituacao } from './situacao-funcionario';
 import {
   BadRequestException,
   ConflictException,
@@ -274,6 +276,112 @@ export class FuncionariosService {
           await this.registrar(tx, empresaId, ator.id, id, ['EDICAO'], campos);
         const { id: funcionarioId, ...resultado } = depois;
         return { funcionarioId, ...resultado };
+      },
+    );
+  }
+
+  alterarSituacao(
+    empresaId: string,
+    ator: AuthenticatedUser,
+    id: string,
+    dados: AlterarSituacaoFuncionarioDto,
+  ) {
+    return this.escrever(
+      empresaId,
+      ator,
+      ['funcionarios.situacao.gerenciar'],
+      async (tx) => {
+        await this.bloquear(tx, empresaId, id);
+        const funcionario = await tx.funcionario.findFirst({
+          where: { id, empresaId },
+          select: {
+            id: true,
+            status: true,
+            dataAdmissao: true,
+            usuarioId: true,
+            versaoRegistro: true,
+          },
+        });
+        if (!funcionario)
+          throw new NotFoundException('Funcionário não encontrado.');
+        this.validarVersao(funcionario.versaoRegistro, dados.versaoRegistro);
+        let ativo: boolean | undefined;
+        if (funcionario.usuarioId) {
+          await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${funcionario.usuarioId} AND "empresaId" = ${empresaId} FOR UPDATE`;
+          const usuario = await tx.usuario.findFirst({
+            where: { id: funcionario.usuarioId, empresaId },
+            select: { ativo: true, tipo: true },
+          });
+          if (!usuario || usuario.tipo !== 'USUARIO_EMPRESA')
+            throw new ConflictException(
+              'Vínculo de usuário incompatível com o funcionário.',
+            );
+          ativo = usuario.ativo;
+        }
+        const agora = new Date();
+        const plano = planejarSituacao(
+          funcionario.status,
+          funcionario.dataAdmissao,
+          ativo,
+          dados,
+          agora,
+        );
+        if (plano.suspender)
+          await tx.usuario.update({
+            where: { id: funcionario.usuarioId!, empresaId },
+            data: { ativo: false, versaoAutorizacao: { increment: 1 } },
+            select: { id: true },
+          });
+        const depois = await tx.funcionario.update({
+          where: { id, empresaId, versaoRegistro: dados.versaoRegistro },
+          data: {
+            status: dados.status,
+            statusDesde: agora,
+            dataDesligamento: plano.dataDesligamento,
+            versaoRegistro: { increment: 1 },
+          },
+          select: operacionalSelect,
+        });
+        const operacaoId = randomUUID();
+        const estados = {
+          statusAnterior: funcionario.status,
+          statusNovo: dados.status,
+          acessoAnterior: plano.acessoAnterior,
+          acessoNovo: plano.acessoNovo,
+        };
+        const evento = {
+          empresaId,
+          funcionarioId: id,
+          ...estados,
+          origem: 'RH' as const,
+          atorUsuarioId: ator.id,
+          usuarioAfetadoId: funcionario.usuarioId,
+          acaoAcessoSolicitada: dados.acaoAcesso ?? null,
+          operacaoId,
+        };
+        await tx.funcionarioHistorico.createMany({
+          data: [
+            { ...evento, tipo: 'ALTERACAO_STATUS' },
+            ...(plano.suspender
+              ? [{ ...evento, tipo: 'INATIVACAO_ACESSO' as const }]
+              : []),
+          ],
+        });
+        await tx.auditoriaLog.create({
+          data: {
+            empresaId,
+            usuarioId: ator.id,
+            entidade: 'FUNCIONARIO',
+            entidadeId: id,
+            acao: 'ALTERAR_SITUACAO',
+            dadosNovos: prepararJsonAuditoria({
+              ...estados,
+              operacaoId,
+              acaoAcessoSolicitada: dados.acaoAcesso ?? null,
+            }),
+          },
+        });
+        return apresentarFuncionario(depois);
       },
     );
   }

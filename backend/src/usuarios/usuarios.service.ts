@@ -1,10 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
+  UnauthorizedException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { PaginacaoDto } from '../common/dto/paginacao.dto';
@@ -175,24 +178,161 @@ export class UsuariosService {
     });
   }
 
-  async ativar(id: string, usuarioLogado: AuthenticatedUser) {
-    await this.validarUsuarioGerenciavel(id, usuarioLogado);
-
-    return this.prisma.usuario.update({
-      where: { id },
-      data: { ativo: true },
-      select: this.selectSeguro,
-    });
+  ativar(id: string, usuarioLogado: AuthenticatedUser) {
+    return this.alterarAcesso(id, usuarioLogado, true);
   }
 
-  async desativar(id: string, usuarioLogado: AuthenticatedUser) {
-    await this.validarUsuarioGerenciavel(id, usuarioLogado);
+  desativar(id: string, usuarioLogado: AuthenticatedUser) {
+    return this.alterarAcesso(id, usuarioLogado, false);
+  }
 
-    return this.prisma.usuario.update({
-      where: { id },
-      data: { ativo: false, versaoAutorizacao: { increment: 1 } },
-      select: this.selectSeguro,
-    });
+  private async alterarAcesso(
+    id: string,
+    ator: AuthenticatedUser,
+    ativo: boolean,
+  ) {
+    const alvoInicial = await this.validarUsuarioGerenciavel(id, ator);
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            // Mesma ordem do RH: ator -> funcionário -> usuário vinculado.
+            await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${ator.id} FOR UPDATE`;
+            const atual = await tx.usuario.findFirst({
+              where: { id: ator.id },
+              select: {
+                ativo: true,
+                tipo: true,
+                empresaId: true,
+                versaoAutorizacao: true,
+              },
+            });
+            if (
+              !atual ||
+              !atual.ativo ||
+              !Number.isSafeInteger(ator.versaoAutorizacao) ||
+              atual.versaoAutorizacao !== ator.versaoAutorizacao ||
+              atual.tipo !== ator.tipo ||
+              atual.empresaId !== ator.empresaId
+            )
+              throw new UnauthorizedException(
+                'Sessão inválida. Faça login novamente.',
+              );
+            const permissao = ativo ? 'usuarios.ativar' : 'usuarios.inativar';
+            if (
+              !['SUPER_ADMIN', 'ADMIN_EMPRESA'].includes(atual.tipo) ||
+              !ator.permissoes?.includes(permissao)
+            )
+              throw new ForbiddenException('Operação não autorizada.');
+            const autorizado = await tx.usuarioPerfil.count({
+              where: {
+                usuarioId: ator.id,
+                ativo: true,
+                perfil: {
+                  ativo: true,
+                  empresaId: atual.empresaId,
+                  escopo: atual.tipo === 'SUPER_ADMIN' ? 'SISTEMA' : 'EMPRESA',
+                  permissoes: {
+                    some: {
+                      permitido: true,
+                      permissao: { chave: permissao, ativo: true },
+                    },
+                  },
+                },
+              },
+            });
+            if (!autorizado)
+              throw new ForbiddenException('Operação não autorizada.');
+            const empresaId = alvoInicial.empresaId;
+            const vinculo = empresaId
+              ? await tx.funcionario.findFirst({
+                  where: { usuarioId: id, empresaId },
+                  select: { id: true },
+                })
+              : null;
+            if (vinculo)
+              await tx.$queryRaw`SELECT "id" FROM "Funcionario" WHERE "id" = ${vinculo.id} AND "empresaId" = ${empresaId} FOR UPDATE`;
+            await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${id} AND "empresaId" IS NOT DISTINCT FROM ${empresaId} FOR UPDATE`;
+            const alvo = await tx.usuario.findFirst({
+              where: { id, empresaId },
+              select: this.selectSeguro,
+            });
+            if (!alvo)
+              throw new ConflictException(
+                'Usuário alterado durante a operação.',
+              );
+            if (
+              ator.tipo === 'ADMIN_EMPRESA' &&
+              (alvo.empresaId !== ator.empresaId || alvo.tipo === 'SUPER_ADMIN')
+            )
+              throw new ForbiddenException('Acesso negado a este usuário.');
+            const funcionario = empresaId
+              ? await tx.funcionario.findFirst({
+                  where: { usuarioId: id, empresaId },
+                  select: { id: true, status: true },
+                })
+              : null;
+            if (funcionario?.id !== vinculo?.id)
+              throw new ConflictException(
+                'Vínculo alterado durante a operação. Tente novamente.',
+              );
+            if (funcionario && alvo.tipo !== 'USUARIO_EMPRESA')
+              throw new ConflictException(
+                'Vínculo de usuário incompatível com o funcionário.',
+              );
+            if (
+              ativo &&
+              funcionario &&
+              ['INATIVO', 'DESLIGADO'].includes(funcionario.status)
+            )
+              throw new ConflictException(
+                'Funcionário inativo ou desligado não pode ter acesso ativado.',
+              );
+            if (alvo.ativo === ativo) return alvo;
+            const depois = await tx.usuario.update({
+              where: { id, empresaId },
+              data: {
+                ativo,
+                ...(!ativo ? { versaoAutorizacao: { increment: 1 } } : {}),
+              },
+              select: this.selectSeguro,
+            });
+            if (funcionario && empresaId)
+              await tx.funcionarioHistorico.create({
+                data: {
+                  empresaId,
+                  funcionarioId: funcionario.id,
+                  tipo: ativo ? 'REATIVACAO_ACESSO' : 'INATIVACAO_ACESSO',
+                  statusAnterior: funcionario.status,
+                  statusNovo: funcionario.status,
+                  origem: 'USUARIO',
+                  acessoAnterior: ativo ? 'USUARIO_INATIVO' : 'USUARIO_ATIVO',
+                  acessoNovo: ativo ? 'USUARIO_ATIVO' : 'USUARIO_INATIVO',
+                  atorUsuarioId: ator.id,
+                  usuarioAfetadoId: id,
+                  operacaoId: randomUUID(),
+                },
+              });
+            return depois;
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          (error.code === 'P2034' ||
+            (error.code === 'P2010' &&
+              ['40001', '40P01'].includes(String(error.meta?.code))))
+        ) {
+          if (tentativa < 2) continue;
+          throw new ConflictException(
+            'Alteração concorrente. Tente novamente.',
+          );
+        }
+        throw error;
+      }
+    }
+    throw new ConflictException('Alteração concorrente. Tente novamente.');
   }
 
   private async validarUsuarioGerenciavel(

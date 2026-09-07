@@ -1,3 +1,4 @@
+import { AlterarSituacaoFuncionarioDto } from './dto/alterar-situacao.dto';
 import {
   Body,
   Controller,
@@ -66,6 +67,16 @@ export class FuncionariosController {
     @Body() dados: EditarFuncionarioDto,
   ) {
     return this.service.editar(empresa.empresaId, ator, id, dados);
+  }
+  @Patch(':id/situacao')
+  @Permissoes('funcionarios.situacao.gerenciar')
+  alterarSituacao(
+    @EmpresaAtual() empresa: EmpresaContexto,
+    @CurrentUser() ator: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dados: AlterarSituacaoFuncionarioDto,
+  ) {
+    return this.service.alterarSituacao(empresa.empresaId, ator, id, dados);
   }
   @Get(':id/dados-pessoais')
   @Permissoes(
