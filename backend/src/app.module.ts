@@ -1,3 +1,6 @@
+import { FuncionariosModule } from './funcionarios/funcionarios.module';
+import { DepartamentosModule } from './departamentos/departamentos.module';
+import { CargosModule } from './cargos/cargos.module';
 import { PerfisModule } from './perfis/perfis.module';
 import { PermissoesModule } from './permissoes/permissoes.module';
 import { Module } from '@nestjs/common';
@@ -42,6 +45,9 @@ import { VendasModule } from './vendas/vendas.module';
       isGlobal: true,
     }),
     PrismaModule,
+    FuncionariosModule,
+    DepartamentosModule,
+    CargosModule,
     PerfisModule,
     PermissoesModule,
     EmpresasModule,

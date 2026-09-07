@@ -1,4 +1,4 @@
-// Catálogo fechado da V3.3.5. Novas chaves exigem revisão explícita de enforcement e tenant.
+// Catálogo fechado da V3.3.5, ampliado explicitamente para RH na V3.4.3. Novas chaves exigem revisão explícita de enforcement e tenant.
 export const PERMISSOES_EMPRESARIAIS_DELEGAVEIS: readonly string[] = [
   'agenda.cancelar',
   'agenda.criar',
@@ -55,6 +55,14 @@ export const PERMISSOES_EMPRESARIAIS_DELEGAVEIS: readonly string[] = [
   'fornecedores.criar',
   'fornecedores.editar',
   'fornecedores.visualizar',
+  'funcionarios.criar',
+  'funcionarios.dados_pessoais.editar',
+  'funcionarios.dados_pessoais.visualizar',
+  'funcionarios.editar',
+  'funcionarios.estrutura.gerenciar',
+  'funcionarios.inativar',
+  'funcionarios.situacao.gerenciar',
+  'funcionarios.visualizar',
   'ordens_servico.criar',
   'ordens_servico.historico.adicionar',
   'ordens_servico.status.alterar',

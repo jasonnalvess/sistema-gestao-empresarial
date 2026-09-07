@@ -1,3 +1,4 @@
+import { NOVAS_PERMISSOES_RH, PERMISSOES_EXCLUIDAS_RH } from './permissoes-rh';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -505,6 +506,7 @@ async function main() {
     },
 
     // Funcionários
+    ...NOVAS_PERMISSOES_RH,
     {
       nome: 'Visualizar funcionários',
       chave: 'funcionarios.visualizar',
@@ -1006,7 +1008,7 @@ async function main() {
   const permissoesRh = selecionarPermissoes({
     modulos: ['funcionarios', 'agenda'],
     chavesAdicionais: ['clientes.visualizar', 'dashboard.visualizar'],
-    chavesExcluidas: ['agenda.excluir'],
+    chavesExcluidas: PERMISSOES_EXCLUIDAS_RH,
   });
 
   const permissoesColaborador = selecionarPermissoes({

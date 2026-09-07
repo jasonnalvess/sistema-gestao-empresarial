@@ -1,7 +1,7 @@
 import { PERMISSOES_EMPRESARIAIS_DELEGAVEIS } from './permissoes-delegaveis';
 
-describe('Contrato fechado de delegação V3.3.5', () => {
-  it('mantém exatamente as 69 chaves operacionais revisadas', () => {
+describe('Contrato de delegação V3.3.5 / V3.4.3', () => {
+  it('mantém exatamente as 77 chaves operacionais revisadas', () => {
     expect(PERMISSOES_EMPRESARIAIS_DELEGAVEIS).toEqual([
       'agenda.cancelar',
       'agenda.criar',
@@ -58,6 +58,14 @@ describe('Contrato fechado de delegação V3.3.5', () => {
       'fornecedores.criar',
       'fornecedores.editar',
       'fornecedores.visualizar',
+      'funcionarios.criar',
+      'funcionarios.dados_pessoais.editar',
+      'funcionarios.dados_pessoais.visualizar',
+      'funcionarios.editar',
+      'funcionarios.estrutura.gerenciar',
+      'funcionarios.inativar',
+      'funcionarios.situacao.gerenciar',
+      'funcionarios.visualizar',
       'ordens_servico.criar',
       'ordens_servico.historico.adicionar',
       'ordens_servico.status.alterar',
@@ -87,7 +95,7 @@ describe('Contrato fechado de delegação V3.3.5', () => {
     'caixa.movimentacoes.cancelar',
     'financeiro.relatorios.visualizar',
     'fiscal.notas.emitir',
-    'funcionarios.visualizar',
+    'funcionarios.acesso.gerenciar',
     'nova.permissao',
   ])('não delega %s', (chave) => {
     expect(PERMISSOES_EMPRESARIAIS_DELEGAVEIS).not.toContain(chave);
