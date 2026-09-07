@@ -158,6 +158,54 @@ enum FormaPagamentoVenda {
   OUTRA
 }
 
+enum StatusFuncionario {
+  ATIVO
+  FERIAS
+  AFASTADO
+  LICENCA
+  INATIVO
+  DESLIGADO
+}
+
+enum TipoVinculoFuncionario {
+  CLT
+  ESTAGIARIO
+  APRENDIZ
+  TEMPORARIO
+  TERCEIRIZADO
+  PRESTADOR_SERVICO
+  SOCIO
+  OUTRO
+}
+
+enum OrigemFuncionarioHistorico {
+  RH
+  USUARIO
+  SISTEMA
+}
+
+enum EstadoAcessoFuncionario {
+  SEM_USUARIO
+  USUARIO_ATIVO
+  USUARIO_INATIVO
+}
+
+enum TipoEventoFuncionarioHistorico {
+  CRIACAO
+  EDICAO
+  ALTERACAO_CARGO
+  ALTERACAO_DEPARTAMENTO
+  ALTERACAO_GESTOR
+  ALTERACAO_STATUS
+  RECLASSIFICACAO_STATUS
+  CRIACAO_ACESSO
+  VINCULO_ACESSO
+  DESVINCULO_ACESSO
+  INATIVACAO_ACESSO
+  REATIVACAO_ACESSO
+  REDEFINICAO_SENHA
+}
+
 model Empresa {
   id        String   @id @default(uuid())
   nome      String
@@ -165,6 +213,11 @@ model Empresa {
   ativa     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  cargos                Cargo[]
+  departamentos         Departamento[]
+  funcionarios          Funcionario[]
+  funcionarioHistoricos FuncionarioHistorico[]
 
   usuarios                 Usuario[]
   perfis                   Perfil[]
@@ -195,13 +248,18 @@ model Empresa {
 }
 
 model Usuario {
-  id    String   @id @default(uuid())
-  nome  String
-  email String   @unique
-  senha String
-  tipo  UserType
-  ativo Boolean  @default(true)
-  versaoAutorizacao Int @default(0)
+  id                    String   @id @default(uuid())
+  nome                  String
+  email                 String   @unique
+  senha                 String
+  tipo                  UserType
+  ativo                 Boolean  @default(true)
+  versaoAutorizacao     Int      @default(0)
+  trocaSenhaObrigatoria Boolean  @default(false)
+
+  funcionario                  Funcionario?           @relation("FuncionarioUsuario")
+  funcionarioHistoricosAtor    FuncionarioHistorico[] @relation("FuncionarioHistoricoAtor")
+  funcionarioHistoricosAfetado FuncionarioHistorico[] @relation("FuncionarioHistoricoAfetado")
 
   empresaId String?
   empresa   Empresa? @relation(fields: [empresaId], references: [id])
@@ -1330,4 +1388,115 @@ model VendaHistorico {
 
   @@index([vendaId])
   @@index([usuarioId])
+}
+
+model Cargo {
+  id           String        @id @default(uuid())
+  empresaId    String
+  empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  nome         String
+  descricao    String?
+  ativo        Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  funcionarios Funcionario[]
+
+  @@unique([empresaId, id])
+  @@unique([empresaId, nome])
+  @@index([empresaId, ativo])
+}
+
+model Departamento {
+  id           String        @id @default(uuid())
+  empresaId    String
+  empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  nome         String
+  descricao    String?
+  ativo        Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  funcionarios Funcionario[]
+
+  @@unique([empresaId, id])
+  @@unique([empresaId, nome])
+  @@index([empresaId, ativo])
+}
+
+model Funcionario {
+  id                  String                 @id @default(uuid())
+  empresaId           String
+  empresa             Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  nome                String
+  nomePreferido       String?
+  cpf                 String?
+  emailCorporativo    String?
+  telefoneCorporativo String?
+  emailPessoal        String?
+  telefonePessoal     String?
+  cep                 String?
+  logradouro          String?
+  numero              String?
+  complemento         String?
+  bairro              String?
+  cidade              String?
+  uf                  String?
+  matricula           String
+  dataAdmissao        DateTime
+  dataDesligamento    DateTime?
+  tipoVinculo         TipoVinculoFuncionario
+
+  // A migration limita SET NULL ao ID opcional, preservando empresaId.
+  cargoId        String?
+  cargo          Cargo?        @relation(fields: [empresaId, cargoId], references: [empresaId, id], onDelete: SetNull, onUpdate: Restrict)
+  departamentoId String?
+  departamento   Departamento? @relation(fields: [empresaId, departamentoId], references: [empresaId, id], onDelete: SetNull, onUpdate: Restrict)
+  gestorId       String?
+  gestor         Funcionario?  @relation("FuncionarioGestor", fields: [empresaId, gestorId], references: [empresaId, id], onDelete: SetNull, onUpdate: Restrict)
+  subordinados   Funcionario[] @relation("FuncionarioGestor")
+
+  status         StatusFuncionario
+  statusDesde    DateTime
+  usuarioId      String?                @unique
+  usuario        Usuario?               @relation("FuncionarioUsuario", fields: [usuarioId], references: [id], onDelete: SetNull)
+  versaoRegistro Int                    @default(0)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  historicos     FuncionarioHistorico[]
+
+  @@unique([empresaId, id])
+  @@unique([empresaId, matricula])
+  @@unique([empresaId, cpf])
+  @@index([empresaId, status])
+  @@index([empresaId, cargoId])
+  @@index([empresaId, departamentoId])
+  @@index([empresaId, gestorId])
+  @@index([empresaId, createdAt])
+}
+
+/// Timeline append-only: não expor edição/exclusão nos futuros fluxos de RH.
+model FuncionarioHistorico {
+  id                   String                         @id @default(uuid())
+  empresaId            String
+  empresa              Empresa                        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  funcionarioId        String
+  funcionario          Funcionario                    @relation(fields: [empresaId, funcionarioId], references: [empresaId, id], onDelete: Restrict, onUpdate: Restrict)
+  tipo                 TipoEventoFuncionarioHistorico
+  statusAnterior       StatusFuncionario?
+  statusNovo           StatusFuncionario?
+  acessoAnterior       EstadoAcessoFuncionario?
+  acessoNovo           EstadoAcessoFuncionario?
+  origem               OrigemFuncionarioHistorico
+  atorUsuarioId        String?
+  atorUsuario          Usuario?                       @relation("FuncionarioHistoricoAtor", fields: [atorUsuarioId], references: [id], onDelete: SetNull)
+  usuarioAfetadoId     String?
+  usuarioAfetado       Usuario?                       @relation("FuncionarioHistoricoAfetado", fields: [usuarioAfetadoId], references: [id], onDelete: SetNull)
+  acaoAcessoSolicitada String?
+  operacaoId           String?
+  createdAt            DateTime                       @default(now())
+
+  @@index([empresaId, funcionarioId, createdAt])
+  @@index([empresaId, createdAt])
+  @@index([atorUsuarioId])
+  @@index([usuarioAfetadoId])
+  @@index([operacaoId])
 }
