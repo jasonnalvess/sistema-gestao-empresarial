@@ -6,7 +6,7 @@ export type AgendaEvento = {
   descricao?: string;
   dataInicio: string;
   dataFim: string;
-  status: string;
+  status: AgendaStatus;
   local?: string;
   clienteNome?: string;
   clienteContato?: string;
@@ -20,6 +20,10 @@ export type AgendaEvento = {
     telefone?: string | null;
   } | null;
 };
+
+export type AgendaStatus =
+  "AGENDADO" | "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO";
+export type AgendaStatusEditavel = Exclude<AgendaStatus, "CANCELADO">;
 
 export type CriarAgendaEventoInput = {
   titulo: string;
@@ -47,7 +51,7 @@ export async function criarAgendaEvento(dados: CriarAgendaEventoInput) {
 }
 
 export type AtualizarAgendaEventoInput = {
-  status?: "AGENDADO" | "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO";
+  status?: AgendaStatusEditavel;
   titulo?: string;
   descricao?: string;
   dataInicio?: string;
@@ -60,9 +64,14 @@ export type AtualizarAgendaEventoInput = {
 
 export async function atualizarAgendaEvento(
   id: string,
-  dados: AtualizarAgendaEventoInput
+  dados: AtualizarAgendaEventoInput,
 ) {
   const { data } = await api.patch(`/agenda/${id}`, dados);
+  return data;
+}
+
+export async function cancelarAgendaEvento(id: string) {
+  const { data } = await api.patch(`/agenda/${id}/cancelar`);
   return data;
 }
 
@@ -91,7 +100,7 @@ export async function listarAgendaHistorico(eventoId: string) {
 
 export async function adicionarAgendaHistorico(
   eventoId: string,
-  descricao: string
+  descricao: string,
 ) {
   const { data } = await api.post(`/agenda/${eventoId}/historico`, {
     descricao,

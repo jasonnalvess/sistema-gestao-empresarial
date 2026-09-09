@@ -11,11 +11,17 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
 
-import {
-  AgendaEvento,
-  atualizarAgendaEvento,
-} from "@/services/agenda.service";
+import { AgendaEvento, atualizarAgendaEvento } from "@/services/agenda.service";
 import { listarClientes } from "@/services/clientes.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { agendaQueryKeys } from "@/lib/agenda-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
+import {
+  PERMISSAO_AGENDA_EDITAR,
+  PERMISSAO_CLIENTES_VISUALIZAR,
+} from "@/lib/auth";
+import type { AgendaStatusEditavel } from "@/services/agenda.service";
 
 type Props = {
   evento: AgendaEvento;
@@ -26,6 +32,10 @@ function formatarParaInputData(data: string) {
 }
 
 export function EditarEventoModal({ evento }: Props) {
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_AGENDA_EDITAR);
+  const podeVisualizarClientes = temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
   const queryClient = useQueryClient();
 
   const [aberto, setAberto] = useState(false);
@@ -34,27 +44,40 @@ export function EditarEventoModal({ evento }: Props) {
   const [titulo, setTitulo] = useState(evento.titulo);
   const [descricao, setDescricao] = useState(evento.descricao ?? "");
   const [dataInicio, setDataInicio] = useState(
-    formatarParaInputData(evento.dataInicio)
+    formatarParaInputData(evento.dataInicio),
   );
   const [dataFim, setDataFim] = useState(formatarParaInputData(evento.dataFim));
   const [local, setLocal] = useState(evento.local ?? "");
   const [clienteId, setClienteId] = useState(evento.clienteId ?? "");
-  const [status, setStatus] = useState<
-    "AGENDADO" | "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO"
-  >(evento.status as "AGENDADO" | "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO");
+  const [status, setStatus] = useState<AgendaStatusEditavel>(
+    evento.status === "CANCELADO" ? "AGENDADO" : evento.status,
+  );
 
   const { data: clientesResponse } = useQuery({
-    queryKey: ["clientes-select"],
+    queryKey: ["clientes-select", empresaEfetivaId],
     queryFn: () =>
       listarClientes({
         page: 1,
         limit: 100,
       }),
+    enabled:
+      aberto &&
+      !carregando &&
+      Boolean(empresaEfetivaId) &&
+      podeEditar &&
+      podeVisualizarClientes,
   });
 
   async function salvar() {
+    if (!podeEditar) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+    if (carregando || !empresaEfetivaId) return;
     if (!clienteId) {
-      toast.error("Selecione um cliente cadastrado antes de salvar o atendimento.");
+      toast.error(
+        "Selecione um cliente cadastrado antes de salvar o atendimento.",
+      );
       return;
     }
 
@@ -77,14 +100,22 @@ export function EditarEventoModal({ evento }: Props) {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["agenda"],
+        queryKey: agendaQueryKeys.listas(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao atualizar atendimento");
+      await queryClient.invalidateQueries({
+        queryKey: agendaQueryKeys.detalhe(empresaEfetivaId, evento.id),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: agendaQueryKeys.historico(empresaEfetivaId, evento.id),
+      });
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar atendimento"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeEditar || evento.status === "CANCELADO") return null;
 
   return (
     <FormDialog
@@ -114,11 +145,9 @@ export function EditarEventoModal({ evento }: Props) {
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="text-sm font-medium text-slate-700">
-              Início
-            </label>
+            <label className="text-sm font-medium text-slate-700">Início</label>
             <Input
               type="datetime-local"
               value={dataInicio}
@@ -178,25 +207,16 @@ export function EditarEventoModal({ evento }: Props) {
           <label className="text-sm font-medium text-slate-700">Status</label>
           <select
             value={status}
-            onChange={(e) =>
-              setStatus(
-                e.target.value as
-                  | "AGENDADO"
-                  | "EM_ANDAMENTO"
-                  | "CONCLUIDO"
-                  | "CANCELADO"
-              )
-            }
+            onChange={(e) => setStatus(e.target.value as AgendaStatusEditavel)}
             className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
           >
             <option value="AGENDADO">Agendado</option>
             <option value="EM_ANDAMENTO">Em andamento</option>
             <option value="CONCLUIDO">Concluído</option>
-            <option value="CANCELADO">Cancelado</option>
           </select>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 bg-white pt-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

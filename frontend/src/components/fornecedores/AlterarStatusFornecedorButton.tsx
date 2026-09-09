@@ -1,11 +1,15 @@
 "use client";
 
+import { obterMensagemErro } from "@/lib/api-error";
 import { useQueryClient } from "@tanstack/react-query";
 import { Power } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/actions/ConfirmDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_FORNECEDORES_EDITAR } from "@/lib/auth";
 
 import {
   ativarFornecedor,
@@ -21,8 +25,19 @@ export function AlterarStatusFornecedorButton({
   fornecedor,
 }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId } = useEmpresaSelecionada();
+  const podeEditarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_EDITAR);
 
   async function alterarStatus() {
+    if (!podeEditarFornecedor) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+    if (!empresaEfetivaId) {
+      toast.error("Selecione uma empresa para realizar esta ação.");
+      return;
+    }
     try {
       if (fornecedor.ativo) {
         await desativarFornecedor(fornecedor.id);
@@ -33,15 +48,17 @@ export function AlterarStatusFornecedorButton({
       }
 
       queryClient.invalidateQueries({
-        queryKey: ["fornecedores"],
+        queryKey: ["fornecedores", empresaEfetivaId],
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          "Erro ao alterar status do fornecedor"
-      );
+      queryClient.invalidateQueries({
+        queryKey: ["fornecedor", empresaEfetivaId, fornecedor.id],
+      });
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao alterar status do fornecedor"));
     }
   }
+
+  if (!podeEditarFornecedor || !empresaEfetivaId) return null;
 
   return (
     <ConfirmDialog
@@ -61,7 +78,7 @@ export function AlterarStatusFornecedorButton({
           variant={fornecedor.ativo ? "destructive" : "outline"}
           size="sm"
         >
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {fornecedor.ativo ? "Desativar" : "Ativar"}
         </Button>
       }

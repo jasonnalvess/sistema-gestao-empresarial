@@ -3,6 +3,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  Length,
   MinLength,
 } from 'class-validator';
 
@@ -42,6 +43,7 @@ export class AtualizarClienteDto {
 
   @IsOptional()
   @IsString()
+  @Length(2, 2)
   estado?: string;
 
   @IsOptional()

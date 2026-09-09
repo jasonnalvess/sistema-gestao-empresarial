@@ -14,12 +14,24 @@ import {
   adicionarAgendaHistorico,
   listarAgendaHistorico,
 } from "@/services/agenda.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { agendaQueryKeys } from "@/lib/agenda-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
+import {
+  PERMISSAO_AGENDA_EDITAR,
+  PERMISSAO_AGENDA_VISUALIZAR,
+} from "@/lib/auth";
 
 type Props = {
   evento: AgendaEvento;
 };
 
 export function AgendaHistoricoModal({ evento }: Props) {
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeVisualizar = temPermissao(PERMISSAO_AGENDA_VISUALIZAR);
+  const podeEditar = temPermissao(PERMISSAO_AGENDA_EDITAR);
   const queryClient = useQueryClient();
 
   const [aberto, setAberto] = useState(false);
@@ -27,12 +39,18 @@ export function AgendaHistoricoModal({ evento }: Props) {
   const [salvando, setSalvando] = useState(false);
 
   const { data: historicos = [], isLoading } = useQuery({
-    queryKey: ["agenda-historico", evento.id],
+    queryKey: agendaQueryKeys.historico(empresaEfetivaId ?? "", evento.id),
     queryFn: () => listarAgendaHistorico(evento.id),
-    enabled: aberto,
+    enabled:
+      aberto && !carregando && Boolean(empresaEfetivaId) && podeVisualizar,
   });
 
   async function salvarHistorico() {
+    if (!podeEditar) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+    if (carregando || !empresaEfetivaId) return;
     try {
       setSalvando(true);
 
@@ -43,16 +61,19 @@ export function AgendaHistoricoModal({ evento }: Props) {
       setDescricao("");
 
       queryClient.invalidateQueries({
-        queryKey: ["agenda-historico", evento.id],
+        queryKey: agendaQueryKeys.historico(empresaEfetivaId, evento.id),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao adicionar histórico"
-      );
+      await queryClient.invalidateQueries({
+        queryKey: agendaQueryKeys.detalhe(empresaEfetivaId, evento.id),
+      });
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao adicionar histórico"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeVisualizar) return null;
 
   return (
     <FormDialog
@@ -68,34 +89,36 @@ export function AgendaHistoricoModal({ evento }: Props) {
     >
       <div className="space-y-5">
         <div>
-          <p className="text-sm font-medium text-slate-700">
-            {evento.titulo}
-          </p>
+          <p className="text-sm font-medium text-slate-700">{evento.titulo}</p>
           <p className="text-xs text-slate-500">
-           {evento.cliente?.nome || evento.clienteNome || "Sem cliente informado"}
+            {evento.cliente?.nome ||
+              evento.clienteNome ||
+              "Sem cliente informado"}
           </p>
         </div>
 
-        <div>
-          <label className="text-sm font-medium text-slate-700">
-            Nova evolução
-          </label>
+        {podeEditar && (
+          <div>
+            <label className="text-sm font-medium text-slate-700">
+              Nova evolução
+            </label>
 
-          <Textarea
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            placeholder="Ex: Cliente enviou documentação, aguardando retorno..."
-          />
+            <Textarea
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+              placeholder="Ex: Cliente enviou documentação, aguardando retorno..."
+            />
 
-          <div className="mt-3 flex justify-end">
-            <Button
-              onClick={salvarHistorico}
-              disabled={salvando || descricao.trim().length < 2}
-            >
-              {salvando ? "Salvando..." : "Adicionar histórico"}
-            </Button>
+            <div className="mt-3 flex justify-end">
+              <Button
+                onClick={salvarHistorico}
+                disabled={salvando || descricao.trim().length < 2}
+              >
+                {salvando ? "Salvando..." : "Adicionar histórico"}
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="border-t pt-4">
           <h3 className="mb-3 text-sm font-semibold text-slate-900">

@@ -10,7 +10,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AgendaService } from './agenda.service';
 
 describe('AgendaService', () => {
-  const usuario = { id: 'u1', empresaId: 'e1', tipo: 'USUARIO_EMPRESA' };
   const inicio = '2026-07-23T09:00:00.000Z';
   const fim = '2026-07-23T10:00:00.000Z';
   const dto = {
@@ -41,6 +40,7 @@ describe('AgendaService', () => {
 
   function criarContexto() {
     const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       $queryRaw: jest.fn().mockResolvedValue([]),
       cliente: {
         findFirst: jest
@@ -58,7 +58,8 @@ describe('AgendaService', () => {
           .mockResolvedValueOnce(null)
           .mockResolvedValue(evento),
         create: jest.fn().mockResolvedValue(evento),
-        update: jest.fn().mockResolvedValue(evento),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findFirstOrThrow: jest.fn().mockResolvedValue(evento),
       },
       agendaEventoHistorico: {
         create: jest.fn().mockResolvedValue({ id: 'h1' }),
@@ -73,7 +74,7 @@ describe('AgendaService', () => {
       ),
       agendaEvento: {
         findMany: jest.fn(),
-        findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
       agendaEventoHistorico: {
         findMany: jest.fn(),
@@ -86,18 +87,18 @@ describe('AgendaService', () => {
   describe('criar', () => {
     it('usa transação e o mesmo tx em todas as operações críticas', async () => {
       const { service, prisma, tx } = criarContexto();
-      await service.criar(dto, usuario);
+      await service.criar('e1', 'u1', dto);
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(tx.cliente.findFirst).toHaveBeenCalled();
       expect(tx.usuario.findFirst).toHaveBeenCalled();
-      expect(tx.$queryRaw).toHaveBeenCalled();
+      expect(tx.$executeRaw).toHaveBeenCalled();
       expect(tx.agendaEvento.findFirst).toHaveBeenCalled();
       expect(tx.agendaEvento.create).toHaveBeenCalled();
     });
 
     it('valida cliente no tenant e aceita cliente válido', async () => {
       const { service, tx } = criarContexto();
-      await service.criar(dto, usuario);
+      await service.criar('e1', 'u1', dto);
       expect(tx.cliente.findFirst).toHaveBeenCalledWith({
         where: { id: 'c1', empresaId: 'e1' },
       });
@@ -108,7 +109,7 @@ describe('AgendaService', () => {
       async () => {
         const { service, tx } = criarContexto();
         tx.cliente.findFirst.mockResolvedValue(null);
-        await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
+        await expect(service.criar('e1', 'u1', dto)).rejects.toBeInstanceOf(
           NotFoundException,
         );
         expect(tx.agendaEvento.create).not.toHaveBeenCalled();
@@ -122,14 +123,14 @@ describe('AgendaService', () => {
         empresaId: 'e1',
         ativo: false,
       });
-      await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
+      await expect(service.criar('e1', 'u1', dto)).rejects.toBeInstanceOf(
         BadRequestException,
       );
     });
 
     it('valida responsável no tenant e aceita responsável válido', async () => {
       const { service, tx } = criarContexto();
-      await service.criar(dto, usuario);
+      await service.criar('e1', 'u1', dto);
       expect(tx.usuario.findFirst).toHaveBeenCalledWith({
         where: { id: 'u1', empresaId: 'e1' },
       });
@@ -140,7 +141,7 @@ describe('AgendaService', () => {
       async () => {
         const { service, tx } = criarContexto();
         tx.usuario.findFirst.mockResolvedValue(null);
-        await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
+        await expect(service.criar('e1', 'u1', dto)).rejects.toBeInstanceOf(
           NotFoundException,
         );
       },
@@ -153,7 +154,7 @@ describe('AgendaService', () => {
         empresaId: 'e1',
         ativo: false,
       });
-      await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
+      await expect(service.criar('e1', 'u1', dto)).rejects.toBeInstanceOf(
         BadRequestException,
       );
     });
@@ -166,7 +167,7 @@ describe('AgendaService', () => {
     ])('rejeita %s', async (_caso, dataInicio, dataFim) => {
       const { service, prisma } = criarContexto();
       await expect(
-        service.criar({ ...dto, dataInicio, dataFim }, usuario),
+        service.criar('e1', 'u1', { ...dto, dataInicio, dataFim }),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });
@@ -174,7 +175,7 @@ describe('AgendaService', () => {
     it('força AGENDADO sem utilizar status injetado pelo consumidor', async () => {
       const { service, tx } = criarContexto();
       const entradaMaliciosa = { ...dto, status: 'CONCLUIDO' };
-      await service.criar(entradaMaliciosa, usuario);
+      await service.criar('e1', 'u1', entradaMaliciosa);
       const dadosCriacao = tx.agendaEvento.create.mock.calls[0][0].data;
       expect(dadosCriacao.status).toBe('AGENDADO');
       expect(dadosCriacao.status).not.toBe('CONCLUIDO');
@@ -189,26 +190,30 @@ describe('AgendaService', () => {
         clienteId: dto.clienteId,
       };
       await expect(
-        service.criar(dadosSemResponsavel, {
-          empresaId: 'e1',
-        } as unknown as import('./agenda.service').UsuarioAgendaAutenticado),
+        service.criar('e1', '', dadosSemResponsavel),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('adquire advisory lock antes de consultar conflito', async () => {
       const { service, tx } = criarContexto();
-      await service.criar(dto, usuario);
-      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      await service.criar('e1', 'u1', dto);
+      expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
         tx.agendaEvento.findFirst.mock.invocationCallOrder[0],
       );
-      expect(tx.$queryRaw.mock.calls[0][1]).toBe('agenda:e1:u1');
+      expect(tx.$executeRaw.mock.calls[0][0]).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('pg_advisory_xact_lock'),
+        ]),
+      );
+      expect(tx.$executeRaw.mock.calls[0][1]).toBe('agenda:e1:u1');
+      expect(tx.$queryRaw).not.toHaveBeenCalled();
     });
 
     it('rejeita evento sobreposto antes da criação', async () => {
       const { service, tx } = criarContexto();
       tx.agendaEvento.findFirst.mockReset().mockResolvedValue({ id: 'a2' });
-      await expect(service.criar(dto, usuario)).rejects.toBeInstanceOf(
+      await expect(service.criar('e1', 'u1', dto)).rejects.toBeInstanceOf(
         ConflictException,
       );
       expect(tx.agendaEvento.create).not.toHaveBeenCalled();
@@ -216,7 +221,7 @@ describe('AgendaService', () => {
 
     it('usa desigualdades estritas, permite contiguidade e ignora cancelados', async () => {
       const { service, tx } = criarContexto();
-      await service.criar(dto, usuario);
+      await service.criar('e1', 'u1', dto);
       expect(tx.agendaEvento.findFirst).toHaveBeenCalledWith({
         where: expect.objectContaining({
           status: { not: 'CANCELADO' },
@@ -229,7 +234,7 @@ describe('AgendaService', () => {
 
     it('cria somente após validações, lock e consulta de conflito', async () => {
       const { service, tx } = criarContexto();
-      await service.criar(dto, usuario);
+      await service.criar('e1', 'u1', dto);
       const ordemCriacao = tx.agendaEvento.create.mock.invocationCallOrder[0];
       expect(tx.cliente.findFirst.mock.invocationCallOrder[0]).toBeLessThan(
         ordemCriacao,
@@ -237,7 +242,7 @@ describe('AgendaService', () => {
       expect(tx.usuario.findFirst.mock.invocationCallOrder[0]).toBeLessThan(
         ordemCriacao,
       );
-      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
         ordemCriacao,
       );
       expect(
@@ -248,10 +253,35 @@ describe('AgendaService', () => {
     it('propaga falha posterior e rejeita a operação transacional', async () => {
       const { service, tx } = criarContexto();
       tx.agendaEvento.create.mockRejectedValue(new Error('falha de escrita'));
-      await expect(service.criar(dto, usuario)).rejects.toThrow(
+      await expect(service.criar('e1', 'u1', dto)).rejects.toThrow(
         'falha de escrita',
       );
     });
+  });
+
+  describe('consultas tenant-aware', () => {
+    it('lista sempre com empresaId explícito', async () => {
+      const { service, prisma } = criarContexto();
+      prisma.agendaEvento.findMany.mockResolvedValue([]);
+      await service.listar('e1');
+      expect(prisma.agendaEvento.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { empresaId: 'e1' } }),
+      );
+    });
+
+    it.each(['inexistente', 'externo'])(
+      'retorna o mesmo 404 para evento %s',
+      async () => {
+        const { service, prisma } = criarContexto();
+        prisma.agendaEvento.findFirst.mockResolvedValue(null);
+        await expect(service.buscarPorId('e1', 'a1')).rejects.toThrow(
+          'Evento não encontrado',
+        );
+        expect(prisma.agendaEvento.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: 'a1', empresaId: 'e1' } }),
+        );
+      },
+    );
   });
 
   describe('atualizar', () => {
@@ -266,27 +296,29 @@ describe('AgendaService', () => {
 
     it('abre transação, executa FOR UPDATE antes da releitura e atualiza com tx', async () => {
       const { service, prisma, tx } = prepararAtualizacao();
-      await service.atualizar('a1', { descricao: 'Nova' }, usuario);
+      await service.atualizar('e1', 'a1', 'u1', { descricao: 'Nova' });
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
         tx.agendaEvento.findFirst.mock.invocationCallOrder[0],
       );
-      expect(tx.agendaEvento.update).toHaveBeenCalled();
+      expect(tx.$queryRaw.mock.calls[0][1]).toBe('a1');
+      expect(tx.$queryRaw.mock.calls[0][2]).toBe('e1');
+      expect(tx.agendaEvento.updateMany).toHaveBeenCalled();
     });
 
     it('retorna não encontrado para tenant incorreto', async () => {
       const { service, tx } = prepararAtualizacao();
       tx.agendaEvento.findFirst.mockReset().mockResolvedValue(null);
       await expect(
-        service.atualizar('a1', { descricao: 'Nova' }, usuario),
+        service.atualizar('e1', 'a1', 'u1', { descricao: 'Nova' }),
       ).rejects.toBeInstanceOf(NotFoundException);
-      expect(tx.agendaEvento.update).not.toHaveBeenCalled();
+      expect(tx.agendaEvento.updateMany).not.toHaveBeenCalled();
     });
 
     it('combina apenas início novo com fim atual', async () => {
       const { service, tx } = prepararAtualizacao();
       const novoInicio = '2026-07-23T09:30:00.000Z';
-      await service.atualizar('a1', { dataInicio: novoInicio }, usuario);
+      await service.atualizar('e1', 'a1', 'u1', { dataInicio: novoInicio });
       expect(tx.agendaEvento.findFirst).toHaveBeenLastCalledWith({
         where: expect.objectContaining({
           dataInicio: { lt: evento.dataFim },
@@ -299,7 +331,7 @@ describe('AgendaService', () => {
     it('combina apenas fim novo com início atual', async () => {
       const { service, tx } = prepararAtualizacao();
       const novoFim = '2026-07-23T11:00:00.000Z';
-      await service.atualizar('a1', { dataFim: novoFim }, usuario);
+      await service.atualizar('e1', 'a1', 'u1', { dataFim: novoFim });
       expect(tx.agendaEvento.findFirst).toHaveBeenLastCalledWith({
         where: expect.objectContaining({
           dataInicio: { lt: new Date(novoFim) },
@@ -312,13 +344,11 @@ describe('AgendaService', () => {
     it('rejeita intervalo final inválido em atualização parcial', async () => {
       const { service, tx } = prepararAtualizacao();
       await expect(
-        service.atualizar(
-          'a1',
-          { dataInicio: '2026-07-23T10:00:00.000Z' },
-          usuario,
-        ),
+        service.atualizar('e1', 'a1', 'u1', {
+          dataInicio: '2026-07-23T10:00:00.000Z',
+        }),
       ).rejects.toBeInstanceOf(BadRequestException);
-      expect(tx.agendaEvento.update).not.toHaveBeenCalled();
+      expect(tx.agendaEvento.updateMany).not.toHaveBeenCalled();
     });
 
     it('na troca de responsável bloqueia antigo e novo em ordem determinística', async () => {
@@ -328,14 +358,14 @@ describe('AgendaService', () => {
         empresaId: 'e1',
         ativo: true,
       });
-      await service.atualizar('a1', { usuarioId: 'u2' }, usuario);
-      const chaves = tx.$queryRaw.mock.calls.slice(1).map((call) => call[1]);
+      await service.atualizar('e1', 'a1', 'u1', { usuarioId: 'u2' });
+      const chaves = tx.$executeRaw.mock.calls.map((call) => call[1]);
       expect(chaves).toEqual(['agenda:e1:u1', 'agenda:e1:u2']);
     });
 
     it('exclui o próprio evento da consulta de conflito', async () => {
       const { service, tx } = prepararAtualizacao();
-      await service.atualizar('a1', { dataFim: fim }, usuario);
+      await service.atualizar('e1', 'a1', 'u1', { dataFim: fim });
       expect(tx.agendaEvento.findFirst).toHaveBeenLastCalledWith({
         where: expect.objectContaining({ id: { not: 'a1' } }),
         select: { id: true },
@@ -349,9 +379,9 @@ describe('AgendaService', () => {
         .mockResolvedValueOnce(evento)
         .mockResolvedValueOnce({ id: 'a2' });
       await expect(
-        service.atualizar('a1', { dataFim: fim }, usuario),
+        service.atualizar('e1', 'a1', 'u1', { dataFim: fim }),
       ).rejects.toBeInstanceOf(ConflictException);
-      expect(tx.agendaEvento.update).not.toHaveBeenCalled();
+      expect(tx.agendaEvento.updateMany).not.toHaveBeenCalled();
     });
 
     it('impede cliente divergente de ordem de serviço vinculada', async () => {
@@ -363,7 +393,7 @@ describe('AgendaService', () => {
       });
       tx.ordemServico.findFirst.mockResolvedValue({ id: 'os1' });
       await expect(
-        service.atualizar('a1', { clienteId: 'c2' }, usuario),
+        service.atualizar('e1', 'a1', 'u1', { clienteId: 'c2' }),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(tx.ordemServico.findFirst).toHaveBeenCalledWith({
         where: {
@@ -373,7 +403,7 @@ describe('AgendaService', () => {
         },
         select: { id: true },
       });
-      expect(tx.agendaEvento.update).not.toHaveBeenCalled();
+      expect(tx.agendaEvento.updateMany).not.toHaveBeenCalled();
     });
 
     it('permite alteração válida de cliente após validar Ordens de Serviço', async () => {
@@ -383,9 +413,9 @@ describe('AgendaService', () => {
         empresaId: 'e1',
         ativo: true,
       });
-      await service.atualizar('a1', { clienteId: 'c2' }, usuario);
+      await service.atualizar('e1', 'a1', 'u1', { clienteId: 'c2' });
       expect(tx.ordemServico.findFirst).toHaveBeenCalled();
-      expect(tx.agendaEvento.update).toHaveBeenCalledWith(
+      expect(tx.agendaEvento.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ clienteId: 'c2' }),
         }),
@@ -394,9 +424,9 @@ describe('AgendaService', () => {
 
     it('clienteId undefined mantém o cliente e não consulta Ordens de Serviço', async () => {
       const { service, tx } = prepararAtualizacao();
-      await service.atualizar('a1', { clienteId: undefined }, usuario);
+      await service.atualizar('e1', 'a1', 'u1', { clienteId: undefined });
       expect(tx.ordemServico.findFirst).not.toHaveBeenCalled();
-      expect(tx.agendaEvento.update).toHaveBeenCalledWith(
+      expect(tx.agendaEvento.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ clienteId: undefined }),
         }),
@@ -405,7 +435,7 @@ describe('AgendaService', () => {
 
     it('permite remover cliente quando não há Ordem de Serviço vinculada', async () => {
       const { service, tx } = prepararAtualizacao();
-      await service.atualizar('a1', { clienteId: null }, usuario);
+      await service.atualizar('e1', 'a1', 'u1', { clienteId: null });
       expect(tx.cliente.findFirst).not.toHaveBeenCalled();
       expect(tx.ordemServico.findFirst).toHaveBeenCalledWith({
         where: {
@@ -414,7 +444,7 @@ describe('AgendaService', () => {
         },
         select: { id: true },
       });
-      expect(tx.agendaEvento.update).toHaveBeenCalledWith(
+      expect(tx.agendaEvento.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ clienteId: null }),
         }),
@@ -425,26 +455,26 @@ describe('AgendaService', () => {
       const { service, tx } = prepararAtualizacao();
       tx.ordemServico.findFirst.mockResolvedValue({ id: 'os1' });
       await expect(
-        service.atualizar('a1', { clienteId: null }, usuario),
+        service.atualizar('e1', 'a1', 'u1', { clienteId: null }),
       ).rejects.toBeInstanceOf(ConflictException);
-      expect(tx.agendaEvento.update).not.toHaveBeenCalled();
+      expect(tx.agendaEvento.updateMany).not.toHaveBeenCalled();
     });
 
     it('permite evento contíguo por usar comparação estrita', async () => {
       const { service, tx } = prepararAtualizacao();
-      await service.atualizar('a1', { dataInicio: inicio }, usuario);
-      expect(tx.agendaEvento.update).toHaveBeenCalled();
+      await service.atualizar('e1', 'a1', 'u1', { dataInicio: inicio });
+      expect(tx.agendaEvento.updateMany).toHaveBeenCalled();
     });
 
     it('alteração somente textual não adquire advisory lock nem consulta conflito', async () => {
       const { service, tx } = prepararAtualizacao();
       await expect(
-        service.atualizar('a1', { descricao: 'Nova' }, usuario),
+        service.atualizar('e1', 'a1', 'u1', { descricao: 'Nova' }),
       ).resolves.toEqual(expect.objectContaining({ status: 'AGENDADO' }));
       expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
       expect(tx.agendaEvento.findFirst).toHaveBeenCalledTimes(1);
       expect(tx.ordemServico.findFirst).not.toHaveBeenCalled();
-      const dadosAtualizacao = tx.agendaEvento.update.mock.calls[0][0].data;
+      const dadosAtualizacao = tx.agendaEvento.updateMany.mock.calls[0][0].data;
       expect(dadosAtualizacao).not.toHaveProperty('status');
     });
   });
@@ -458,7 +488,7 @@ describe('AgendaService', () => {
 
     it('bloqueia e valida evento da mesma empresa na transação', async () => {
       const { service, prisma, tx } = prepararHistorico();
-      await service.adicionarHistorico('a1', { descricao: 'Nota' }, usuario);
+      await service.adicionarHistorico('e1', 'a1', 'u1', { descricao: 'Nota' });
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
         tx.agendaEvento.findFirst.mock.invocationCallOrder[0],
@@ -470,23 +500,70 @@ describe('AgendaService', () => {
       const { service, tx } = prepararHistorico();
       tx.agendaEvento.findFirst.mockResolvedValue(null);
       await expect(
-        service.adicionarHistorico('a1', { descricao: 'Nota' }, usuario),
+        service.adicionarHistorico('e1', 'a1', 'u1', { descricao: 'Nota' }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(tx.agendaEventoHistorico.create).not.toHaveBeenCalled();
     });
 
     it('registra o usuário autenticado pelo contexto real', async () => {
       const { service, tx } = prepararHistorico();
-      await service.adicionarHistorico(
-        'a1',
-        { descricao: 'Nota' },
-        { id: 'jwt-user', empresaId: 'e1' },
-      );
+      await service.adicionarHistorico('e1', 'a1', 'jwt-user', {
+        descricao: 'Nota',
+      });
       expect(tx.agendaEventoHistorico.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ usuarioId: 'jwt-user' }),
         }),
       );
+    });
+  });
+
+  describe('status e cancelamento', () => {
+    it('rejeita CANCELADO pelo endpoint geral antes da transação', async () => {
+      const { service, prisma } = criarContexto();
+      await expect(
+        service.atualizar('e1', 'a1', 'u1', {
+          status: 'CANCELADO',
+        } as never),
+      ).rejects.toThrow(
+        'Para cancelar um evento, utilize a operação de cancelamento.',
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('cancela por tenant, registra autoria e histórico na transação', async () => {
+      const { service, tx } = criarContexto();
+      tx.agendaEvento.findFirst.mockReset().mockResolvedValue(evento);
+      await service.cancelar('e1', 'a1', 'u1');
+      expect(tx.agendaEvento.updateMany).toHaveBeenCalledWith({
+        where: { id: 'a1', empresaId: 'e1', status: 'AGENDADO' },
+        data: { status: 'CANCELADO' },
+      });
+      expect(tx.agendaEventoHistorico.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ usuarioId: 'u1' }),
+        }),
+      );
+    });
+
+    it('é idempotente e não duplica histórico quando já cancelado', async () => {
+      const { service, tx } = criarContexto();
+      tx.agendaEvento.findFirst.mockReset().mockResolvedValue({
+        ...evento,
+        status: 'CANCELADO',
+      });
+      await service.cancelar('e1', 'a1', 'u1');
+      expect(tx.agendaEvento.updateMany).not.toHaveBeenCalled();
+      expect(tx.agendaEventoHistorico.create).not.toHaveBeenCalled();
+    });
+
+    it('não bloqueia nem altera evento externo', async () => {
+      const { service, tx } = criarContexto();
+      tx.agendaEvento.findFirst.mockReset().mockResolvedValue(null);
+      await expect(service.cancelar('e1', 'a-externo', 'u1')).rejects.toThrow(
+        'Evento não encontrado',
+      );
+      expect(tx.agendaEvento.updateMany).not.toHaveBeenCalled();
     });
   });
 });

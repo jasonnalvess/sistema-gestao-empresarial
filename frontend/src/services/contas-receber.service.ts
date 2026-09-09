@@ -1,3 +1,4 @@
+import axios from "axios";
 import { api } from "./api";
 
 export type StatusContaReceber =
@@ -152,6 +153,72 @@ export type ContasReceberResponse = {
   };
 };
 
+export type ResumoContasReceber = {
+  receber: {
+    valorOriginal: number;
+    valorRecebido: number;
+    valorAberto: number;
+    valorVencido: number;
+  };
+};
+
+export type CriarContaReceberPayload = {
+  descricao: string;
+  documento?: string;
+  observacao?: string;
+  origem?: OrigemContaReceber;
+  dataEmissao?: string;
+  dataCompetencia?: string;
+  dataVencimento: string;
+  parcelaAtual?: number;
+  totalParcelas?: number;
+  valorOriginal: number;
+  valorDesconto?: number;
+  valorJuros?: number;
+  valorMulta?: number;
+  clienteId?: string;
+  ordemServicoId?: string;
+};
+export type AtualizarContaReceberPayload = Partial<CriarContaReceberPayload>;
+export type RegistrarRecebimentoContaReceberPayload = {
+  valor: number;
+  desconto?: number;
+  juros?: number;
+  multa?: number;
+  formaRecebimento: FormaRecebimento;
+  dataRecebimento?: string;
+  caixaId?: string;
+  documento?: string;
+  observacao?: string;
+};
+export type GerarContaOrdemServicoPayload = {
+  valorOriginal: number;
+  dataVencimento: string;
+  dataCompetencia?: string;
+  documento?: string;
+  observacao?: string;
+};
+
+export function obterMensagemErroContasReceber(
+  erro: unknown,
+  mensagemPadrao: string,
+): string {
+  if (axios.isAxiosError<{ message?: string }>(erro)) {
+    return erro.response?.data?.message ?? mensagemPadrao;
+  }
+  return mensagemPadrao;
+}
+
+export const contasReceberQueryKeys = {
+  listas: (empresaId: string) => ["contas-receber", empresaId] as const,
+  detalhe: (empresaId: string, contaId: string) =>
+    ["conta-receber", empresaId, contaId] as const,
+  historico: (empresaId: string, contaId: string) =>
+    ["conta-receber-historico", empresaId, contaId] as const,
+  resumo: (empresaId: string) =>
+    ["financeiro-resumo-contas-receber", empresaId] as const,
+};
+
 export async function listarContasReceber(
   params?: {
     search?: string;
@@ -178,6 +245,18 @@ export async function listarContasReceber(
   return data;
 }
 
+export async function buscarResumoContasReceber(params?: {
+  vencimentoInicio?: string;
+  vencimentoFim?: string;
+}) {
+  const { data } = await api.get<{
+    success: boolean;
+    data: ResumoContasReceber;
+  }>("/contas-receber/resumo", { params });
+
+  return data.data;
+}
+
 export async function buscarContaReceber(
   id: string
 ) {
@@ -190,7 +269,7 @@ export async function buscarContaReceber(
 }
 
 export async function criarContaReceber(
-  body: any
+  body: CriarContaReceberPayload,
 ) {
   const { data } = await api.post(
     "/contas-receber",
@@ -202,7 +281,7 @@ export async function criarContaReceber(
 
 export async function atualizarContaReceber(
   id: string,
-  body: any
+  body: AtualizarContaReceberPayload,
 ) {
   const { data } = await api.patch(
     `/contas-receber/${id}`,
@@ -214,7 +293,7 @@ export async function atualizarContaReceber(
 
 export async function registrarRecebimentoContaReceber(
   id: string,
-  body: any
+  body: RegistrarRecebimentoContaReceberPayload,
 ) {
   const { data } = await api.post(
     `/contas-receber/${id}/recebimentos`,
@@ -236,7 +315,7 @@ export async function cancelarContaReceber(
 
 export async function gerarContaPorOrdemServico(
   ordemServicoId: string,
-  body: any
+  body: GerarContaOrdemServicoPayload,
 ) {
   const { data } = await api.post(
     `/contas-receber/ordem-servico/${ordemServicoId}`,

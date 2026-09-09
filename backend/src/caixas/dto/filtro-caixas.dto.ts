@@ -11,7 +11,7 @@ export class FiltroCaixasDto extends QueryBaseDto {
   status?: StatusCaixa;
 
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }): unknown => {
     if (value === true || value === 'true') {
       return true;
     }

@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -13,7 +12,6 @@ import { AlterarStatusOrdemServicoDto } from './dto/alterar-status-ordem-servico
 import { FiltroOrdensServicoDto } from './dto/filtro-ordens-servico.dto';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
-import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 const STATUS_PERMITIDOS: Record<string, readonly string[]> = {
   ABERTA: ['EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADA'],
@@ -47,25 +45,16 @@ export class OrdensServicoService {
     },
   } satisfies Prisma.OrdemServicoHistoricoInclude;
 
-  private obterEmpresaId(usuario: AuthenticatedUser) {
-    if (!usuario?.empresaId) {
-      throw new ForbiddenException('Usuário sem empresa vinculada');
-    }
-    return usuario.empresaId;
-  }
-
-  private obterUsuarioId(usuario: AuthenticatedUser): string {
-    return usuario.id;
-  }
-
   private async bloquearOrdem(
     tx: Prisma.TransactionClient,
+    empresaId: string,
     ordemServicoId: string,
   ) {
     await tx.$queryRaw`
       SELECT "id"
       FROM "OrdemServico"
       WHERE "id" = ${ordemServicoId}
+        AND "empresaId" = ${empresaId}
       FOR UPDATE
     `;
   }
@@ -75,16 +64,13 @@ export class OrdensServicoService {
     ordemServicoId: string,
     empresaId: string,
   ) {
-    await this.bloquearOrdem(tx, ordemServicoId);
-    const ordem = await tx.ordemServico.findUnique({
-      where: { id: ordemServicoId },
+    await this.bloquearOrdem(tx, empresaId, ordemServicoId);
+    const ordem = await tx.ordemServico.findFirst({
+      where: { id: ordemServicoId, empresaId },
       include: this.includeOrdem,
     });
 
     if (!ordem) throw new NotFoundException('Ordem de serviço não encontrada');
-    if (ordem.empresaId !== empresaId) {
-      throw new ForbiddenException('Acesso negado a ordem de outra empresa');
-    }
     return ordem;
   }
 
@@ -93,11 +79,10 @@ export class OrdensServicoService {
     clienteId: string,
     empresaId: string,
   ) {
-    const cliente = await tx.cliente.findUnique({ where: { id: clienteId } });
+    const cliente = await tx.cliente.findFirst({
+      where: { id: clienteId, empresaId },
+    });
     if (!cliente) throw new NotFoundException('Cliente não encontrado');
-    if (cliente.empresaId !== empresaId) {
-      throw new ForbiddenException('Cliente pertence a outra empresa');
-    }
     if (!cliente.ativo) {
       throw new BadRequestException(
         'Não é possível utilizar um cliente inativo',
@@ -112,13 +97,10 @@ export class OrdensServicoService {
     empresaId: string,
   ) {
     if (!responsavelId) return;
-    const responsavel = await tx.usuario.findUnique({
-      where: { id: responsavelId },
+    const responsavel = await tx.usuario.findFirst({
+      where: { id: responsavelId, empresaId },
     });
     if (!responsavel) throw new NotFoundException('Responsável não encontrado');
-    if (responsavel.empresaId !== empresaId) {
-      throw new ForbiddenException('Responsável pertence a outra empresa');
-    }
     if (!responsavel.ativo) {
       throw new BadRequestException(
         'Não é possível atribuir um responsável inativo',
@@ -133,13 +115,10 @@ export class OrdensServicoService {
     empresaId: string,
   ) {
     if (!agendaEventoId) return;
-    const evento = await tx.agendaEvento.findUnique({
-      where: { id: agendaEventoId },
+    const evento = await tx.agendaEvento.findFirst({
+      where: { id: agendaEventoId, empresaId },
     });
     if (!evento) throw new NotFoundException('Evento da agenda não encontrado');
-    if (evento.empresaId !== empresaId) {
-      throw new ForbiddenException('Evento da agenda pertence a outra empresa');
-    }
     if (!evento.ativo) {
       throw new BadRequestException(
         'Não é possível utilizar um evento inativo',
@@ -174,7 +153,7 @@ export class OrdensServicoService {
 
   async gerarNumero(tx: Prisma.TransactionClient, empresaId: string) {
     const chave = `ordem-servico-numero:${empresaId}`;
-    await tx.$queryRaw`
+    await tx.$executeRaw`
       SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))
     `;
     const ultima = await tx.ordemServico.findFirst({
@@ -199,9 +178,11 @@ export class OrdensServicoService {
     return target === 'OrdemServico_empresaId_numero_key';
   }
 
-  async criar(dados: CriarOrdemServicoDto, usuarioLogado: AuthenticatedUser) {
-    const empresaId = this.obterEmpresaId(usuarioLogado);
-    const usuarioId = this.obterUsuarioId(usuarioLogado);
+  async criar(
+    empresaId: string,
+    usuarioId: string,
+    dados: CriarOrdemServicoDto,
+  ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
         await this.validarCliente(tx, dados.clienteId, empresaId);
@@ -250,17 +231,11 @@ export class OrdensServicoService {
     }
   }
 
-  async listar(
-    usuarioLogado: AuthenticatedUser,
-    paginacao: FiltroOrdensServicoDto,
-  ) {
+  async listar(empresaId: string, paginacao: FiltroOrdensServicoDto) {
     const page = paginacao.page ?? 1;
     const limit = paginacao.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
-    const where: Prisma.OrdemServicoWhereInput =
-      usuarioLogado.tipo === 'SUPER_ADMIN'
-        ? {}
-        : { empresaId: this.obterEmpresaId(usuarioLogado) };
+    const where: Prisma.OrdemServicoWhereInput = { empresaId };
 
     if (paginacao.search) {
       where.OR = [
@@ -291,45 +266,36 @@ export class OrdensServicoService {
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
-    const ordem = await this.prisma.ordemServico.findUnique({
-      where: { id },
+  async buscarPorId(empresaId: string, id: string) {
+    const ordem = await this.prisma.ordemServico.findFirst({
+      where: { id, empresaId },
       include: this.includeOrdem,
     });
     if (!ordem) throw new NotFoundException('Ordem de serviço não encontrada');
-    if (
-      usuarioLogado.tipo !== 'SUPER_ADMIN' &&
-      ordem.empresaId !== usuarioLogado.empresaId
-    ) {
-      throw new ForbiddenException('Acesso negado a ordem de outra empresa');
-    }
     return ordem;
   }
 
   async adicionarHistorico(
+    empresaId: string,
     ordemServicoId: string,
+    usuarioId: string,
     dados: CriarOrdemServicoHistoricoDto,
-    usuarioLogado: AuthenticatedUser,
   ) {
-    const empresaId = this.obterEmpresaId(usuarioLogado);
     return this.prisma.$transaction(async (tx) => {
       await this.buscarOrdemBloqueada(tx, ordemServicoId, empresaId);
       return this.registrarHistorico(
         tx,
         ordemServicoId,
         dados.descricao,
-        this.obterUsuarioId(usuarioLogado),
+        usuarioId,
         dados.statusAnterior,
         dados.statusNovo,
       );
     });
   }
 
-  async listarHistorico(
-    ordemServicoId: string,
-    usuarioLogado: AuthenticatedUser,
-  ) {
-    await this.buscarPorId(ordemServicoId, usuarioLogado);
+  async listarHistorico(empresaId: string, ordemServicoId: string) {
+    await this.buscarPorId(empresaId, ordemServicoId);
     return this.prisma.ordemServicoHistorico.findMany({
       where: { ordemServicoId },
       include: this.includeHistorico,
@@ -347,11 +313,11 @@ export class OrdensServicoService {
   }
 
   async alterarStatus(
+    empresaId: string,
     id: string,
+    usuarioId: string,
     dados: AlterarStatusOrdemServicoDto,
-    usuarioLogado: AuthenticatedUser,
   ) {
-    const empresaId = this.obterEmpresaId(usuarioLogado);
     return this.prisma.$transaction(async (tx) => {
       const ordem = await this.buscarOrdemBloqueada(tx, id, empresaId);
       const statusAnterior = ordem.status;
@@ -366,7 +332,7 @@ export class OrdensServicoService {
         },
       });
       if (atualizacao.count !== 1) {
-        await tx.ordemServico.findUnique({ where: { id } });
+        await tx.ordemServico.findFirst({ where: { id, empresaId } });
         throw new ConflictException(
           'A ordem de serviço foi alterada por outra operação. Recarregue e tente novamente.',
         );
@@ -377,12 +343,12 @@ export class OrdensServicoService {
         id,
         dados.descricao ||
           `Status alterado de ${statusAnterior} para ${statusNovo}.`,
-        this.obterUsuarioId(usuarioLogado),
+        usuarioId,
         statusAnterior,
         statusNovo,
       );
-      return tx.ordemServico.findUniqueOrThrow({
-        where: { id },
+      return tx.ordemServico.findFirstOrThrow({
+        where: { id, empresaId },
         include: this.includeOrdem,
       });
     });

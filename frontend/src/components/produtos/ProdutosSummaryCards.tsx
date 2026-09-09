@@ -45,7 +45,7 @@ export function ProdutosSummaryCards({ produtos }: Props) {
   }).length;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       <StatsCard title="Total" value={total} icon={<Package size={22} />} />
       <StatsCard title="Ativos" value={ativos} icon={<CheckCircle size={22} />} />
       <StatsCard title="Inativos" value={inativos} icon={<XCircle size={22} />} />

@@ -1,36 +1,131 @@
 "use client";
 
+import { isAxiosError } from "axios";
+
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudLoading } from "@/components/crud/CrudLoading";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_PEDIDOS_COMPRA_EDITAR,
+  PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,
+} from "@/lib/auth";
 
 import { PedidoCompraAcoes } from "@/components/pedidos-compra/PedidoCompraAcoes";
 
 import {
   buscarPedidoCompra,
   PedidoCompraStatus,
+  pedidosCompraQueryKeys,
+  listarHistoricoPedidoCompra,
+  adicionarHistoricoPedidoCompra,
 } from "@/services/pedidos-compra.service";
 
 export default function PedidoCompraDetalhesPage() {
   const params = useParams();
-  const id = String(params.id);
+  const id = typeof params.id === "string" ? params.id : "";
+  const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarPedidos = temPermissao(
+    PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,
+  );
+  const podeEditarPedido = temPermissao(PERMISSAO_PEDIDOS_COMPRA_EDITAR);
+  const [descricaoHistorico, setDescricaoHistorico] = useState("");
+  const [salvandoHistorico, setSalvandoHistorico] = useState(false);
 
   const {
     data: pedido,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["pedido-compra", id],
+    queryKey: pedidosCompraQueryKeys.detalhe(empresaEfetivaId ?? "", id),
     queryFn: () => buscarPedidoCompra(id),
-    enabled: Boolean(id),
+    enabled:
+      podeVisualizarPedidos &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando &&
+      Boolean(id),
   });
+
+  const { data: historicos = [] } = useQuery({
+    queryKey: pedidosCompraQueryKeys.historico(empresaEfetivaId ?? "", id),
+    queryFn: () => listarHistoricoPedidoCompra(id),
+    enabled:
+      podeVisualizarPedidos &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando &&
+      Boolean(id),
+  });
+
+  async function salvarHistorico() {
+    const descricao = descricaoHistorico.trim();
+    if (!podeEditarPedido || !empresaEfetivaId) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+    if (!descricao) {
+      toast.error("Informe a descrição do histórico.");
+      return;
+    }
+    try {
+      setSalvandoHistorico(true);
+      await adicionarHistoricoPedidoCompra(id, descricao);
+      setDescricaoHistorico("");
+      toast.success("Histórico adicionado com sucesso!");
+      await queryClient.invalidateQueries({
+        queryKey: pedidosCompraQueryKeys.historico(empresaEfetivaId, id),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: pedidosCompraQueryKeys.detalhe(empresaEfetivaId, id),
+      });
+    } catch {
+      toast.error("Erro ao adicionar histórico.");
+    } finally {
+      setSalvandoHistorico(false);
+    }
+  }
+
+  if (!podeVisualizarPedidos) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+
+  if (!possuiEmpresaEfetiva) {
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -44,7 +139,9 @@ export default function PedidoCompraDetalhesPage() {
     return (
       <AppLayout>
         <div className="rounded-lg bg-red-50 p-4 text-red-700">
-          Pedido de compra não encontrado.
+          {error && !(isAxiosError(error) && error.response?.status === 404)
+            ? "Erro ao carregar pedido de compra."
+            : "Pedido de compra não encontrado."}
         </div>
       </AppLayout>
     );
@@ -54,14 +151,12 @@ export default function PedidoCompraDetalhesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
-          title={`Pedido de Compra #${String(
-            pedido.numero
-          ).padStart(5, "0")}`}
+          title={`Pedido de Compra #${String(pedido.numero).padStart(5, "0")}`}
           description="Ficha completa do pedido de compra."
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 lg:flex lg:w-auto lg:flex-wrap [&>*]:w-full md:[&>*]:w-full lg:[&>*]:w-auto">
               <Button variant="outline" asChild>
                 <Link href="/pedidos-compra">
                   <ArrowLeft size={16} className="mr-2" />
@@ -75,7 +170,7 @@ export default function PedidoCompraDetalhesPage() {
         />
 
         <CrudCard>
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
             <Campo
               label="Fornecedor"
               valor={
@@ -106,9 +201,7 @@ export default function PedidoCompraDetalhesPage() {
               label="Previsão de entrega"
               valor={
                 pedido.dataPrevistaEntrega
-                  ? formatarData(
-                      pedido.dataPrevistaEntrega
-                    )
+                  ? formatarData(pedido.dataPrevistaEntrega)
                   : null
               }
             />
@@ -125,15 +218,9 @@ export default function PedidoCompraDetalhesPage() {
               </span>
             </div>
 
-            <Campo
-              label="Criado por"
-              valor={pedido.usuarioCriacao?.nome}
-            />
+            <Campo label="Criado por" valor={pedido.usuarioCriacao?.nome} />
 
-            <Campo
-              label="Aprovado por"
-              valor={pedido.usuarioAprovacao?.nome}
-            />
+            <Campo label="Aprovado por" valor={pedido.usuarioAprovacao?.nome} />
 
             <Campo
               label="Recebido por"
@@ -147,7 +234,7 @@ export default function PedidoCompraDetalhesPage() {
             Itens do pedido
           </h2>
 
-          <div className="overflow-x-auto">
+          <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-slate-500">
@@ -163,14 +250,9 @@ export default function PedidoCompraDetalhesPage() {
 
               <tbody>
                 {pedido.itens.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-b last:border-0"
-                  >
+                  <tr key={item.id} className="border-b last:border-0">
                     <td className="p-3">
-                      <p className="font-medium">
-                        {item.produto.nome}
-                      </p>
+                      <p className="font-medium">{item.produto.nome}</p>
 
                       {item.produto.codigo && (
                         <p className="text-xs text-slate-500">
@@ -180,15 +262,11 @@ export default function PedidoCompraDetalhesPage() {
                     </td>
 
                     <td className="p-3 text-right">
-                      {formatarQuantidade(
-                        item.quantidadeSolicitada
-                      )}
+                      {formatarQuantidade(item.quantidadeSolicitada)}
                     </td>
 
                     <td className="p-3 text-right">
-                      {formatarQuantidade(
-                        item.quantidadeRecebida
-                      )}
+                      {formatarQuantidade(item.quantidadeRecebida)}
                     </td>
 
                     <td className="p-3 text-right">
@@ -203,9 +281,7 @@ export default function PedidoCompraDetalhesPage() {
                       {formatarMoeda(item.valorTotal)}
                     </td>
 
-                    <td className="p-3">
-                      {formatarStatusItem(item.status)}
-                    </td>
+                    <td className="p-3">{formatarStatusItem(item.status)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -213,36 +289,20 @@ export default function PedidoCompraDetalhesPage() {
           </div>
         </CrudCard>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
           <CrudCard>
             <h2 className="mb-4 text-lg font-semibold text-slate-900">
               Valores
             </h2>
 
             <div className="space-y-3">
-              <LinhaValor
-                label="Produtos"
-                valor={pedido.valorProdutos}
-              />
-              <LinhaValor
-                label="Desconto"
-                valor={pedido.valorDesconto}
-              />
-              <LinhaValor
-                label="Frete"
-                valor={pedido.valorFrete}
-              />
-              <LinhaValor
-                label="Outros valores"
-                valor={pedido.valorOutros}
-              />
+              <LinhaValor label="Produtos" valor={pedido.valorProdutos} />
+              <LinhaValor label="Desconto" valor={pedido.valorDesconto} />
+              <LinhaValor label="Frete" valor={pedido.valorFrete} />
+              <LinhaValor label="Outros valores" valor={pedido.valorOutros} />
 
               <div className="border-t pt-3">
-                <LinhaValor
-                  label="Total"
-                  valor={pedido.valorTotal}
-                  destaque
-                />
+                <LinhaValor label="Total" valor={pedido.valorTotal} destaque />
               </div>
             </div>
           </CrudCard>
@@ -271,8 +331,21 @@ export default function PedidoCompraDetalhesPage() {
             Histórico
           </h2>
 
+          {podeEditarPedido && (
+            <div className="mb-5 space-y-3 border-b pb-5">
+              <Textarea
+                value={descricaoHistorico}
+                onChange={(event) => setDescricaoHistorico(event.target.value)}
+                placeholder="Adicionar anotação ao histórico..."
+              />
+              <Button onClick={salvarHistorico} disabled={salvandoHistorico}>
+                {salvandoHistorico ? "Salvando..." : "Adicionar anotação"}
+              </Button>
+            </div>
+          )}
+
           <div className="space-y-3">
-            {pedido.historicos.map((historico) => (
+            {historicos.map((historico) => (
               <div
                 key={historico.id}
                 className="rounded-lg border border-slate-200 bg-slate-50 p-3"
@@ -283,14 +356,12 @@ export default function PedidoCompraDetalhesPage() {
 
                 <p className="mt-2 text-xs text-slate-500">
                   {historico.usuario?.nome || "Sistema"} •{" "}
-                  {new Date(
-                    historico.createdAt
-                  ).toLocaleString("pt-BR")}
+                  {new Date(historico.createdAt).toLocaleString("pt-BR")}
                 </p>
               </div>
             ))}
 
-            {pedido.historicos.length === 0 && (
+            {historicos.length === 0 && (
               <p className="text-sm text-slate-500">
                 Nenhum histórico registrado.
               </p>
@@ -302,22 +373,14 @@ export default function PedidoCompraDetalhesPage() {
   );
 }
 
-function Campo({
-  label,
-  valor,
-}: {
-  label: string;
-  valor?: string | null;
-}) {
+function Campo({ label, valor }: { label: string; valor?: string | null }) {
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
         {label}
       </p>
 
-      <p className="mt-1 text-sm text-slate-900">
-        {valor || "-"}
-      </p>
+      <p className="mt-1 text-sm text-slate-900">{valor || "-"}</p>
     </div>
   );
 }

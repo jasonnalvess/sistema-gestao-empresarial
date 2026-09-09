@@ -9,8 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CONTAS_RECEBER_CRIAR } from "@/lib/auth";
+import { ordensServicoQueryKeys } from "@/lib/ordens-servico-query-keys";
 
-import { gerarContaPorOrdemServico } from "@/services/contas-receber.service";
+import {
+  contasReceberQueryKeys,
+  gerarContaPorOrdemServico,
+  obterMensagemErroContasReceber,
+} from "@/services/contas-receber.service";
 
 type OrdemServicoConta = {
   id: string;
@@ -32,6 +40,9 @@ export function GerarContaReceberModal({
   ordem,
 }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriarConta = temPermissao(PERMISSAO_CONTAS_RECEBER_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -55,6 +66,10 @@ export function GerarContaReceberModal({
     useState("");
 
   async function salvar() {
+    if (!podeCriarConta || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     if (Number(valorOriginal) <= 0) {
       toast.error(
         "Informe o valor da conta."
@@ -98,24 +113,26 @@ export function GerarContaReceberModal({
       setAberto(false);
 
       await queryClient.invalidateQueries({
-        queryKey: ["contas-receber"],
+        queryKey: contasReceberQueryKeys.listas(empresaEfetivaId),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: [
-          "ordem-servico",
-          ordem.id,
-        ],
+        queryKey: contasReceberQueryKeys.resumo(empresaEfetivaId),
       });
-    } catch (error: any) {
+
+      await queryClient.invalidateQueries({
+        queryKey: ordensServicoQueryKeys.detalhe(empresaEfetivaId, ordem.id),
+      });
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao gerar conta a receber"
+        obterMensagemErroContasReceber(error, "Erro ao gerar conta a receber"),
       );
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriarConta || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -172,7 +189,7 @@ export function GerarContaReceberModal({
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-700">
               Vencimento *
@@ -233,7 +250,7 @@ export function GerarContaReceberModal({
           />
         </div>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

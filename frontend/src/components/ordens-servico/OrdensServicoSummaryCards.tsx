@@ -24,7 +24,7 @@ export function OrdensServicoSummaryCards({ ordens }: Props) {
   const urgentes = ordens.filter((o) => o.prioridade === "URGENTE").length;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
       <StatsCard title="Total" value={total} icon={<Wrench size={22} />} />
       <StatsCard title="Abertas" value={abertas} icon={<FolderOpen size={22} />} />
       <StatsCard title="Em andamento" value={emAndamento} icon={<Clock size={22} />} />

@@ -16,6 +16,7 @@ type Props = {
   title: string;
   trigger: ReactNode;
   children: ReactNode;
+  contentClassName?: string;
 };
 
 export function FormDialog({
@@ -24,12 +25,13 @@ export function FormDialog({
   title,
   trigger,
   children,
+  contentClassName,
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
 
-      <DialogContent className="max-w-xl">
+      <DialogContent className={contentClassName ?? "max-w-xl"}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

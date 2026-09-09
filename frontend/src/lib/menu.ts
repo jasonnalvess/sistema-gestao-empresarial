@@ -7,6 +7,7 @@ import {
   Building2,
   Users,
   ClipboardList,
+  ClipboardCheck,
   Settings,
   Blocks,
   CalendarDays,
@@ -20,9 +21,11 @@ import {
   BadgeDollarSign,
   Landmark,
   ReceiptText,
+  ShieldCheck,
 } from "lucide-react";
 
 export const menu = [
+  { titulo: "Funcionários", href: "/funcionarios", icon: UsersRound },
   {
     titulo: "Dashboard",
     href: "/dashboard",
@@ -79,6 +82,11 @@ export const menu = [
     icon: ArrowLeftRight,
   },
   {
+    titulo: "Inventários",
+    href: "/inventarios",
+    icon: ClipboardCheck,
+  },
+  {
     titulo: "Agenda",
     href: "/agenda",
     icon: CalendarDays,
@@ -117,6 +125,11 @@ export const menu = [
     titulo: "Usuários",
     href: "/usuarios",
     icon: Users,
+  },
+  {
+    titulo: "Perfis e Permissões",
+    href: "/perfis",
+    icon: ShieldCheck,
   },
   {
     titulo: "Módulos",
