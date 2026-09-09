@@ -2,6 +2,8 @@ import axios, { CanceledError } from "axios";
 import { normalizarUsuario } from "@/lib/auth";
 import { EMPRESA_ID_HEADER } from "@/lib/empresa-contexto";
 
+export const EVENTO_TROCA_SENHA_OBRIGATORIA = "auth:troca-senha-obrigatoria";
+
 const EVENTO_SESSAO_EXPIRADA = "auth:sessao-expirada";
 
 let geracaoSessao = 0;
@@ -101,7 +103,14 @@ api.interceptors.response.use(
       urlRequisicao.includes("/auth/login") ||
       window.location.pathname === "/login";
 
-    if (status === 401 && possuiToken && !requisicaoDeLogin) {
+    if (status === 403 && possuiToken &&
+      error.response?.data?.error === "TROCA_SENHA_OBRIGATORIA") {
+      window.dispatchEvent(new Event(EVENTO_TROCA_SENHA_OBRIGATORIA));
+    }
+    // Senha atual incorreta não representa expiração da sessão.
+    const senhaAtualIncorreta = urlRequisicao === "/auth/trocar-senha" &&
+      error.response?.data?.message === "Senha atual inválida.";
+    if (status === 401 && possuiToken && !requisicaoDeLogin && !senhaAtualIncorreta) {
       invalidarRequisicoesDaSessao();
 
       localStorage.removeItem("token");

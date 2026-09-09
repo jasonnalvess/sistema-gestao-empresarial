@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  PERMISSAO_FUNCIONARIOS_VISUALIZAR,
   PERMISSAO_AGENDA_VISUALIZAR,
   PERMISSAO_AUDITORIA_EMPRESA_VISUALIZAR,
   PERMISSAO_AUDITORIA_GLOBAL_VISUALIZAR,
@@ -41,6 +42,7 @@ import { menu } from "@/lib/menu";
 import { cn } from "@/lib/utils";
 
 const permissoesPorRota: Partial<Record<string, string>> = {
+  "/funcionarios": PERMISSAO_FUNCIONARIOS_VISUALIZAR,
   "/dashboard": PERMISSAO_DASHBOARD_VISUALIZAR,
   "/clientes": PERMISSAO_CLIENTES_VISUALIZAR,
   "/fornecedores": PERMISSAO_FORNECEDORES_VISUALIZAR,

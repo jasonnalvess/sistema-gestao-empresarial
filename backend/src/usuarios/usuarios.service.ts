@@ -1,3 +1,6 @@
+import { AtualizarPerfisUsuarioDto } from './dto/atualizar-perfis-usuario.dto';
+import { PERMISSOES_EMPRESARIAIS_DELEGAVEIS } from '../perfis/permissoes-delegaveis';
+import { prepararJsonAuditoria } from '../auditoria/auditoria-sanitizer';
 import {
   BadRequestException,
   ConflictException,
@@ -9,6 +12,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
+import { isUUID } from 'class-validator';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { PaginacaoDto } from '../common/dto/paginacao.dto';
 import { calcularPaginacao } from '../common/utils/paginacao';
@@ -31,6 +35,17 @@ type AtualizarUsuarioDados = {
   email?: string;
   tipo?: TipoUsuario;
 };
+
+const perfilAtribuidoSelect = {
+  id: true,
+  nome: true,
+  chave: true,
+  descricao: true,
+  sistema: true,
+  escopo: true,
+  ativo: true,
+  empresaId: true,
+} satisfies Prisma.PerfilSelect;
 
 @Injectable()
 export class UsuariosService {
@@ -97,15 +112,47 @@ export class UsuariosService {
     });
   }
 
-  async listar(usuarioLogado: AuthenticatedUser, paginacao: PaginacaoDto) {
+  async listar(
+    usuarioLogado: AuthenticatedUser,
+    paginacao: PaginacaoDto,
+    empresaSelecionada?: string,
+  ) {
     const page = paginacao.page ?? 1;
     const limit = paginacao.limit ?? 10;
     const { skip, take } = calcularPaginacao(page, limit);
 
-    const where: Prisma.UsuarioWhereInput =
-      usuarioLogado.tipo === 'SUPER_ADMIN'
-        ? {}
-        : { empresaId: obterEmpresaId(usuarioLogado) };
+    const empresaSelecionadaNormalizada = empresaSelecionada?.trim() || null;
+
+    let where: Prisma.UsuarioWhereInput;
+
+    if (usuarioLogado.tipo === 'SUPER_ADMIN') {
+      if (!empresaSelecionadaNormalizada) {
+        where = {};
+      } else {
+        if (!isUUID(empresaSelecionadaNormalizada)) {
+          throw new BadRequestException('Empresa selecionada inválida.');
+        }
+
+        const empresa = await this.prisma.empresa.findUnique({
+          where: { id: empresaSelecionadaNormalizada },
+          select: { id: true, ativa: true },
+        });
+
+        if (!empresa) {
+          throw new NotFoundException('Empresa não encontrada.');
+        }
+
+        if (!empresa.ativa) {
+          throw new ForbiddenException(
+            'Empresa inativa não pode utilizar este módulo.',
+          );
+        }
+
+        where = { empresaId: empresa.id };
+      }
+    } else {
+      where = { empresaId: obterEmpresaId(usuarioLogado) };
+    }
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.usuario.findMany({
@@ -123,6 +170,238 @@ export class UsuariosService {
     ]);
 
     return respostaPaginada(data, total, page, limit);
+  }
+
+  async listarPerfis(id: string, ator: AuthenticatedUser) {
+    this.validarGestaoPerfis(ator);
+    const alvo = await this.alvoParaPerfis(this.prisma, id, ator);
+    return this.perfisAtivosDoUsuario(this.prisma, id, alvo.empresaId);
+  }
+
+  async atualizarPerfis(
+    id: string,
+    dados: AtualizarPerfisUsuarioDto,
+    ator: AuthenticatedUser,
+  ) {
+    this.validarGestaoPerfis(ator);
+    const ids = [...dados.perfisIds].sort();
+    if (new Set(ids).size !== ids.length)
+      throw new BadRequestException('Perfis duplicados.');
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${ator.id} FOR UPDATE`;
+            const atual = await tx.usuario.findUnique({
+              where: { id: ator.id },
+              select: {
+                ativo: true,
+                tipo: true,
+                empresaId: true,
+                versaoAutorizacao: true,
+              },
+            });
+            if (
+              !atual?.ativo ||
+              !Number.isSafeInteger(ator.versaoAutorizacao) ||
+              atual.versaoAutorizacao !== ator.versaoAutorizacao ||
+              atual.tipo !== ator.tipo ||
+              atual.empresaId !== ator.empresaId ||
+              (atual.tipo === 'SUPER_ADMIN' && atual.empresaId !== null)
+            )
+              throw new UnauthorizedException(
+                'Sessão inválida. Faça login novamente.',
+              );
+            const autorizado = await tx.usuarioPerfil.count({
+              where: {
+                usuarioId: ator.id,
+                ativo: true,
+                perfil: {
+                  ativo: true,
+                  empresaId: atual.empresaId,
+                  escopo: atual.tipo === 'SUPER_ADMIN' ? 'SISTEMA' : 'EMPRESA',
+                  permissoes: {
+                    some: {
+                      permitido: true,
+                      permissao: {
+                        chave: 'usuarios.perfis.gerenciar',
+                        ativo: true,
+                      },
+                    },
+                  },
+                },
+              },
+            });
+            if (!autorizado)
+              throw new ForbiddenException('Operação não autorizada.');
+            const inicial = await this.alvoParaPerfis(tx, id, ator);
+            await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${id} AND "empresaId" = ${inicial.empresaId} FOR UPDATE`;
+            const alvo = await this.alvoParaPerfis(tx, id, ator);
+            const empresa = await tx.empresa.findUnique({
+              where: { id: alvo.empresaId },
+              select: { ativa: true },
+            });
+            if (!empresa?.ativa)
+              throw new ForbiddenException('Empresa indisponível.');
+            // Mesmo bloqueio usado por PerfisService; ordem estável para múltiplos perfis.
+            for (const perfilId of ids)
+              await tx.$queryRaw`SELECT "id" FROM "Perfil" WHERE "id" = ${perfilId} AND "empresaId" = ${alvo.empresaId} FOR UPDATE`;
+            const perfis = await tx.perfil.findMany({
+              where: {
+                id: { in: ids },
+                empresaId: alvo.empresaId,
+                escopo: 'EMPRESA',
+                ativo: true,
+              },
+              select: {
+                ...perfilAtribuidoSelect,
+                permissoes: {
+                  where: { permitido: true, permissao: { ativo: true } },
+                  select: {
+                    permitido: true,
+                    permissao: { select: { chave: true, ativo: true } },
+                  },
+                },
+              },
+              orderBy: { id: 'asc' },
+            });
+            if (perfis.length !== ids.length)
+              throw new BadRequestException(
+                'Perfil inexistente ou indisponível para esta empresa.',
+              );
+            if (ator.tipo === 'ADMIN_EMPRESA') {
+              for (const perfil of perfis)
+                for (const item of perfil.permissoes) {
+                  if (
+                    item.permitido &&
+                    item.permissao.ativo &&
+                    (!PERMISSOES_EMPRESARIAIS_DELEGAVEIS.includes(
+                      item.permissao.chave,
+                    ) ||
+                      !ator.permissoes?.includes(item.permissao.chave))
+                  )
+                    throw new ForbiddenException(
+                      'Permissão fora do limite de delegação.',
+                    );
+                }
+            }
+            const vinculos = await tx.usuarioPerfil.findMany({
+              where: { usuarioId: id },
+              select: { perfilId: true, ativo: true },
+            });
+            const anteriores = vinculos
+              .filter((v) => v.ativo)
+              .map((v) => v.perfilId)
+              .sort();
+            if (
+              anteriores.length === ids.length &&
+              anteriores.every((valor, i) => valor === ids[i])
+            )
+              return this.perfisAtivosDoUsuario(tx, id, alvo.empresaId);
+            await tx.usuarioPerfil.updateMany({
+              where: { usuarioId: id, ativo: true, perfilId: { notIn: ids } },
+              data: { ativo: false },
+            });
+            await tx.usuarioPerfil.updateMany({
+              where: { usuarioId: id, ativo: false, perfilId: { in: ids } },
+              data: { ativo: true },
+            });
+            const existentes = new Set(vinculos.map((v) => v.perfilId));
+            const novos = ids.filter((perfilId) => !existentes.has(perfilId));
+            if (novos.length)
+              await tx.usuarioPerfil.createMany({
+                data: novos.map((perfilId) => ({
+                  usuarioId: id,
+                  perfilId,
+                  ativo: true,
+                })),
+              });
+            await tx.usuario.update({
+              where: { id, empresaId: alvo.empresaId },
+              data: { versaoAutorizacao: { increment: 1 } },
+              select: { id: true },
+            });
+            await tx.auditoriaLog.create({
+              data: {
+                empresaId: alvo.empresaId,
+                usuarioId: ator.id,
+                entidade: 'USUARIO',
+                entidadeId: id,
+                acao: 'ATUALIZAR_PERFIS',
+                dadosAntigos: prepararJsonAuditoria({ perfisIds: anteriores }),
+                dadosNovos: prepararJsonAuditoria({ perfisIds: ids }),
+              },
+            });
+            return this.perfisAtivosDoUsuario(tx, id, alvo.empresaId);
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          (error.code === 'P2034' ||
+            (error.code === 'P2010' &&
+              ['40001', '40P01'].includes(String(error.meta?.code))))
+        ) {
+          if (tentativa < 2) continue;
+          throw new ConflictException(
+            'Alteração concorrente. Tente novamente.',
+          );
+        }
+        throw error;
+      }
+    }
+    throw new ConflictException('Alteração concorrente. Tente novamente.');
+  }
+
+  private validarGestaoPerfis(ator: AuthenticatedUser) {
+    if (
+      !['ADMIN_EMPRESA', 'SUPER_ADMIN'].includes(ator.tipo) ||
+      !ator.permissoes?.includes('usuarios.perfis.gerenciar')
+    )
+      throw new ForbiddenException('Operação não autorizada.');
+  }
+
+  private async alvoParaPerfis(
+    tx: Prisma.TransactionClient,
+    id: string,
+    ator: AuthenticatedUser,
+  ) {
+    const alvo = await tx.usuario.findFirst({
+      where: {
+        id,
+        ...(ator.tipo === 'ADMIN_EMPRESA'
+          ? { empresaId: obterEmpresaId(ator) }
+          : {}),
+      },
+      select: { id: true, empresaId: true, tipo: true },
+    });
+    if (!alvo) throw new NotFoundException('Usuário não encontrado.');
+    if (
+      !alvo.empresaId ||
+      !['ADMIN_EMPRESA', 'USUARIO_EMPRESA'].includes(alvo.tipo)
+    )
+      throw new ForbiddenException(
+        'Este endpoint administra somente perfis de usuários empresariais.',
+      );
+    return { ...alvo, empresaId: alvo.empresaId };
+  }
+
+  private async perfisAtivosDoUsuario(
+    tx: Prisma.TransactionClient,
+    id: string,
+    empresaId: string,
+  ) {
+    const vinculos = await tx.usuarioPerfil.findMany({
+      where: {
+        usuarioId: id,
+        ativo: true,
+        perfil: { empresaId, escopo: 'EMPRESA', ativo: true },
+      },
+      select: { perfil: { select: perfilAtribuidoSelect } },
+      orderBy: { perfil: { id: 'asc' } },
+    });
+    return vinculos.map((v) => v.perfil);
   }
 
   async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {

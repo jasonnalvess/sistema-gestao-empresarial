@@ -78,9 +78,10 @@ export type ConfigurarPermissoesPayload = {
   }>;
 };
 
-export async function listarPerfis(params?: FiltrosPerfis) {
+export async function listarPerfis(params?: FiltrosPerfis, signal?: AbortSignal) {
   const { data } = await api.get<RespostaPaginada<Perfil>>("/perfis", {
     params,
+    signal,
   });
 
   return data;

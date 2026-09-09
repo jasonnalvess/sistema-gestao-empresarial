@@ -49,7 +49,7 @@ export function EmpresaSelecionadaProvider({
   const { data: empresasCarregadas, isLoading } = useQuery({
     queryKey: ["empresas", "selecao-operacional"],
     queryFn: listarEmpresas,
-    enabled: autenticado && superAdmin && !carregandoAuth,
+    enabled: autenticado && superAdmin && !carregandoAuth && !usuario?.trocaSenhaObrigatoria,
   });
 
   const empresas = useMemo(

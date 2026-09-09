@@ -6,14 +6,18 @@
 - **Arquitetura:** Next.js, React, TypeScript, TanStack Query, Axios e Tailwind no frontend; NestJS, TypeScript e Prisma no backend; PostgreSQL.
 - **Ambiente de trabalho:** teste, `/opt/sistema-gestao/teste`.
 - **Branch atual e de integração:** `develop`.
-- **Último commit de referência:** `dcac4ea` — consolidação documental do roadmap; a V3.4.1 ainda aguarda versionamento.
-- **Última sprint funcional homologada:** V3.3.6 — Gestão de Perfis e Permissões no Frontend — CONCLUÍDA E HOMOLOGADA.
+- **Último commit versionado:** `db706e2` — V3.4.5, acesso associado e primeiro login.
 - **Marcos concluídos:** V1, V2, V3.1, V3.2 e V3.3.
-- **Sprint atual:** V3.4 — Gestão de Funcionários (RH) — EM ANDAMENTO.
-- **V3.4.1 — Contrato e Arquitetura:** contrato aprovado/documentado; CONCLUÍDA DOCUMENTALMENTE, aguardando versionamento.
-- **Próxima etapa:** V3.4.2 — Persistência e Integridade.
+- **Sprint atual:** V3.4 — Gestão de Funcionários (RH) — em fechamento.
+- **V3.4.1:** CONCLUÍDA E VERSIONADA — contrato e arquitetura.
+- **V3.4.2:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — persistência e integridade.
+- **V3.4.3:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — cadastros e consultas.
+- **V3.4.4:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — ciclo de vida.
+- **V3.4.5:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — acesso associado e primeiro login.
+- **V3.4.6:** TECNICAMENTE HOMOLOGADA — integração final, frontend RH, CE-2 e CE-3; aguardando versionamento deste fechamento.
+- **Próxima versão após o fechamento da V3.4:** V3.5 — CRM.
 - **V4.0:** apenas backlog futuro, para novo planejamento após conclusão integral da V3.x.
-- **Progresso geral estimado:** aproximadamente 70%, estimativa de planejamento, não métrica calculada do código.
+- **Progresso geral estimado:** aproximadamente 89% antes do versionamento final da V3.4.
 - **Regras críticas:** backend decide autorização; preservar tenant, RBAC, sessões e cache por empresa; verificar Git antes de trabalhar; mudanças incrementais; nenhuma ação automática em produção; nunca registrar credenciais.
 - **Documento oficial:** `docs/ROADMAP_SGE.md`. Ler também `AGENTS.md` e `DECISIONS.md` antes de implementar.
 
@@ -34,26 +38,36 @@ A existência de código ou de um teste não comprova, isoladamente, comportamen
 
 ## Estado Atual
 
-| Campo | Estado no fechamento documental da V3.4.1 |
+| Campo | Estado no fechamento técnico da V3.4.6 |
 |---|---|
-| Data da atualização | 2026-09-07 |
+| Data da atualização | 2026-09-09 |
 | Ambiente auditado | Teste: `/opt/sistema-gestao/teste` |
 | Branch atual | `develop` |
-| HEAD | `dcac4ea8d82fef415fb39f527cbc917468e2e556` |
-| Assunto do último commit | `docs(roadmap): consolida histórico e planejamento do SGE` |
-| Working tree antes desta atualização | Limpa; nenhum arquivo staged |
-| Referências de integração | `develop` e `origin/develop` apontam para `dcac4ea` |
-| Referências da feature | Feature local e `origin/feat/v3-3-6-frontend-perfis-permissoes` apontam para `29fe179` |
-| Versão/marco atual | V3.4 — Gestão de Funcionários (RH) — EM ANDAMENTO |
-| Contrato V3.4.1 | CONCLUÍDA DOCUMENTALMENTE, aguardando versionamento |
-| Última sprint concluída | V3.3.6 — CONCLUÍDA E HOMOLOGADA |
-| Próxima etapa | V3.4.2 — Persistência e Integridade |
-| Implementação em andamento | Nenhuma implementação funcional realizada nesta etapa; contrato V3.4.1 documentado |
-| Estimativa geral | Aproximadamente 70% |
+| HEAD antes do fechamento V3.4.6 | `db706e24ecd8cd64a7d2ac1a8c16e48b6946e20c` |
+| Assunto do último commit | `feat(rh): adiciona acesso associado e primeiro login da V3.4.5` |
+| Referências de integração antes do novo commit | `develop` e `origin/develop` em `db706e2` |
+| Versão/marco atual | V3.4 — Gestão de Funcionários (RH) — EM FECHAMENTO |
+| V3.4.1 | CONCLUÍDA E VERSIONADA |
+| V3.4.2 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
+| V3.4.3 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
+| V3.4.4 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
+| V3.4.5 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
+| V3.4.6 | TECNICAMENTE HOMOLOGADA; aguardando commit/push do fechamento |
+| Próxima versão planejada | V3.5 — CRM |
+| Estimativa geral | Aproximadamente 89% antes do versionamento final da V3.4 |
 
-A sincronização acima foi verificada pelas referências remotas disponíveis localmente, sem fetch ou consulta de rede. O estado atual do servidor remoto não foi reconsultado. Nesta atualização documental, a única mudança é `docs/ROADMAP_SGE.md`, ainda sem staging/commit nesta tarefa.
+A V3.4.6 foi validada no ambiente de teste por testes automatizados, build, lint, typecheck, `git diff --check`, homologação funcional no navegador e cenários de integração com PostgreSQL real.
 
-O progresso de 70% não significa que todo módulo está 70% pronto. V1, V2, V3.1, V3.2 e V3.3 estão concluídas; V3.4 está em andamento. As etapas posteriores e consolidações finais continuam pendentes. O fechamento documental da V3.4.1 não aumenta o percentual.
+A regressão automatizada final registrou 69 suítes aprovadas e 1.283 testes aprovados no backend, além de lint e build aprovados no frontend. Três suítes e 164 testes permaneceram marcados como skipped pela própria suíte de testes.
+
+O fechamento integrado também validou o frontend de RH, responsividade, ciclo de vida do funcionário, associação opcional Funcionario x Usuario, criação/vinculação/desvinculação de acesso, primeiro login com troca obrigatória de senha, isolamento multiempresa e revogação de autorização.
+
+Durante a homologação foram incorporadas duas correções de coerência necessárias ao fechamento:
+
+- **CE-2 — Usuários no contexto multiempresa:** SUPER_ADMIN passa a listar usuários conforme a empresa selecionada sem perder a visão global quando não há empresa selecionada; ADMIN_EMPRESA permanece limitado à própria empresa; a interface não oferece promoção indevida para SUPER_ADMIN.
+- **CE-3 — Usuario x Perfil x Funcionario:** Tipo permanece categoria estrutural da conta e Perfil permanece autorização funcional. Usuários empresariais podem possuir zero, um ou múltiplos perfis. Alterações efetivas de perfis revogam a autorização anterior por `versaoAutorizacao`; operações idempotentes não geram nova revogação nem nova auditoria.
+
+Nenhuma alteração de produção foi realizada neste fechamento. O commit e o push da V3.4.6 ainda não haviam sido executados no momento desta atualização documental.
 
 ## Arquitetura e mapa técnico
 
@@ -254,7 +268,7 @@ A sequência V3.x abaixo permanece fechada. A exceção controlada aprovada excl
 
 | Status | Versão | Objetivo |
 |---|---|---|
-| [ ] EM ANDAMENTO | V3.4 | Gestão de Funcionários (RH) |
+| [x] HOMOLOGADO / EM FECHAMENTO | V3.4 | Gestão de Funcionários (RH) |
 | [ ] PENDENTE | V3.5 | CRM |
 | [ ] PENDENTE | V3.6 | Financeiro Avançado |
 | [ ] PENDENTE | V3.7 | Notificações e Automações |
@@ -267,13 +281,13 @@ Para **V3.5 e demais sprints futuras** desta tabela: **Escopo detalhado será de
 
 A existência de Financeiro e de APIs de empresas não encerra Financeiro Avançado nem Configurações da Empresa. Catálogos ou nomes reservados também não significam implementação funcional de RH, CRM ou Fiscal.
 
-## V3.4 — Gestão de Funcionários (RH) — EM ANDAMENTO
+## V3.4 — Gestão de Funcionários (RH) — HOMOLOGADA / EM FECHAMENTO
 
 ### V3.4.1 — Contrato e Arquitetura
 
-**STATUS: CONCLUÍDA DOCUMENTALMENTE, aguardando versionamento.** Contrato aprovado pelo responsável em 2026-09-07. Próxima etapa: **V3.4.2 — Persistência e Integridade**.
+**STATUS: CONCLUÍDA E VERSIONADA.** Contrato aprovado pelo responsável em 2026-09-07 e posteriormente versionado no commit `b3b4104`. As etapas V3.4.2 a V3.4.6 foram executadas na sequência e o módulo encontra-se em fechamento integrado.
 
-Esta seção registra planejamento aprovado. Modelos, campos, endpoints e fluxos descritos como planejados ainda não constituem implementação funcional. Nenhum código, Prisma, migration, banco, backend, frontend, seed ou dependência foi alterado nesta etapa. Não houve staging, commit ou push da V3.4.1. A V3.4 permanece em andamento e o progresso geral permanece em aproximadamente 70%.
+Esta seção preserva o contrato arquitetural aprovado na V3.4.1. Naquele momento ainda não havia implementação funcional; posteriormente o contrato foi versionado e executado pelas etapas V3.4.2 a V3.4.6. O texto de planejamento abaixo permanece como registro das decisões que orientaram a implementação.
 
 #### Exceção controlada de escopo
 
@@ -979,14 +993,14 @@ Funcionario INATIVO + Usuario ATIVO
 
 ### Subdivisão oficial da V3.4
 
-| Etapa | Status | Escopo aprovado |
+| Etapa | Status | Entrega / evidência |
 |---|---|---|
-| V3.4.1 — Contrato e Arquitetura | CONCLUÍDA DOCUMENTALMENTE, aguardando versionamento | Contrato aprovado e registrado nesta seção; nenhuma implementação funcional. |
-| V3.4.2 — Persistência e Integridade | PENDENTE / PRÓXIMA | Funcionario; Cargo; Departamento; FuncionarioHistorico; Usuario.trocaSenhaObrigatoria; enums; relações; constraints; índices; migration; testes de integridade. |
-| V3.4.3 — Cadastros e Consultas | PENDENTE | cadastro de funcionário; edição; listagem; detalhe; dados profissionais; dados pessoais restritos; cargos; departamentos; filtros; paginação; frontend inicial. |
-| V3.4.4 — Ciclo de Vida | PENDENTE | férias; afastamento; licença; inativação; retorno; desligamento; reclassificações aprovadas; efeitos sobre acesso; histórico; auditoria. |
-| V3.4.5 — Acesso Associado e Primeiro Login | PENDENTE | criar Usuario pelo RH; vincular existente; desvincular; ativar/inativar acesso; integração com Perfis; troca obrigatória de senha; proteções em UsuariosService; proteção do seed; concorrência real. |
-| V3.4.6 — Homologação Integrada | PENDENTE | revisão adversarial; tenant; RBAC; privacidade; atomicidade; concorrência; UX; responsividade; acessibilidade; testes; lint; typecheck; build; diff check; homologação funcional. |
+| V3.4.1 — Contrato e Arquitetura | CONCLUÍDA E VERSIONADA | Contrato arquitetural aprovado; commit `b3b4104`. |
+| V3.4.2 — Persistência e Integridade | CONCLUÍDA, HOMOLOGADA E VERSIONADA | Modelos RH, enums, relações, constraints, migration e testes reais de integridade; commit `893403a`. |
+| V3.4.3 — Cadastros e Consultas | CONCLUÍDA, HOMOLOGADA E VERSIONADA | CRUD/consultas de Funcionário, Cargo e Departamento; privacidade, tenant, histórico, auditoria e permissões RH; commit `7b6dbb8`. |
+| V3.4.4 — Ciclo de Vida | CONCLUÍDA, HOMOLOGADA E VERSIONADA | Situações funcionais, transições, efeitos sobre acesso, histórico, auditoria e integração com UsuariosService; commit `1d7781f`. |
+| V3.4.5 — Acesso Associado e Primeiro Login | CONCLUÍDA, HOMOLOGADA E VERSIONADA | Criar/vincular/desvincular Usuario, primeiro login, troca obrigatória de senha, revogação e concorrência; commit `db706e2`. |
+| V3.4.6 — Homologação Integrada | TECNICAMENTE HOMOLOGADA / AGUARDANDO VERSIONAMENTO | Frontend RH, UX/responsividade, integração completa, CE-2, CE-3, regressão automatizada, PostgreSQL real e homologação manual no navegador. |
 
 ## V4.0 — Evolução Avançada de RH e Automações
 
@@ -1131,7 +1145,7 @@ Não realizar deploy em produção automaticamente. Em tarefas exclusivamente do
 | `frontend/src/app/perfis/` e `frontend/src/components/perfis/` | Implementação da V3.3.6 |
 | Histórico Git | Commits e integrações citados neste documento |
 
-Próxima etapa: V3.4.2 — Persistência e Integridade. Antes de iniciá-la, aguardar revisão e autorização do responsável, reler o contrato V3.4.1 e estas fontes, confirmar o estado Git, pesquisar estruturas equivalentes e abrir a branch apropriada. Esta atualização documental não autoriza git add, commit, push nem implementação da V3.4.2. Não implementar itens posteriores ou do backlog V4.0 por inferência.
+Próxima etapa após o versionamento deste fechamento: V3.5 — CRM. Antes de iniciar a V3.5, confirmar que a V3.4 foi commitada e publicada em `origin/develop`, reler o roadmap e os documentos de arquitetura, confirmar o estado Git e planejar o escopo da V3.5 sem antecipar itens da V3.6 ou do backlog V4.0. Produção permanece fora deste fechamento.
 
 ## Como atualizar este documento
 
@@ -1155,4 +1169,7 @@ Não copiar valores de password, senha, token, secret, DATABASE_URL ou PAT. Essa
 | Data | Versão/Sprint | Alteração | Commit de referência | Status |
 |---|---|---|---|---|
 | 2026-09-06 | V3.3.6 / consolidação do roadmap | Criação do documento oficial; consolidação de V1–V3.3, estado técnico, evidências de encerramento, V3.4–V3.11, pendências e handoff | `29fe179` (feature), `f7dc834` (integração) | V3.3.6 CONCLUÍDA E HOMOLOGADA; documento criado para revisão |
-| 2026-09-07 | V3.4.1 — Contrato e Arquitetura | Conclusão do planejamento arquitetural: separação Funcionario x Usuario, associação opcional 1:1, integração com Perfis/Permissões existentes, seis estados funcionais, status funcional separado do acesso, opção C para desativação de Usuario, primeiro login com troca obrigatória, histórico funcional, protocolo de integridade/concorrência e backlog futuro V4.0. Nenhuma implementação funcional realizada nesta etapa. | Aguardando versionamento; sem commit desta etapa | CONCLUÍDA DOCUMENTALMENTE, aguardando versionamento; V3.4 EM ANDAMENTO; próxima V3.4.2; ~70% |
+| 2026-09-07 | V3.4.1 — Contrato e Arquitetura | Conclusão do planejamento arquitetural: separação Funcionario x Usuario, associação opcional 1:1, integração com Perfis/Permissões existentes, seis estados funcionais, status funcional separado do acesso, opção C para desativação de Usuario, primeiro login com troca obrigatória, histórico funcional, protocolo de integridade/concorrência e backlog futuro V4.0. Na data do planejamento ainda não havia implementação funcional. | `b3b4104` — versionado posteriormente | CONCLUÍDA E VERSIONADA; registro histórico do planejamento de 2026-09-07 |
+
+| 2026-09-09 | V3.4.2–V3.4.5 — Implementação RH | Persistência/integridade, cadastros/consultas, ciclo de vida e acesso associado/primeiro login concluídos e homologados em etapas incrementais. | `893403a`, `7b6dbb8`, `1d7781f`, `db706e2` | CONCLUÍDAS, HOMOLOGADAS E VERSIONADAS |
+| 2026-09-09 | V3.4.6 — Homologação Integrada | Frontend RH, responsividade, integração Funcionario x Usuario, CE-2 multiempresa em Usuarios, CE-3 gestão Usuario x Perfil, regressão final com 69 suítes/1.283 testes backend, lint/build frontend, PostgreSQL real e homologação manual. | Aguardando commit do fechamento | TECNICAMENTE HOMOLOGADA; V3.4 EM FECHAMENTO; ~89% |

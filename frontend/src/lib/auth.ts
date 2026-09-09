@@ -1,10 +1,27 @@
 import { permissoes } from "./permissoes";
 
+export const PERMISSAO_FUNCIONARIOS_VISUALIZAR = "funcionarios.visualizar";
+export const PERMISSAO_FUNCIONARIOS_CRIAR = "funcionarios.criar";
+export const PERMISSAO_FUNCIONARIOS_EDITAR = "funcionarios.editar";
+export const PERMISSAO_FUNCIONARIOS_INATIVAR = "funcionarios.inativar";
+export const PERMISSAO_FUNCIONARIOS_SITUACAO_GERENCIAR =
+  "funcionarios.situacao.gerenciar";
+export const PERMISSAO_FUNCIONARIOS_DADOS_PESSOAIS_VISUALIZAR =
+  "funcionarios.dados_pessoais.visualizar";
+export const PERMISSAO_FUNCIONARIOS_DADOS_PESSOAIS_EDITAR =
+  "funcionarios.dados_pessoais.editar";
+export const PERMISSAO_FUNCIONARIOS_ESTRUTURA_GERENCIAR =
+  "funcionarios.estrutura.gerenciar";
+export const PERMISSAO_FUNCIONARIOS_ACESSO_GERENCIAR =
+  "funcionarios.acesso.gerenciar";
+
 export const PERMISSAO_AUDITORIA_GLOBAL_VISUALIZAR =
   "sistema.auditoria.visualizar";
 export const PERMISSAO_AUDITORIA_EMPRESA_VISUALIZAR =
   "auditoria.empresa.visualizar";
 export const PERMISSAO_DASHBOARD_VISUALIZAR = "dashboard.visualizar";
+
+export const USUARIOS_PERFIS_GERENCIAR = "usuarios.perfis.gerenciar";
 
 export const PERMISSAO_PERFIS_VISUALIZAR = "perfis.visualizar";
 export const PERMISSAO_PERFIS_CRIAR = "perfis.criar";
@@ -105,15 +122,16 @@ export type Usuario = {
   email: string;
   tipo: string;
   empresaId: string | null;
+  trocaSenhaObrigatoria: boolean;
   perfis: string[];
   permissoes: string[];
 };
 
 export type UsuarioComPermissoesOpcionais = Omit<
   Usuario,
-  "perfis" | "permissoes"
+  "perfis" | "permissoes" | "trocaSenhaObrigatoria"
 > &
-  Partial<Pick<Usuario, "perfis" | "permissoes">>;
+  Partial<Pick<Usuario, "perfis" | "permissoes" | "trocaSenhaObrigatoria">>;
 
 function listaDeStrings(valor: unknown): valor is string[] {
   return (
@@ -139,6 +157,7 @@ export function normalizarUsuario(usuario: unknown): Usuario {
 
   return {
     ...usuarioValidado,
+    trocaSenhaObrigatoria: usuarioValidado.trocaSenhaObrigatoria === true,
     perfis: listaDeStrings(usuarioValidado.perfis)
       ? usuarioValidado.perfis
       : [],

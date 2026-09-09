@@ -21,6 +21,7 @@ import {
 } from "@/lib/auth";
 import {
   EVENTO_SESSAO_EXPIRADA,
+  EVENTO_TROCA_SENHA_OBRIGATORIA,
   invalidarRequisicoesDaSessao,
   limparEmpresaOperacional,
 } from "@/services/api";
@@ -32,6 +33,7 @@ type AuthContextData = {
   carregando: boolean;
   login: (token: string, usuario: UsuarioComPermissoesOpcionais) => void;
   logout: () => void;
+  finalizarTrocaSenha: () => void;
   temPermissao: (permissao: string) => boolean;
 };
 
@@ -130,16 +132,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    function tratarTrocaPendente() {
+      if (!usuario || usuario.trocaSenhaObrigatoria) return;
+      const pendente = { ...usuario, trocaSenhaObrigatoria: true };
+      localStorage.setItem("usuario", JSON.stringify(pendente));
+      limparCacheDaSessao();
+      setUsuario(pendente);
+      router.replace("/trocar-senha");
+    }
+    window.addEventListener(EVENTO_TROCA_SENHA_OBRIGATORIA, tratarTrocaPendente);
     window.addEventListener(EVENTO_SESSAO_EXPIRADA, tratarSessaoExpirada);
 
     window.addEventListener("storage", sincronizarSessaoEntreAbas);
 
     return () => {
+      window.removeEventListener(EVENTO_TROCA_SENHA_OBRIGATORIA, tratarTrocaPendente);
       window.removeEventListener(EVENTO_SESSAO_EXPIRADA, tratarSessaoExpirada);
 
       window.removeEventListener("storage", sincronizarSessaoEntreAbas);
     };
-  }, [limparSessao, limparCacheDaSessao, router, token]);
+  }, [limparSessao, limparCacheDaSessao, router, token, usuario]);
 
   function login(
     novoToken: string,
@@ -157,12 +169,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(novoToken);
     setUsuario(usuarioNormalizado);
 
-    router.replace("/dashboard");
+    router.replace(usuarioNormalizado.trocaSenhaObrigatoria ? "/trocar-senha" : "/dashboard");
   }
 
-  function logout() {
+  function logout(motivo?: "senha-alterada") {
     limparSessao();
-    router.replace("/login");
+    router.replace(motivo ? `/login?motivo=${motivo}` : "/login");
   }
 
   return (
@@ -173,7 +185,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         autenticado: Boolean(token),
         carregando,
         login,
-        logout,
+        logout: () => logout(),
+        finalizarTrocaSenha: () => logout("senha-alterada"),
         temPermissao: (permissao) => verificarPermissao(usuario, permissao),
       }}
     >

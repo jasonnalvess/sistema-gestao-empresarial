@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 export const menu = [
+  { titulo: "Funcionários", href: "/funcionarios", icon: UsersRound },
   {
     titulo: "Dashboard",
     href: "/dashboard",

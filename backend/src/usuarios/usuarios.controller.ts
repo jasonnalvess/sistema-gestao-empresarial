@@ -1,8 +1,12 @@
+import { AtualizarPerfisUsuarioDto } from './dto/atualizar-perfis-usuario.dto';
 import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
+  ParseUUIDPipe,
+  Put,
   Patch,
   Post,
   Query,
@@ -13,6 +17,7 @@ import { Permissoes } from '../auth/decorators/permissions.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { EMPRESA_ID_HEADER } from '../common/constants/empresa-contexto.constants';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { PaginacaoDto } from '../common/dto/paginacao.dto';
@@ -41,8 +46,30 @@ export class UsuariosController {
   listar(
     @CurrentUser() usuario: AuthenticatedUser,
     @Query() paginacao: PaginacaoDto,
+    @Headers(EMPRESA_ID_HEADER) empresaSelecionada?: string,
   ) {
-    return this.usuariosService.listar(usuario, paginacao);
+    return this.usuariosService.listar(usuario, paginacao, empresaSelecionada);
+  }
+
+  @Get(':id/perfis')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('usuarios.perfis.gerenciar')
+  listarPerfis(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.usuariosService.listarPerfis(id, usuario);
+  }
+
+  @Put(':id/perfis')
+  @Roles('SUPER_ADMIN', 'ADMIN_EMPRESA')
+  @Permissoes('usuarios.perfis.gerenciar')
+  atualizarPerfis(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: AtualizarPerfisUsuarioDto,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.usuariosService.atualizarPerfis(id, body, usuario);
   }
 
   @Get(':id')

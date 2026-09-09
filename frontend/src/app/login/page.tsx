@@ -18,7 +18,7 @@ type LoginResponse = {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, autenticado, carregando: carregandoSessao } = useAuth();
+  const { login, usuario, autenticado, carregando: carregandoSessao } = useAuth();
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -29,9 +29,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!carregandoSessao && autenticado) {
-      router.replace("/dashboard");
+      router.replace(usuario?.trocaSenhaObrigatoria ? "/trocar-senha" : "/dashboard");
     }
-  }, [autenticado, carregandoSessao, router]);
+  }, [autenticado, carregandoSessao, router, usuario]);
 
   useEffect(() => {
     let efeitoAtivo = true;
@@ -43,6 +43,10 @@ export default function LoginPage() {
 
       const parametros = new URLSearchParams(window.location.search);
 
+      if (parametros.get("motivo") === "senha-alterada") {
+        setAviso("Senha alterada. Entre novamente com sua nova senha.");
+        window.history.replaceState({}, "", window.location.pathname);
+      }
       if (parametros.get("motivo") === "sessao-expirada") {
         setAviso("Sua sessão expirou. Entre novamente para continuar.");
 

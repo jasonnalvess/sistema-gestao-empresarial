@@ -22,6 +22,7 @@ export function Pagination({
 
       <div className="grid grid-cols-2 gap-2 sm:flex">
         <Button
+          type="button"
           variant="outline"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
@@ -30,6 +31,7 @@ export function Pagination({
         </Button>
 
         <Button
+          type="button"
           variant="outline"
           disabled={page >= totalPages}
           onClick={() => onPageChange(page + 1)}
