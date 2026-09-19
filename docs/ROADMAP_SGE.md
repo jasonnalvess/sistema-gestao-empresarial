@@ -15,10 +15,10 @@
 - **V3.4.4:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — ciclo de vida.
 - **V3.4.5:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — acesso associado e primeiro login.
 - **V3.4.6:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — integração final, frontend RH, CE-2 e CE-3; commit `ce0ccdd`.
-- **Versão atual:** V3.5 — CRM; V3.5.1 concluída documentalmente e aguardando versionamento.
-- **Próxima etapa planejada após versionamento:** V3.5.2 — Persistência e Integridade.
+- **Versão atual:** V3.5 — CRM; V3.5.1 concluída e versionada no commit `7373470`; V3.5.2 concluída e homologada, aguardando versionamento do fechamento atual.
+- **Próxima etapa planejada após versionamento:** V3.5.3 — Interações e Integração com Agenda.
 - **V4.0:** apenas backlog futuro, para novo planejamento após conclusão integral da V3.x.
-- **Progresso geral estimado:** aproximadamente 91% após a conclusão documental da V3.5.1.
+- **Progresso geral estimado:** aproximadamente 91% enquanto a V3.5.2 aguarda versionamento.
 - **Regras críticas:** backend decide autorização; preservar tenant, RBAC, sessões e cache por empresa; verificar Git antes de trabalhar; mudanças incrementais; nenhuma ação automática em produção; nunca registrar credenciais.
 - **Documento oficial:** `docs/ROADMAP_SGE.md`. Ler também `AGENTS.md` e `DECISIONS.md` antes de implementar.
 
@@ -41,14 +41,14 @@ A existência de código ou de um teste não comprova, isoladamente, comportamen
 
 | Campo | Estado atual e referências históricas |
 |---|---|
-| Data da atualização | 2026-09-18 |
+| Data da atualização | 2026-09-19 |
 | Data do fechamento técnico da V3.4.6 (histórico) | 2026-09-09 |
 | Ambiente auditado | Teste: `/opt/sistema-gestao/teste` |
 | Branch atual | `develop` |
 | HEAD antes do fechamento V3.4.6 | `db706e24ecd8cd64a7d2ac1a8c16e48b6946e20c` |
 | Assunto do último commit antes do fechamento V3.4.6 (histórico) | `feat(rh): adiciona acesso associado e primeiro login da V3.4.5` |
 | Referências de integração antes do fechamento V3.4.6 (histórico) | `develop` e `origin/develop` em `db706e2` |
-| Versão/marco atual | V3.5 — CRM — EM ANDAMENTO; V3.5.1 concluída documentalmente e aguardando versionamento |
+| Versão/marco atual | V3.5 — CRM — EM ANDAMENTO; V3.5.1 concluída e versionada no commit `7373470`; V3.5.2 concluída e homologada, aguardando versionamento do fechamento atual |
 | V3.4.1 | CONCLUÍDA E VERSIONADA |
 | V3.4.2 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.3 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
@@ -56,8 +56,8 @@ A existência de código ou de um teste não comprova, isoladamente, comportamen
 | V3.4.5 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.6 | CONCLUÍDA, HOMOLOGADA E VERSIONADA; commit `ce0ccdd` publicado em `origin/develop` |
 | Versão atual | V3.5 — CRM — EM ANDAMENTO |
-| Próxima etapa planejada após versionamento | V3.5.2 — Persistência e Integridade |
-| Estimativa geral | Aproximadamente 91% após a conclusão documental da V3.5.1 |
+| Próxima etapa planejada após versionamento | V3.5.3 — Interações e Integração com Agenda |
+| Estimativa geral | Aproximadamente 91% enquanto a V3.5.2 aguarda versionamento |
 
 Os relatos abaixo preservam o fechamento técnico de 2026-09-09, anterior à publicação de `ce0ccdd`; não representam pendência atual de versionamento da V3.4.
 
@@ -1011,9 +1011,9 @@ Funcionario INATIVO + Usuario ATIVO
 
 ### V3.5.1 — Contrato e Arquitetura
 
-**STATUS: CONCLUÍDA — contrato arquitetural revisado e aprovado; aguardando versionamento.**
+**STATUS: CONCLUÍDA E VERSIONADA.** Contrato arquitetural revisado e aprovado, publicado em `origin/develop` no commit `7373470b5720e56ce1c938e0d3f3ba67b70f45af` (`docs(crm): define contrato arquitetural da V3.5.1`).
 
-Esta seção consolida o contrato CRM revisado e a arquitetura aprovada na revisão independente final da FASE 3C. A V3.5.1 está concluída documentalmente, mas esta conclusão ainda não foi versionada no Git. Os modelos e mecanismos abaixo permanecem como planejamento: a implementação funcional começa somente na V3.5.2, próxima etapa planejada após o versionamento. O objetivo congelado da V3.5 permanece CRM, sem ampliar a exceção de escopo da V3.4. O progresso geral passa a ser estimado em aproximadamente 91%.
+Esta seção preserva o contrato CRM revisado e a arquitetura aprovada na revisão independente final da FASE 3C. A V3.5.1 foi versionada; a V3.5.2 implementou e homologou a persistência e a integridade descritas abaixo no ambiente de teste, aguardando somente o versionamento do fechamento atual. O objetivo congelado da V3.5 permanece CRM, sem ampliar a exceção de escopo da V3.4. O progresso geral permanece estimado em aproximadamente 91%.
 
 #### Cliente como cadastro mestre
 
@@ -1031,7 +1031,7 @@ Estrutura conceitual de Cliente:
 
 #### Módulo CRM e acesso operacional
 
-Novo ModuloSistema planejado: `nome = CRM`, `chave = crm`, `ativo = true`. O CRM deve ser ativável por empresa através de EmpresaModulo.
+ModuloSistema CRM provisionado: `nome = CRM`, `chave = crm`, `ativo = true`. O CRM permanece ativável por empresa através de EmpresaModulo; a V3.5.2 não o ativou automaticamente para empresas existentes.
 
 O acesso operacional exige cumulativamente:
 
@@ -1171,7 +1171,7 @@ Não copiar itens nem ciclo de vida da Venda para a oportunidade.
 
 Usar defesa em profundidade: consultas, escritas e validações de relacionamentos no backend respeitam a empresa autenticada, complementadas por constraints quando tecnicamente aplicável.
 
-Planejamento de chaves compostas:
+Chaves compostas homologadas:
 
 - Usuario: `@@unique([empresaId, id])`;
 - Cliente: `@@unique([empresaId, id])`;
@@ -1190,11 +1190,11 @@ Relações críticas devem impedir cross-tenant:
 - interação → responsável;
 - interação → agenda.
 
-Antes de qualquer migration futura, validar o impacto das constraints nos dados existentes. Este contrato não executa alteração de schema, migration ou seed.
+A V3.5.1 não executou alteração de schema, migration ou seed. A V3.5.2 aplicou e homologou a migration incremental no ambiente de teste.
 
 #### Permissões CRM e provisionamento
 
-Criar futuramente as sete permissões:
+Foram provisionadas as sete permissões:
 
 - `crm.visualizar`;
 - `crm.interacoes.criar`;
@@ -1204,9 +1204,9 @@ Criar futuramente as sete permissões:
 - `crm.oportunidades.movimentar`;
 - `crm.funil.gerenciar`.
 
-As sete são planejadas como delegáveis, com integração explícita à allowlist e ao enforcement existentes. Delegável não significa concessão automática; preservar os limites de delegação e a autoridade do backend.
+As sete são delegáveis, com integração explícita à allowlist e ao enforcement existentes. Delegável não significa concessão automática; preservar os limites de delegação e a autoridade do backend.
 
-| Perfil padrão | Permissões CRM padrão planejadas |
+| Perfil padrão | Permissões CRM padrão |
 |---|---|
 | Super Administrador | Todas as sete. |
 | Administrador do Sistema | Todas as sete. |
@@ -1215,7 +1215,7 @@ As sete são planejadas como delegáveis, com integração explícita à allowli
 | RH | Nenhuma por padrão. |
 | Colaborador | `crm.visualizar`, `crm.interacoes.criar`, `crm.oportunidades.criar`. |
 
-Respeitar os perfis reais existentes no seed, sem criar segundo sistema de papéis. Este planejamento não concede permissões silenciosamente a usuários existentes. A tabela representa provisionamento dos perfis padrão, não TipoUsuario. Esse provisionamento não altera a elegibilidade de responsável CRM: `ADMIN_EMPRESA` e `USUARIO_EMPRESA` podem ser responsáveis; `SUPER_ADMIN` não pode. Os requisitos de acesso operacional do módulo permanecem obrigatórios.
+Foram respeitados os perfis reais existentes no seed, sem criar segundo sistema de papéis. O provisioning incremental não concede CRM silenciosamente a usuários fora dos perfis padrão existentes. A tabela representa provisionamento dos perfis padrão, não TipoUsuario. Esse provisionamento não altera a elegibilidade de responsável CRM: `ADMIN_EMPRESA` e `USUARIO_EMPRESA` podem ser responsáveis; `SUPER_ADMIN` não pode. Os requisitos de acesso operacional do módulo permanecem obrigatórios.
 
 #### Timeline agregada do Cliente
 
@@ -1240,14 +1240,30 @@ Não incluir na V3.5:
 - novo cadastro Lead;
 - novo ModuloSistema `clientes`.
 
+### V3.5.2 — Persistência e Integridade
+
+**STATUS: CONCLUÍDA E HOMOLOGADA NO AMBIENTE DE TESTE — aguardando somente versionamento/publicação do fechamento atual.**
+
+A V3.5.2 entregou `TipoEtapaCRM`, `TipoInteracaoCRM`, `CrmEtapa`, `CrmOportunidade`, `ClienteInteracao` e `CrmOportunidadeHistorico`, com relações, constraints, índices e `versaoRegistro` previstos no contrato.
+
+A migration `20260919024242_v3_5_2_persistencia_integridade_crm` foi aplicada somente em `sistema_gestao_teste`, finalizada sem reversão ou logs de erro; o Prisma reconheceu 40 migrations, reportou schema atualizado e homologou o checksum `06ae33775b063252ecd2fd26d34a18709fe0b1248032585ea50da72559730bc5`.
+
+A homologação real em PostgreSQL confirmou FKs compostas de tenant, oportunidade/cliente, interação/oportunidade com o mesmo cliente, oportunidade/venda com mesmo tenant e cliente, exclusividade de venda por oportunidade, autor global `SUPER_ADMIN` permitido no histórico, `RESTRICT` para histórico/estrutura, `SET NULL` seletivo apenas em `agendaEventoId` e ausência de `ON DELETE CASCADE` no CRM. Os testes transacionais foram revertidos, sem resíduos.
+
+O provisioning incremental provisionou o módulo `crm` e as sete permissões delegáveis. A primeira execução real resultou em `perfisAlterados: 5` e `usuariosRevogados: 3`; a segunda em `0` e `0`, respectivamente. O banco final possui um módulo CRM, sete permissões, 30 vínculos permitidos, zero `EmpresaModulo` CRM e zero duplicidades.
+
+A regressão final aprovou Prisma format, validate, generate e migrate status; 70 suítes backend e 1.284 testes passaram, com três suítes e 164 testes skipped (1.448 totais). Backend build e `git diff --check` também foram aprovados.
+
+Nenhuma alteração foi realizada em produção. CRM não foi ativado automaticamente via `EmpresaModulo`.
+
 ### Subdivisão oficial da V3.5
 
-O planejamento incremental abaixo organiza a V3.5 sem ampliar seu objetivo congelado. As etapas posteriores permanecem planejadas, sem indicação de implementação ou homologação nesta consolidação.
+O planejamento incremental abaixo organiza a V3.5 sem ampliar seu objetivo congelado. As etapas posteriores à V3.5.2 permanecem planejadas.
 
 | Etapa | Status | Entrega planejada |
 |---|---|---|
-| V3.5.1 — Contrato e Arquitetura CRM | CONCLUÍDA — aguardando versionamento | Contrato arquitetural consolidado e revisado; arquitetura aprovada na revisão independente final da FASE 3C. |
-| V3.5.2 — Persistência e Integridade | PENDENTE | Persistência dos modelos CRM e integridade multiempresa. |
+| V3.5.1 — Contrato e Arquitetura CRM | CONCLUÍDA E VERSIONADA | Contrato arquitetural consolidado e revisado; arquitetura aprovada na revisão independente final da FASE 3C; commit `7373470`. |
+| V3.5.2 — Persistência e Integridade | CONCLUÍDA E HOMOLOGADA — aguardando versionamento | Persistência dos modelos CRM, integridade multiempresa, migration, provisioning/RBAC e regressão técnica no ambiente de teste. |
 | V3.5.3 — Interações e Integração com Agenda | PENDENTE | Interações estruturadas e vínculo opcional com a Agenda existente. |
 | V3.5.4 — Oportunidades e Funil | PENDENTE | Funil configurável, oportunidades, operações comerciais e histórico. |
 | V3.5.5 — Frontend e Integração | PENDENTE | Interface CRM e integração aos fluxos existentes conforme o contrato. |
@@ -1396,7 +1412,7 @@ Não realizar deploy em produção automaticamente. Em tarefas exclusivamente do
 | `frontend/src/app/perfis/` e `frontend/src/components/perfis/` | Implementação da V3.3.6 |
 | Histórico Git | Commits e integrações citados neste documento |
 
-Etapa atual: V3.5 — CRM. A V3.4 foi concluída, homologada, versionada no commit `ce0ccdd` e publicada em `origin/develop`. A V3.5 permanece EM ANDAMENTO; a V3.5.1 está concluída documentalmente, com contrato revisado e arquitetura aprovada, aguardando versionamento. A próxima etapa planejada após versionamento é V3.5.2 — Persistência e Integridade, preservando o objetivo congelado do roadmap e sem antecipar itens da V3.6 ou do backlog V4.0. Produção permanece intocada.
+Etapa atual: V3.5 — CRM. A V3.4 foi concluída, homologada, versionada no commit `ce0ccdd` e publicada em `origin/develop`. A V3.5 permanece EM ANDAMENTO; a V3.5.1 foi concluída e versionada no commit `7373470`, e a V3.5.2 foi concluída e homologada no ambiente de teste, aguardando somente o versionamento do fechamento atual. A próxima etapa planejada é V3.5.3 — Interações e Integração com Agenda, preservando o objetivo congelado do roadmap e sem antecipar itens da V3.6 ou do backlog V4.0. Produção permanece intocada.
 
 ## Como atualizar este documento
 
@@ -1425,4 +1441,5 @@ Não copiar valores de password, senha, token, secret, DATABASE_URL ou PAT. Essa
 | 2026-09-09 | V3.4.2–V3.4.5 — Implementação RH | Persistência/integridade, cadastros/consultas, ciclo de vida e acesso associado/primeiro login concluídos e homologados em etapas incrementais. | `893403a`, `7b6dbb8`, `1d7781f`, `db706e2` | CONCLUÍDAS, HOMOLOGADAS E VERSIONADAS |
 | 2026-09-09 | V3.4.6 — Homologação Integrada | Frontend RH, responsividade, integração Funcionario x Usuario, CE-2 multiempresa em Usuarios, CE-3 gestão Usuario x Perfil, regressão final com 69 suítes/1.283 testes backend, lint/build frontend, PostgreSQL real e homologação manual. | Aguardando commit do fechamento | TECNICAMENTE HOMOLOGADA; V3.4 EM FECHAMENTO; ~89% |
 | 2026-09-10 | V3.4 — Fechamento / V3.5 — Abertura | V3.4 concluída após homologação integrada; commit final publicado em `origin/develop`. Abertura da V3.5 CRM pela auditoria e definição do contrato arquitetural, sem alterações em produção. | `ce0ccdd` | V3.4 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5 EM ANDAMENTO; ~90% |
-| 2026-09-18 | V3.5.1 — Contrato e Arquitetura CRM | Contrato consolidado: Cliente como cadastro mestre, ClienteInteracao, funil configurável, oportunidades, integração conceitual com Agenda e Venda, module gating CRM, RBAC e integridade multiempresa. Revisão arquitetural final da FASE 3C aprovada. | Aguardando versionamento | V3.5.1 CONCLUÍDA DOCUMENTALMENTE; V3.5 EM ANDAMENTO; ~91% |
+| 2026-09-18 | V3.5.1 — Contrato e Arquitetura CRM | Contrato consolidado: Cliente como cadastro mestre, ClienteInteracao, funil configurável, oportunidades, integração conceitual com Agenda e Venda, module gating CRM, RBAC e integridade multiempresa. Revisão arquitetural final da FASE 3C aprovada. | `7373470b5720e56ce1c938e0d3f3ba67b70f45af` | V3.5.1 CONCLUÍDA E VERSIONADA; V3.5 EM ANDAMENTO; ~91% |
+| 2026-09-19 | V3.5.2 — Persistência e Integridade CRM | Persistência, migration, integridade multiempresa, provisioning/RBAC e regressão técnica homologados no ambiente de teste; nenhuma alteração em produção. | Aguardando versionamento/publicação do fechamento atual | V3.5.2 CONCLUÍDA E HOMOLOGADA; V3.5 EM ANDAMENTO; ~91% |

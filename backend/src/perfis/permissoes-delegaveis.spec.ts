@@ -1,7 +1,7 @@
 import { PERMISSOES_EMPRESARIAIS_DELEGAVEIS } from './permissoes-delegaveis';
 
-describe('Contrato de delegação V3.3.5 / V3.4.3', () => {
-  it('mantém exatamente as 77 chaves operacionais revisadas', () => {
+describe('Contrato de delegação V3.3.5 / V3.4.3 / V3.5.1', () => {
+  it('mantém exatamente as 84 chaves operacionais revisadas', () => {
     expect(PERMISSOES_EMPRESARIAIS_DELEGAVEIS).toEqual([
       'agenda.cancelar',
       'agenda.criar',
@@ -17,6 +17,13 @@ describe('Contrato de delegação V3.3.5 / V3.4.3', () => {
       'clientes.criar',
       'clientes.editar',
       'clientes.visualizar',
+      'crm.funil.gerenciar',
+      'crm.interacoes.criar',
+      'crm.interacoes.editar',
+      'crm.oportunidades.criar',
+      'crm.oportunidades.editar',
+      'crm.oportunidades.movimentar',
+      'crm.visualizar',
       'dashboard.visualizar',
       'estoque.ajustes.realizar',
       'estoque.categorias.criar',
