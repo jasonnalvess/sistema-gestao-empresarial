@@ -6,18 +6,19 @@
 - **Arquitetura:** Next.js, React, TypeScript, TanStack Query, Axios e Tailwind no frontend; NestJS, TypeScript e Prisma no backend; PostgreSQL.
 - **Ambiente de trabalho:** teste, `/opt/sistema-gestao/teste`.
 - **Branch atual e de integração:** `develop`.
-- **Último commit versionado:** `db706e2` — V3.4.5, acesso associado e primeiro login.
-- **Marcos concluídos:** V1, V2, V3.1, V3.2 e V3.3.
-- **Sprint atual:** V3.4 — Gestão de Funcionários (RH) — em fechamento.
+- **Último commit versionado:** `ce0ccdd` — V3.4.6, homologação integrada e fechamento da Gestão de Funcionários (RH).
+- **Marcos concluídos:** V1, V2, V3.1, V3.2, V3.3 e V3.4.
+- **Sprint atual:** V3.5 — CRM — EM ANDAMENTO.
 - **V3.4.1:** CONCLUÍDA E VERSIONADA — contrato e arquitetura.
 - **V3.4.2:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — persistência e integridade.
 - **V3.4.3:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — cadastros e consultas.
 - **V3.4.4:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — ciclo de vida.
 - **V3.4.5:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — acesso associado e primeiro login.
-- **V3.4.6:** TECNICAMENTE HOMOLOGADA — integração final, frontend RH, CE-2 e CE-3; aguardando versionamento deste fechamento.
-- **Próxima versão após o fechamento da V3.4:** V3.5 — CRM.
+- **V3.4.6:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — integração final, frontend RH, CE-2 e CE-3; commit `ce0ccdd`.
+- **Versão atual:** V3.5 — CRM; V3.5.1 concluída documentalmente e aguardando versionamento.
+- **Próxima etapa planejada após versionamento:** V3.5.2 — Persistência e Integridade.
 - **V4.0:** apenas backlog futuro, para novo planejamento após conclusão integral da V3.x.
-- **Progresso geral estimado:** aproximadamente 89% antes do versionamento final da V3.4.
+- **Progresso geral estimado:** aproximadamente 91% após a conclusão documental da V3.5.1.
 - **Regras críticas:** backend decide autorização; preservar tenant, RBAC, sessões e cache por empresa; verificar Git antes de trabalhar; mudanças incrementais; nenhuma ação automática em produção; nunca registrar credenciais.
 - **Documento oficial:** `docs/ROADMAP_SGE.md`. Ler também `AGENTS.md` e `DECISIONS.md` antes de implementar.
 
@@ -38,23 +39,27 @@ A existência de código ou de um teste não comprova, isoladamente, comportamen
 
 ## Estado Atual
 
-| Campo | Estado no fechamento técnico da V3.4.6 |
+| Campo | Estado atual e referências históricas |
 |---|---|
-| Data da atualização | 2026-09-09 |
+| Data da atualização | 2026-09-18 |
+| Data do fechamento técnico da V3.4.6 (histórico) | 2026-09-09 |
 | Ambiente auditado | Teste: `/opt/sistema-gestao/teste` |
 | Branch atual | `develop` |
 | HEAD antes do fechamento V3.4.6 | `db706e24ecd8cd64a7d2ac1a8c16e48b6946e20c` |
-| Assunto do último commit | `feat(rh): adiciona acesso associado e primeiro login da V3.4.5` |
-| Referências de integração antes do novo commit | `develop` e `origin/develop` em `db706e2` |
-| Versão/marco atual | V3.4 — Gestão de Funcionários (RH) — EM FECHAMENTO |
+| Assunto do último commit antes do fechamento V3.4.6 (histórico) | `feat(rh): adiciona acesso associado e primeiro login da V3.4.5` |
+| Referências de integração antes do fechamento V3.4.6 (histórico) | `develop` e `origin/develop` em `db706e2` |
+| Versão/marco atual | V3.5 — CRM — EM ANDAMENTO; V3.5.1 concluída documentalmente e aguardando versionamento |
 | V3.4.1 | CONCLUÍDA E VERSIONADA |
 | V3.4.2 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.3 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.4 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.5 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
-| V3.4.6 | TECNICAMENTE HOMOLOGADA; aguardando commit/push do fechamento |
-| Próxima versão planejada | V3.5 — CRM |
-| Estimativa geral | Aproximadamente 89% antes do versionamento final da V3.4 |
+| V3.4.6 | CONCLUÍDA, HOMOLOGADA E VERSIONADA; commit `ce0ccdd` publicado em `origin/develop` |
+| Versão atual | V3.5 — CRM — EM ANDAMENTO |
+| Próxima etapa planejada após versionamento | V3.5.2 — Persistência e Integridade |
+| Estimativa geral | Aproximadamente 91% após a conclusão documental da V3.5.1 |
+
+Os relatos abaixo preservam o fechamento técnico de 2026-09-09, anterior à publicação de `ce0ccdd`; não representam pendência atual de versionamento da V3.4.
 
 A V3.4.6 foi validada no ambiente de teste por testes automatizados, build, lint, typecheck, `git diff --check`, homologação funcional no navegador e cenários de integração com PostgreSQL real.
 
@@ -268,8 +273,8 @@ A sequência V3.x abaixo permanece fechada. A exceção controlada aprovada excl
 
 | Status | Versão | Objetivo |
 |---|---|---|
-| [x] HOMOLOGADO / EM FECHAMENTO | V3.4 | Gestão de Funcionários (RH) |
-| [ ] PENDENTE | V3.5 | CRM |
+| [x] CONCLUÍDO / HOMOLOGADO | V3.4 | Gestão de Funcionários (RH) |
+| [ ] EM ANDAMENTO | V3.5 | CRM |
 | [ ] PENDENTE | V3.6 | Financeiro Avançado |
 | [ ] PENDENTE | V3.7 | Notificações e Automações |
 | [ ] PENDENTE | V3.8 | Configurações da Empresa |
@@ -277,15 +282,15 @@ A sequência V3.x abaixo permanece fechada. A exceção controlada aprovada excl
 | [ ] PENDENTE | V3.10 | Integrações e Gestão de Arquivos |
 | [ ] PENDENTE | V3.11 | Homologação Final |
 
-Para **V3.5 e demais sprints futuras** desta tabela: **Escopo detalhado será definido na abertura da sprint, preservando o objetivo já estabelecido no roadmap.**
+O escopo detalhado da **V3.5** foi consolidado na V3.5.1, preservando o objetivo já estabelecido no roadmap. Para as **demais sprints futuras** desta tabela: **Escopo detalhado será definido na abertura da sprint, preservando o objetivo já estabelecido no roadmap.**
 
 A existência de Financeiro e de APIs de empresas não encerra Financeiro Avançado nem Configurações da Empresa. Catálogos ou nomes reservados também não significam implementação funcional de RH, CRM ou Fiscal.
 
-## V3.4 — Gestão de Funcionários (RH) — HOMOLOGADA / EM FECHAMENTO
+## V3.4 — Gestão de Funcionários (RH) — CONCLUÍDA / HOMOLOGADA / VERSIONADA
 
 ### V3.4.1 — Contrato e Arquitetura
 
-**STATUS: CONCLUÍDA E VERSIONADA.** Contrato aprovado pelo responsável em 2026-09-07 e posteriormente versionado no commit `b3b4104`. As etapas V3.4.2 a V3.4.6 foram executadas na sequência e o módulo encontra-se em fechamento integrado.
+**STATUS: CONCLUÍDA E VERSIONADA.** Contrato aprovado pelo responsável em 2026-09-07 e posteriormente versionado no commit `b3b4104`. As etapas V3.4.2 a V3.4.6 foram executadas na sequência e a V3.4 foi concluída, homologada e versionada no commit `ce0ccdd`.
 
 Esta seção preserva o contrato arquitetural aprovado na V3.4.1. Naquele momento ainda não havia implementação funcional; posteriormente o contrato foi versionado e executado pelas etapas V3.4.2 a V3.4.6. O texto de planejamento abaixo permanece como registro das decisões que orientaram a implementação.
 
@@ -1000,7 +1005,253 @@ Funcionario INATIVO + Usuario ATIVO
 | V3.4.3 — Cadastros e Consultas | CONCLUÍDA, HOMOLOGADA E VERSIONADA | CRUD/consultas de Funcionário, Cargo e Departamento; privacidade, tenant, histórico, auditoria e permissões RH; commit `7b6dbb8`. |
 | V3.4.4 — Ciclo de Vida | CONCLUÍDA, HOMOLOGADA E VERSIONADA | Situações funcionais, transições, efeitos sobre acesso, histórico, auditoria e integração com UsuariosService; commit `1d7781f`. |
 | V3.4.5 — Acesso Associado e Primeiro Login | CONCLUÍDA, HOMOLOGADA E VERSIONADA | Criar/vincular/desvincular Usuario, primeiro login, troca obrigatória de senha, revogação e concorrência; commit `db706e2`. |
-| V3.4.6 — Homologação Integrada | TECNICAMENTE HOMOLOGADA / AGUARDANDO VERSIONAMENTO | Frontend RH, UX/responsividade, integração completa, CE-2, CE-3, regressão automatizada, PostgreSQL real e homologação manual no navegador. |
+| V3.4.6 — Homologação Integrada | CONCLUÍDA, HOMOLOGADA E VERSIONADA | Frontend RH, UX/responsividade, integração completa, CE-2, CE-3, regressão automatizada, PostgreSQL real e homologação manual no navegador; commit `ce0ccdd`. |
+
+## V3.5 — CRM — EM ANDAMENTO
+
+### V3.5.1 — Contrato e Arquitetura
+
+**STATUS: CONCLUÍDA — contrato arquitetural revisado e aprovado; aguardando versionamento.**
+
+Esta seção consolida o contrato CRM revisado e a arquitetura aprovada na revisão independente final da FASE 3C. A V3.5.1 está concluída documentalmente, mas esta conclusão ainda não foi versionada no Git. Os modelos e mecanismos abaixo permanecem como planejamento: a implementação funcional começa somente na V3.5.2, próxima etapa planejada após o versionamento. O objetivo congelado da V3.5 permanece CRM, sem ampliar a exceção de escopo da V3.4. O progresso geral passa a ser estimado em aproximadamente 91%.
+
+#### Cliente como cadastro mestre
+
+Cliente continua sendo o cadastro mestre, reutilizado pelo CRM. Não criar entidade Lead paralela. ClienteHistorico permanece como anotação/histórico legado; o CRM acrescentará interações estruturadas e oportunidades.
+
+Estrutura conceitual de Cliente:
+
+- `agendaEventos`: existentes;
+- `historicos`: existentes;
+- `ordensServico`: existentes;
+- `contasReceber`: existentes;
+- `vendas`: existentes;
+- `crmInteracoes`: novas;
+- `crmOportunidades`: novas.
+
+#### Módulo CRM e acesso operacional
+
+Novo ModuloSistema planejado: `nome = CRM`, `chave = crm`, `ativo = true`. O CRM deve ser ativável por empresa através de EmpresaModulo.
+
+O acesso operacional exige cumulativamente:
+
+- autenticação;
+- empresa operacional válida/ativa;
+- ModuloSistema `crm` ativo;
+- EmpresaModulo `crm` ativo para a empresa;
+- permissão CRM correspondente.
+
+O backend é a autoridade. O planejamento aprovado prevê o mecanismo reutilizável `@ModuloAtivo('crm')` e `ModuloAtivoGuard`, aplicado inicialmente ao CRM. A V3.5 não inclui refatoração de todos os módulos legados para module gating. Não criar ModuloSistema `clientes` apenas porque permissões existentes usam `modulo="clientes"`.
+
+#### Funil configurável por empresa
+
+O nome da etapa é configurável por empresa e não será enum. O tipo estrutural da etapa será `ABERTA`, `GANHA` ou `PERDIDA`.
+
+Modelo conceitual CrmEtapa:
+
+- `id`;
+- `empresaId`;
+- `nome`;
+- `ordem`;
+- `tipo`;
+- `ativo`;
+- `createdAt`;
+- `updatedAt`.
+
+Etapas inativas não devem receber novas movimentações; referências históricas devem ser preservadas.
+
+#### Oportunidade e estado comercial
+
+Modelo conceitual CrmOportunidade:
+
+- `id`;
+- `empresaId`;
+- `clienteId`;
+- `etapaId`;
+- `responsavelId`;
+- `titulo`;
+- `descricao?`;
+- `valorEstimado?`;
+- `previsaoFechamento?`;
+- `dataFechamento?`;
+- `motivoPerda?`;
+- `vendaId?`;
+- `createdAt`;
+- `updatedAt`.
+
+A etapa é a fonte única de verdade do estado comercial. Não criar status redundante na oportunidade.
+
+| Estado / operação | Regra |
+|---|---|
+| ABERTA | `dataFechamento = null` e `motivoPerda = null`. |
+| ABERTA → GANHA | `dataFechamento` recebe o momento do fechamento; `motivoPerda = null`. |
+| ABERTA → PERDIDA | `dataFechamento` recebe o momento do fechamento; `motivoPerda` obrigatório. |
+| GANHA/PERDIDA → ABERTA | Somente operação explícita de reabertura; limpar `dataFechamento` e `motivoPerda` quando aplicável; registrar histórico e auditoria. |
+
+Movimentação, fechamento e reabertura devem ser operações controladas pelo backend, nunca um simples PATCH irrestrito de `etapaId`.
+
+#### Histórico comercial e auditoria técnica
+
+Modelo conceitual CrmOportunidadeHistorico:
+
+- `id`;
+- `empresaId`;
+- `oportunidadeId`;
+- `etapaAnteriorId?`;
+- `etapaNovaId?`;
+- `descricao`;
+- `usuarioId`;
+- `createdAt`.
+
+O histórico será append-only pela aplicação. Registrar alterações comerciais relevantes: criação, movimentação, ganho, perda, reabertura, responsável e valor estimado relevante.
+
+CrmOportunidadeHistorico é o histórico comercial legível; AuditoriaLog é a auditoria técnica. Um não substitui o outro.
+
+#### Responsável CRM e preservação da V3.4
+
+O responsável CRM é Usuario. Deve pertencer à mesma empresa e estar ativo. São elegíveis `ADMIN_EMPRESA` e `USUARIO_EMPRESA`; `SUPER_ADMIN` não pode ser responsável. Vínculo com Funcionario não é obrigatório.
+
+Preservar a separação da V3.4: Usuario representa identidade/autorização; Funcionario representa RH. A elegibilidade de ADMIN_EMPRESA como responsável CRM não altera as regras de vínculo Funcionario x Usuario da V3.4.
+
+#### Interações estruturadas
+
+TipoInteracaoCRM: `LIGACAO`, `EMAIL`, `MENSAGEM`, `REUNIAO`, `VISITA`, `NOTA`, `OUTRO`.
+
+Modelo conceitual ClienteInteracao:
+
+- `id`;
+- `empresaId`;
+- `clienteId`;
+- `oportunidadeId?`;
+- `agendaEventoId?`;
+- `responsavelId`;
+- `tipo`;
+- `assunto?`;
+- `descricao`;
+- `dataHora`;
+- `createdAt`;
+- `updatedAt`.
+
+Permitir criação e visualização; edição é permitida com auditoria, sempre respeitando as permissões correspondentes. Não permitir exclusão, cancelamento ou inativação de interação. Não criar ClienteInteracaoHistorico somente para correções: AuditoriaLog é suficiente.
+
+#### CRM e Agenda
+
+ClienteInteracao representa contato/fato já ocorrido; AgendaEvento representa compromisso futuro/programado. Reutilizar a Agenda existente, sem segundo calendário ou tarefas CRM e sem duplicar próxima ação/lembrete na interação.
+
+`agendaEventoId` é opcional. Quando vinculado, o evento deve pertencer à mesma empresa; se AgendaEvento possuir Cliente, deve ser o mesmo Cliente da interação.
+
+Registrar interação não conclui automaticamente AgendaEvento. Criar interação não cria automaticamente AgendaEvento.
+
+O frontend futuramente poderá oferecer “Agendar próximo contato” para quem possuir `agenda.criar`, reutilizando `/agenda?clienteId=...`.
+
+#### Oportunidade e Venda
+
+Venda é uma transação operacional distinta da oportunidade. Oportunidade GANHA não cria Venda automaticamente. A criação de Venda é explícita e continua exigindo `vendas.criar`.
+
+Fluxo aprovado:
+
+1. Oportunidade GANHA.
+2. Ação “Criar venda”.
+3. Fluxo normal de Vendas, podendo receber o cliente pré-selecionado.
+4. Usuário informa depósito, itens, pagamento e demais dados.
+5. Venda nasce conforme as regras atuais do módulo, inicialmente RASCUNHO.
+
+CrmOportunidade poderá possuir `vendaId` opcional. Nesta versão:
+
+- no máximo uma Venda vinculada por oportunidade;
+- vínculo explícito com Venda existente é permitido;
+- oportunidade precisa estar GANHA;
+- Venda e oportunidade devem pertencer à mesma empresa;
+- ambas devem possuir o mesmo Cliente;
+- Venda não pode estar vinculada a outra oportunidade.
+
+Não copiar itens nem ciclo de vida da Venda para a oportunidade.
+
+#### Integridade multiempresa
+
+Usar defesa em profundidade: consultas, escritas e validações de relacionamentos no backend respeitam a empresa autenticada, complementadas por constraints quando tecnicamente aplicável.
+
+Planejamento de chaves compostas:
+
+- Usuario: `@@unique([empresaId, id])`;
+- Cliente: `@@unique([empresaId, id])`;
+- CrmEtapa: `@@unique([empresaId, id])`;
+- CrmOportunidade: `@@unique([empresaId, id])`;
+- AgendaEvento: `@@unique([empresaId, id])` somente se necessário para FK composta da interação.
+
+Relações críticas devem impedir cross-tenant:
+
+- oportunidade → cliente;
+- oportunidade → etapa;
+- oportunidade → responsável;
+- oportunidade → venda;
+- interação → cliente;
+- interação → oportunidade;
+- interação → responsável;
+- interação → agenda.
+
+Antes de qualquer migration futura, validar o impacto das constraints nos dados existentes. Este contrato não executa alteração de schema, migration ou seed.
+
+#### Permissões CRM e provisionamento
+
+Criar futuramente as sete permissões:
+
+- `crm.visualizar`;
+- `crm.interacoes.criar`;
+- `crm.interacoes.editar`;
+- `crm.oportunidades.criar`;
+- `crm.oportunidades.editar`;
+- `crm.oportunidades.movimentar`;
+- `crm.funil.gerenciar`.
+
+As sete são planejadas como delegáveis, com integração explícita à allowlist e ao enforcement existentes. Delegável não significa concessão automática; preservar os limites de delegação e a autoridade do backend.
+
+| Perfil padrão | Permissões CRM padrão planejadas |
+|---|---|
+| Super Administrador | Todas as sete. |
+| Administrador do Sistema | Todas as sete. |
+| Administrador da Empresa | Todas as sete. |
+| Supervisor | Todas, exceto `crm.funil.gerenciar`. |
+| RH | Nenhuma por padrão. |
+| Colaborador | `crm.visualizar`, `crm.interacoes.criar`, `crm.oportunidades.criar`. |
+
+Respeitar os perfis reais existentes no seed, sem criar segundo sistema de papéis. Este planejamento não concede permissões silenciosamente a usuários existentes. A tabela representa provisionamento dos perfis padrão, não TipoUsuario. Esse provisionamento não altera a elegibilidade de responsável CRM: `ADMIN_EMPRESA` e `USUARIO_EMPRESA` podem ser responsáveis; `SUPER_ADMIN` não pode. Os requisitos de acesso operacional do módulo permanecem obrigatórios.
+
+#### Timeline agregada do Cliente
+
+Futuramente poderá haver timeline CRM agregada com fontes distintas: interação CRM, Agenda, oportunidade, Venda, Ordem de Serviço e histórico existente.
+
+Manter a origem explícita de cada registro. A agregação de apresentação/consulta não funde entidades nem seus ciclos de vida.
+
+#### Escopo excluído
+
+Não incluir na V3.5:
+
+- marketing automation;
+- WhatsApp API;
+- omnichannel;
+- IA;
+- comissões;
+- automações gerais;
+- Financeiro Avançado V3.6;
+- Notificações/Automações V3.7;
+- itens V4.0;
+- refatoração global de module gating;
+- novo cadastro Lead;
+- novo ModuloSistema `clientes`.
+
+### Subdivisão oficial da V3.5
+
+O planejamento incremental abaixo organiza a V3.5 sem ampliar seu objetivo congelado. As etapas posteriores permanecem planejadas, sem indicação de implementação ou homologação nesta consolidação.
+
+| Etapa | Status | Entrega planejada |
+|---|---|---|
+| V3.5.1 — Contrato e Arquitetura CRM | CONCLUÍDA — aguardando versionamento | Contrato arquitetural consolidado e revisado; arquitetura aprovada na revisão independente final da FASE 3C. |
+| V3.5.2 — Persistência e Integridade | PENDENTE | Persistência dos modelos CRM e integridade multiempresa. |
+| V3.5.3 — Interações e Integração com Agenda | PENDENTE | Interações estruturadas e vínculo opcional com a Agenda existente. |
+| V3.5.4 — Oportunidades e Funil | PENDENTE | Funil configurável, oportunidades, operações comerciais e histórico. |
+| V3.5.5 — Frontend e Integração | PENDENTE | Interface CRM e integração aos fluxos existentes conforme o contrato. |
+| V3.5.6 — Homologação Final do CRM | PENDENTE | Homologação integrada do CRM, permissões, tenant e regressão. |
 
 ## V4.0 — Evolução Avançada de RH e Automações
 
@@ -1145,7 +1396,7 @@ Não realizar deploy em produção automaticamente. Em tarefas exclusivamente do
 | `frontend/src/app/perfis/` e `frontend/src/components/perfis/` | Implementação da V3.3.6 |
 | Histórico Git | Commits e integrações citados neste documento |
 
-Próxima etapa após o versionamento deste fechamento: V3.5 — CRM. Antes de iniciar a V3.5, confirmar que a V3.4 foi commitada e publicada em `origin/develop`, reler o roadmap e os documentos de arquitetura, confirmar o estado Git e planejar o escopo da V3.5 sem antecipar itens da V3.6 ou do backlog V4.0. Produção permanece fora deste fechamento.
+Etapa atual: V3.5 — CRM. A V3.4 foi concluída, homologada, versionada no commit `ce0ccdd` e publicada em `origin/develop`. A V3.5 permanece EM ANDAMENTO; a V3.5.1 está concluída documentalmente, com contrato revisado e arquitetura aprovada, aguardando versionamento. A próxima etapa planejada após versionamento é V3.5.2 — Persistência e Integridade, preservando o objetivo congelado do roadmap e sem antecipar itens da V3.6 ou do backlog V4.0. Produção permanece intocada.
 
 ## Como atualizar este documento
 
@@ -1173,3 +1424,5 @@ Não copiar valores de password, senha, token, secret, DATABASE_URL ou PAT. Essa
 
 | 2026-09-09 | V3.4.2–V3.4.5 — Implementação RH | Persistência/integridade, cadastros/consultas, ciclo de vida e acesso associado/primeiro login concluídos e homologados em etapas incrementais. | `893403a`, `7b6dbb8`, `1d7781f`, `db706e2` | CONCLUÍDAS, HOMOLOGADAS E VERSIONADAS |
 | 2026-09-09 | V3.4.6 — Homologação Integrada | Frontend RH, responsividade, integração Funcionario x Usuario, CE-2 multiempresa em Usuarios, CE-3 gestão Usuario x Perfil, regressão final com 69 suítes/1.283 testes backend, lint/build frontend, PostgreSQL real e homologação manual. | Aguardando commit do fechamento | TECNICAMENTE HOMOLOGADA; V3.4 EM FECHAMENTO; ~89% |
+| 2026-09-10 | V3.4 — Fechamento / V3.5 — Abertura | V3.4 concluída após homologação integrada; commit final publicado em `origin/develop`. Abertura da V3.5 CRM pela auditoria e definição do contrato arquitetural, sem alterações em produção. | `ce0ccdd` | V3.4 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5 EM ANDAMENTO; ~90% |
+| 2026-09-18 | V3.5.1 — Contrato e Arquitetura CRM | Contrato consolidado: Cliente como cadastro mestre, ClienteInteracao, funil configurável, oportunidades, integração conceitual com Agenda e Venda, module gating CRM, RBAC e integridade multiempresa. Revisão arquitetural final da FASE 3C aprovada. | Aguardando versionamento | V3.5.1 CONCLUÍDA DOCUMENTALMENTE; V3.5 EM ANDAMENTO; ~91% |
