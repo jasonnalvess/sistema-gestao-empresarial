@@ -6,7 +6,7 @@
 - **Arquitetura:** Next.js, React, TypeScript, TanStack Query, Axios e Tailwind no frontend; NestJS, TypeScript e Prisma no backend; PostgreSQL.
 - **Ambiente de trabalho:** teste, `/opt/sistema-gestao/teste`.
 - **Branch atual e de integração:** `develop`.
-- **Último commit versionado:** `ce0ccdd` — V3.4.6, homologação integrada e fechamento da Gestão de Funcionários (RH).
+- **Último commit versionado:** `4d32bcb6f91c6a350917089a4fe4690d40428c43` — V3.5.2, Persistência e Integridade CRM.
 - **Marcos concluídos:** V1, V2, V3.1, V3.2, V3.3 e V3.4.
 - **Sprint atual:** V3.5 — CRM — EM ANDAMENTO.
 - **V3.4.1:** CONCLUÍDA E VERSIONADA — contrato e arquitetura.
@@ -15,10 +15,10 @@
 - **V3.4.4:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — ciclo de vida.
 - **V3.4.5:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — acesso associado e primeiro login.
 - **V3.4.6:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — integração final, frontend RH, CE-2 e CE-3; commit `ce0ccdd`.
-- **Versão atual:** V3.5 — CRM; V3.5.1 concluída e versionada no commit `7373470`; V3.5.2 concluída e homologada, aguardando versionamento do fechamento atual.
-- **Próxima etapa planejada após versionamento:** V3.5.3 — Interações e Integração com Agenda.
+- **Versão atual:** V3.5 — CRM; V3.5.1 concluída e versionada; V3.5.2 concluída, homologada, versionada e publicada; V3.5.3 concluída e homologada, aguardando somente versionamento/publicação deste fechamento.
+- **Próxima etapa planejada após versionamento da V3.5.3:** V3.5.4 — Oportunidades e Funil.
 - **V4.0:** apenas backlog futuro, para novo planejamento após conclusão integral da V3.x.
-- **Progresso geral estimado:** aproximadamente 91% enquanto a V3.5.2 aguarda versionamento.
+- **Progresso geral estimado de planejamento:** aproximadamente 93%; a V3.5 permanece EM ANDAMENTO.
 - **Regras críticas:** backend decide autorização; preservar tenant, RBAC, sessões e cache por empresa; verificar Git antes de trabalhar; mudanças incrementais; nenhuma ação automática em produção; nunca registrar credenciais.
 - **Documento oficial:** `docs/ROADMAP_SGE.md`. Ler também `AGENTS.md` e `DECISIONS.md` antes de implementar.
 
@@ -48,7 +48,7 @@ A existência de código ou de um teste não comprova, isoladamente, comportamen
 | HEAD antes do fechamento V3.4.6 | `db706e24ecd8cd64a7d2ac1a8c16e48b6946e20c` |
 | Assunto do último commit antes do fechamento V3.4.6 (histórico) | `feat(rh): adiciona acesso associado e primeiro login da V3.4.5` |
 | Referências de integração antes do fechamento V3.4.6 (histórico) | `develop` e `origin/develop` em `db706e2` |
-| Versão/marco atual | V3.5 — CRM — EM ANDAMENTO; V3.5.1 concluída e versionada no commit `7373470`; V3.5.2 concluída e homologada, aguardando versionamento do fechamento atual |
+| Versão/marco atual | V3.5 — CRM — EM ANDAMENTO; V3.5.1 concluída e versionada; V3.5.2 concluída, homologada, versionada e publicada no commit `4d32bcb6f91c6a350917089a4fe4690d40428c43`; V3.5.3 concluída e homologada, aguardando somente versionamento/publicação deste fechamento |
 | V3.4.1 | CONCLUÍDA E VERSIONADA |
 | V3.4.2 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.3 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
@@ -56,8 +56,8 @@ A existência de código ou de um teste não comprova, isoladamente, comportamen
 | V3.4.5 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.6 | CONCLUÍDA, HOMOLOGADA E VERSIONADA; commit `ce0ccdd` publicado em `origin/develop` |
 | Versão atual | V3.5 — CRM — EM ANDAMENTO |
-| Próxima etapa planejada após versionamento | V3.5.3 — Interações e Integração com Agenda |
-| Estimativa geral | Aproximadamente 91% enquanto a V3.5.2 aguarda versionamento |
+| Próxima etapa planejada após versionamento da V3.5.3 | V3.5.4 — Oportunidades e Funil |
+| Estimativa geral | Aproximadamente 93% (estimativa de planejamento); V3.5 permanece EM ANDAMENTO |
 
 Os relatos abaixo preservam o fechamento técnico de 2026-09-09, anterior à publicação de `ce0ccdd`; não representam pendência atual de versionamento da V3.4.
 
@@ -1013,7 +1013,7 @@ Funcionario INATIVO + Usuario ATIVO
 
 **STATUS: CONCLUÍDA E VERSIONADA.** Contrato arquitetural revisado e aprovado, publicado em `origin/develop` no commit `7373470b5720e56ce1c938e0d3f3ba67b70f45af` (`docs(crm): define contrato arquitetural da V3.5.1`).
 
-Esta seção preserva o contrato CRM revisado e a arquitetura aprovada na revisão independente final da FASE 3C. A V3.5.1 foi versionada; a V3.5.2 implementou e homologou a persistência e a integridade descritas abaixo no ambiente de teste, aguardando somente o versionamento do fechamento atual. O objetivo congelado da V3.5 permanece CRM, sem ampliar a exceção de escopo da V3.4. O progresso geral permanece estimado em aproximadamente 91%.
+Esta seção preserva o contrato CRM revisado e a arquitetura aprovada na revisão independente final da FASE 3C. A V3.5.1 foi versionada; a V3.5.2 foi homologada, versionada e publicada; a V3.5.3 foi concluída e homologada, aguardando somente versionamento/publicação deste fechamento. O objetivo congelado da V3.5 permanece CRM, sem ampliar a exceção de escopo da V3.4. O progresso geral é estimado em aproximadamente 93%.
 
 #### Cliente como cadastro mestre
 
@@ -1242,7 +1242,7 @@ Não incluir na V3.5:
 
 ### V3.5.2 — Persistência e Integridade
 
-**STATUS: CONCLUÍDA E HOMOLOGADA NO AMBIENTE DE TESTE — aguardando somente versionamento/publicação do fechamento atual.**
+**STATUS: CONCLUÍDA, HOMOLOGADA E VERSIONADA.** Publicada em `origin/develop` no commit `4d32bcb6f91c6a350917089a4fe4690d40428c43` (`feat(crm): adiciona persistencia e integridade da V3.5.2`).
 
 A V3.5.2 entregou `TipoEtapaCRM`, `TipoInteracaoCRM`, `CrmEtapa`, `CrmOportunidade`, `ClienteInteracao` e `CrmOportunidadeHistorico`, com relações, constraints, índices e `versaoRegistro` previstos no contrato.
 
@@ -1256,15 +1256,25 @@ A regressão final aprovou Prisma format, validate, generate e migrate status; 7
 
 Nenhuma alteração foi realizada em produção. CRM não foi ativado automaticamente via `EmpresaModulo`.
 
+### V3.5.3 — Interações e Integração com Agenda
+
+**STATUS: CONCLUÍDA E HOMOLOGADA — aguardando versionamento/publicação do fechamento atual.**
+
+Entregues os endpoints de criação, consulta paginada, consulta por identificador e atualização de `ClienteInteracao`, sem DELETE; isolamento multiempresa, RBAC, módulo ativo CRM, responsável elegível, optimistic locking por `versaoRegistro` e auditorias transacionais.
+
+O vínculo opcional com Agenda exige o mesmo cliente; a proteção inversa impede alterar ou remover o cliente de `AgendaEvento` quando isso tornaria uma interação vinculada inconsistente. Não há criação ou conclusão automática de AgendaEvento.
+
+A homologação funcional no ambiente de teste confirmou contratos de tenant, permissões, módulo ativo, Agenda, UUIDs/filtros temporais e operações negativas sem efeitos colaterais. A regressão final aprovou 30 testes CRM, 49 de Agenda, 71 suítes backend/1.318 testes aprovados, build, TypeScript, Prisma validate/migrate status, ESLint do escopo e `git diff --check`. Produção permanece intocada.
+
 ### Subdivisão oficial da V3.5
 
-O planejamento incremental abaixo organiza a V3.5 sem ampliar seu objetivo congelado. As etapas posteriores à V3.5.2 permanecem planejadas.
+O planejamento incremental abaixo organiza a V3.5 sem ampliar seu objetivo congelado. As etapas posteriores à V3.5.3 permanecem planejadas.
 
 | Etapa | Status | Entrega planejada |
 |---|---|---|
 | V3.5.1 — Contrato e Arquitetura CRM | CONCLUÍDA E VERSIONADA | Contrato arquitetural consolidado e revisado; arquitetura aprovada na revisão independente final da FASE 3C; commit `7373470`. |
-| V3.5.2 — Persistência e Integridade | CONCLUÍDA E HOMOLOGADA — aguardando versionamento | Persistência dos modelos CRM, integridade multiempresa, migration, provisioning/RBAC e regressão técnica no ambiente de teste. |
-| V3.5.3 — Interações e Integração com Agenda | PENDENTE | Interações estruturadas e vínculo opcional com a Agenda existente. |
+| V3.5.2 — Persistência e Integridade | CONCLUÍDA, HOMOLOGADA E VERSIONADA | Persistência dos modelos CRM, integridade multiempresa, migration, provisioning/RBAC e regressão técnica; commit `4d32bcb6f91c6a350917089a4fe4690d40428c43` publicado em `origin/develop`. |
+| V3.5.3 — Interações e Integração com Agenda | CONCLUÍDA E HOMOLOGADA — aguardando versionamento | Interações estruturadas, vínculo opcional com Agenda, integrações e regressão final aprovados no ambiente de teste. |
 | V3.5.4 — Oportunidades e Funil | PENDENTE | Funil configurável, oportunidades, operações comerciais e histórico. |
 | V3.5.5 — Frontend e Integração | PENDENTE | Interface CRM e integração aos fluxos existentes conforme o contrato. |
 | V3.5.6 — Homologação Final do CRM | PENDENTE | Homologação integrada do CRM, permissões, tenant e regressão. |
@@ -1412,7 +1422,7 @@ Não realizar deploy em produção automaticamente. Em tarefas exclusivamente do
 | `frontend/src/app/perfis/` e `frontend/src/components/perfis/` | Implementação da V3.3.6 |
 | Histórico Git | Commits e integrações citados neste documento |
 
-Etapa atual: V3.5 — CRM. A V3.4 foi concluída, homologada, versionada no commit `ce0ccdd` e publicada em `origin/develop`. A V3.5 permanece EM ANDAMENTO; a V3.5.1 foi concluída e versionada no commit `7373470`, e a V3.5.2 foi concluída e homologada no ambiente de teste, aguardando somente o versionamento do fechamento atual. A próxima etapa planejada é V3.5.3 — Interações e Integração com Agenda, preservando o objetivo congelado do roadmap e sem antecipar itens da V3.6 ou do backlog V4.0. Produção permanece intocada.
+Etapa atual: V3.5 — CRM. A V3.4 foi concluída, homologada, versionada no commit `ce0ccdd` e publicada em `origin/develop`. A V3.5 permanece EM ANDAMENTO; a V3.5.1 foi concluída e versionada, a V3.5.2 foi concluída, homologada, versionada e publicada no commit `4d32bcb6f91c6a350917089a4fe4690d40428c43`, e a V3.5.3 foi concluída e homologada, aguardando versionamento/publicação. A próxima etapa será V3.5.4 — Oportunidades e Funil, preservando o objetivo congelado do roadmap e sem antecipar itens da V3.6 ou do backlog V4.0. Produção permanece intocada.
 
 ## Como atualizar este documento
 
@@ -1442,4 +1452,5 @@ Não copiar valores de password, senha, token, secret, DATABASE_URL ou PAT. Essa
 | 2026-09-09 | V3.4.6 — Homologação Integrada | Frontend RH, responsividade, integração Funcionario x Usuario, CE-2 multiempresa em Usuarios, CE-3 gestão Usuario x Perfil, regressão final com 69 suítes/1.283 testes backend, lint/build frontend, PostgreSQL real e homologação manual. | Aguardando commit do fechamento | TECNICAMENTE HOMOLOGADA; V3.4 EM FECHAMENTO; ~89% |
 | 2026-09-10 | V3.4 — Fechamento / V3.5 — Abertura | V3.4 concluída após homologação integrada; commit final publicado em `origin/develop`. Abertura da V3.5 CRM pela auditoria e definição do contrato arquitetural, sem alterações em produção. | `ce0ccdd` | V3.4 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5 EM ANDAMENTO; ~90% |
 | 2026-09-18 | V3.5.1 — Contrato e Arquitetura CRM | Contrato consolidado: Cliente como cadastro mestre, ClienteInteracao, funil configurável, oportunidades, integração conceitual com Agenda e Venda, module gating CRM, RBAC e integridade multiempresa. Revisão arquitetural final da FASE 3C aprovada. | `7373470b5720e56ce1c938e0d3f3ba67b70f45af` | V3.5.1 CONCLUÍDA E VERSIONADA; V3.5 EM ANDAMENTO; ~91% |
-| 2026-09-19 | V3.5.2 — Persistência e Integridade CRM | Persistência, migration, integridade multiempresa, provisioning/RBAC e regressão técnica homologados no ambiente de teste; nenhuma alteração em produção. | Aguardando versionamento/publicação do fechamento atual | V3.5.2 CONCLUÍDA E HOMOLOGADA; V3.5 EM ANDAMENTO; ~91% |
+| 2026-09-19 | V3.5.2 — Persistência e Integridade CRM | Persistência, migration, integridade multiempresa, provisioning/RBAC e regressão técnica homologados no ambiente de teste; nenhuma alteração em produção. | `4d32bcb6f91c6a350917089a4fe4690d40428c43` — publicado em `origin/develop` | V3.5.2 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5 EM ANDAMENTO; ~93% |
+| 2026-09-19 | V3.5.3 — Interações e Integração com Agenda | Interações CRM, integração opcional com Agenda, contratos de tenant/RBAC/módulo ativo, auditoria transacional, optimistic locking e regressão final homologados no ambiente de teste; produção intocada. | Aguardando versionamento/publicação do fechamento atual | V3.5.3 CONCLUÍDA E HOMOLOGADA; V3.5 EM ANDAMENTO; ~93% |

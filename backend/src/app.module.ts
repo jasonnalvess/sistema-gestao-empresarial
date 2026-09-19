@@ -37,6 +37,7 @@ import { ContasReceberModule } from './contas-receber/contas-receber.module';
 import { FinanceiroModule } from './financeiro/financeiro.module';
 import { CaixasModule } from './caixas/caixas.module';
 import { VendasModule } from './vendas/vendas.module';
+import { CrmModule } from './crm/crm.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { VendasModule } from './vendas/vendas.module';
     FinanceiroModule,
     CaixasModule,
     VendasModule,
+    CrmModule,
   ],
   controllers: [AppController],
   providers: [

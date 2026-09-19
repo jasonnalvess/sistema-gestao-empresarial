@@ -102,6 +102,27 @@ export class AgendaService {
     }
   }
 
+  private async validarVinculoClienteInteracoes(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    eventoId: string,
+    clienteId: string | null,
+  ) {
+    const interacaoIncompativel = await tx.clienteInteracao.findFirst({
+      where: {
+        agendaEventoId: eventoId,
+        empresaId,
+        ...(clienteId === null ? {} : { clienteId: { not: clienteId } }),
+      },
+      select: { id: true },
+    });
+    if (interacaoIncompativel) {
+      throw new ConflictException(
+        'O cliente do evento não pode divergir das interações CRM vinculadas',
+      );
+    }
+  }
+
   private async validarVinculoOrdensServico(
     tx: Prisma.TransactionClient,
     empresaId: string,
@@ -282,6 +303,12 @@ export class AgendaService {
         dados.clienteId !== undefined &&
         dados.clienteId !== atual.clienteId
       ) {
+        await this.validarVinculoClienteInteracoes(
+          tx,
+          empresaId,
+          id,
+          clienteId,
+        );
         await this.validarVinculoOrdensServico(
           tx,
           empresaId,

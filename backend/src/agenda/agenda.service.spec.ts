@@ -67,6 +67,9 @@ describe('AgendaService', () => {
       ordemServico: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
+      clienteInteracao: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
     };
     const prisma = {
       $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
@@ -401,6 +404,84 @@ describe('AgendaService', () => {
           empresaId: 'e1',
           clienteId: { not: 'c2' },
         },
+        select: { id: true },
+      });
+      expect(tx.agendaEvento.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('permite alterar cliente quando não há interação CRM vinculada', async () => {
+      const { service, tx } = prepararAtualizacao();
+      tx.cliente.findFirst.mockResolvedValue({
+        id: 'c2',
+        empresaId: 'e1',
+        ativo: true,
+      });
+
+      await service.atualizar('e1', 'a1', 'u1', { clienteId: 'c2' });
+
+      expect(tx.clienteInteracao.findFirst).toHaveBeenCalledWith({
+        where: {
+          agendaEventoId: 'a1',
+          empresaId: 'e1',
+          clienteId: { not: 'c2' },
+        },
+        select: { id: true },
+      });
+      expect(tx.agendaEvento.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ clienteId: 'c2' }),
+        }),
+      );
+    });
+
+    it('permite manter cliente compatível com interação CRM vinculada', async () => {
+      const { service, tx } = prepararAtualizacao();
+      tx.clienteInteracao.findFirst.mockResolvedValue({ id: 'interacao-a' });
+
+      await service.atualizar('e1', 'a1', 'u1', {
+        clienteId: 'c1',
+        descricao: 'Atualização compatível',
+      });
+
+      expect(tx.agendaEvento.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ clienteId: 'c1' }),
+        }),
+      );
+    });
+
+    it('rejeita mudança para cliente divergente de interação CRM antes do update', async () => {
+      const { service, tx } = prepararAtualizacao();
+      tx.cliente.findFirst.mockResolvedValue({
+        id: 'c2',
+        empresaId: 'e1',
+        ativo: true,
+      });
+      tx.clienteInteracao.findFirst.mockResolvedValue({ id: 'interacao-a' });
+
+      await expect(
+        service.atualizar('e1', 'a1', 'u1', { clienteId: 'c2' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(tx.clienteInteracao.findFirst).toHaveBeenCalledWith({
+        where: {
+          agendaEventoId: 'a1',
+          empresaId: 'e1',
+          clienteId: { not: 'c2' },
+        },
+        select: { id: true },
+      });
+      expect(tx.agendaEvento.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejeita remoção de cliente quando há interação CRM vinculada', async () => {
+      const { service, tx } = prepararAtualizacao();
+      tx.clienteInteracao.findFirst.mockResolvedValue({ id: 'interacao-a' });
+
+      await expect(
+        service.atualizar('e1', 'a1', 'u1', { clienteId: null }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(tx.clienteInteracao.findFirst).toHaveBeenCalledWith({
+        where: { agendaEventoId: 'a1', empresaId: 'e1' },
         select: { id: true },
       });
       expect(tx.agendaEvento.updateMany).not.toHaveBeenCalled();
