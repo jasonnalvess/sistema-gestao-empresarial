@@ -764,6 +764,20 @@ export class VendasService {
     return this.prisma.$transaction(async (tx) => {
       await this.bloquearVenda(tx, empresaId, id);
 
+      if (
+        dados.clienteId !== undefined &&
+        dados.clienteId !== venda.clienteId
+      ) {
+        const oportunidadeVinculada = await tx.crmOportunidade.findFirst({
+          where: { empresaId, vendaId: venda.id },
+          select: { id: true },
+        });
+        if (oportunidadeVinculada)
+          throw new BadRequestException(
+            'Não é possível alterar o cliente de uma venda vinculada a uma oportunidade CRM.',
+          );
+      }
+
       if (dados.itens) {
         await tx.vendaItem.deleteMany({
           where: {

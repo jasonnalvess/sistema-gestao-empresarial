@@ -24,6 +24,7 @@ function criarPrismaMock() {
       update: jest.fn(),
       updateMany: jest.fn(),
     },
+    crmOportunidade: { findFirst: jest.fn() },
     vendaItem: {
       deleteMany: jest.fn(),
       updateMany: jest.fn(),
@@ -346,6 +347,125 @@ describe('VendasService', () => {
           data: expect.objectContaining({ observacao: 'Nova' }),
         }),
       );
+    });
+
+    it('permite trocar cliente quando a Venda não possui vínculo CRM', async () => {
+      prisma.venda.findFirst.mockResolvedValue(venda());
+      prisma.produto.findMany.mockResolvedValue([
+        { id: 'produto-1', nome: 'Produto 1', ativo: true },
+      ]);
+      prisma.crmOportunidade.findFirst.mockResolvedValue(null);
+      prisma.venda.update.mockResolvedValue({
+        id: 'venda-1',
+        clienteId: 'cliente-2',
+      });
+
+      await service.atualizar(
+        'empresa-1',
+        'venda-1',
+        { clienteId: 'cliente-2' },
+        usuario.id,
+      );
+
+      expect(prisma.crmOportunidade.findFirst).toHaveBeenCalledWith({
+        where: { empresaId: 'empresa-1', vendaId: 'venda-1' },
+        select: { id: true },
+      });
+      expect(prisma.venda.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ clienteId: 'cliente-2' }),
+        }),
+      );
+    });
+
+    it('rejeita troca de cliente de Venda vinculada a oportunidade CRM', async () => {
+      prisma.venda.findFirst.mockResolvedValue(venda());
+      prisma.produto.findMany.mockResolvedValue([
+        { id: 'produto-1', nome: 'Produto 1', ativo: true },
+      ]);
+      prisma.crmOportunidade.findFirst.mockResolvedValue({
+        id: 'oportunidade-1',
+      });
+
+      await expect(
+        service.atualizar(
+          'empresa-1',
+          'venda-1',
+          { clienteId: 'cliente-2' },
+          usuario.id,
+        ),
+      ).rejects.toThrow(
+        'Não é possível alterar o cliente de uma venda vinculada a uma oportunidade CRM.',
+      );
+      expect(prisma.crmOportunidade.findFirst).toHaveBeenCalledWith({
+        where: { empresaId: 'empresa-1', vendaId: 'venda-1' },
+        select: { id: true },
+      });
+      expect(prisma.venda.update).not.toHaveBeenCalled();
+      expect(prisma.vendaHistorico.create).not.toHaveBeenCalled();
+    });
+
+    it('não bloqueia clienteId igual ao atual nem consulta CRM', async () => {
+      prisma.venda.findFirst.mockResolvedValue(venda());
+      prisma.produto.findMany.mockResolvedValue([
+        { id: 'produto-1', nome: 'Produto 1', ativo: true },
+      ]);
+      prisma.venda.update.mockResolvedValue({
+        id: 'venda-1',
+        clienteId: 'cliente-1',
+      });
+
+      await service.atualizar(
+        'empresa-1',
+        'venda-1',
+        { clienteId: 'cliente-1' },
+        usuario.id,
+      );
+
+      expect(prisma.crmOportunidade.findFirst).not.toHaveBeenCalled();
+      expect(prisma.venda.update).toHaveBeenCalled();
+    });
+
+    it('permite alteração de outro campo sem consulta CRM', async () => {
+      prisma.venda.findFirst.mockResolvedValue(venda());
+      prisma.produto.findMany.mockResolvedValue([
+        { id: 'produto-1', nome: 'Produto 1', ativo: true },
+      ]);
+      prisma.venda.update.mockResolvedValue({ id: 'venda-1' });
+
+      await service.atualizar(
+        'empresa-1',
+        'venda-1',
+        { observacao: 'Sem troca de cliente' },
+        usuario.id,
+      );
+
+      expect(prisma.crmOportunidade.findFirst).not.toHaveBeenCalled();
+      expect(prisma.venda.update).toHaveBeenCalled();
+    });
+
+    it('ignora vínculo CRM de outro tenant ao trocar cliente', async () => {
+      prisma.venda.findFirst.mockResolvedValue(venda());
+      prisma.produto.findMany.mockResolvedValue([
+        { id: 'produto-1', nome: 'Produto 1', ativo: true },
+      ]);
+      prisma.crmOportunidade.findFirst.mockResolvedValue(null);
+      prisma.venda.update.mockResolvedValue({
+        id: 'venda-1',
+        clienteId: 'cliente-2',
+      });
+
+      await service.atualizar(
+        'empresa-1',
+        'venda-1',
+        { clienteId: 'cliente-2' },
+        usuario.id,
+      );
+
+      expect(prisma.crmOportunidade.findFirst).toHaveBeenCalledWith({
+        where: { empresaId: 'empresa-1', vendaId: 'venda-1' },
+        select: { id: true },
+      });
     });
 
     it.each([StatusVenda.PENDENTE, StatusVenda.APROVADA, StatusVenda.FATURADA])(
