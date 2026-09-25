@@ -63,6 +63,13 @@ export type FaturarVendaPayload = {
 };
 export type CancelarVendaPayload = { motivo?: string };
 
+export type VendaCriada = {
+  id: string;
+  numero: number;
+  status: StatusVenda;
+  clienteId: string;
+};
+
 export interface Venda {
   id: string;
   numero: number;
@@ -248,10 +255,15 @@ export async function buscarVenda(id: string) {
   return data.data;
 }
 
-export async function criarVenda(body: CriarVendaPayload) {
-  const { data } = await api.post("/vendas", body);
+export async function criarVenda(
+  body: CriarVendaPayload,
+): Promise<VendaCriada> {
+  const { data } = await api.post<{ success: boolean; data: VendaCriada }>(
+    "/vendas",
+    body,
+  );
 
-  return data;
+  return data.data;
 }
 
 export async function atualizarVenda(id: string, body: AtualizarVendaPayload) {

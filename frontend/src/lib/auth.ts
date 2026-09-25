@@ -40,6 +40,15 @@ export const PERMISSAO_VENDAS_CANCELAR = "vendas.cancelar";
 export const PERMISSAO_VENDAS_HISTORICO_ADICIONAR =
   "vendas.historico.adicionar";
 
+export const PERMISSAO_CRM_VISUALIZAR = "crm.visualizar";
+export const PERMISSAO_CRM_INTERACOES_CRIAR = "crm.interacoes.criar";
+export const PERMISSAO_CRM_INTERACOES_EDITAR = "crm.interacoes.editar";
+export const PERMISSAO_CRM_OPORTUNIDADES_CRIAR = "crm.oportunidades.criar";
+export const PERMISSAO_CRM_OPORTUNIDADES_EDITAR = "crm.oportunidades.editar";
+export const PERMISSAO_CRM_OPORTUNIDADES_MOVIMENTAR =
+  "crm.oportunidades.movimentar";
+export const PERMISSAO_CRM_FUNIL_GERENCIAR = "crm.funil.gerenciar";
+
 export const PERMISSAO_ORDENS_SERVICO_VISUALIZAR = "ordens_servico.visualizar";
 export const PERMISSAO_ORDENS_SERVICO_CRIAR = "ordens_servico.criar";
 export const PERMISSAO_ORDENS_SERVICO_HISTORICO_ADICIONAR =

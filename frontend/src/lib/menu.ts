@@ -22,6 +22,7 @@ import {
   Landmark,
   ReceiptText,
   ShieldCheck,
+  ChartNoAxesCombined,
 } from "lucide-react";
 
 export const menu = [
@@ -55,6 +56,11 @@ export const menu = [
     titulo: "Vendas",
     href: "/vendas",
     icon: ReceiptText,
+  },
+  {
+    titulo: "CRM",
+    href: "/crm",
+    icon: ChartNoAxesCombined,
   },
   {
     titulo: "Categorias",

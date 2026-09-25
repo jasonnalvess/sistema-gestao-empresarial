@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
 import {
   PERMISSAO_FUNCIONARIOS_VISUALIZAR,
   PERMISSAO_AGENDA_VISUALIZAR,
@@ -19,6 +21,7 @@ import {
   PERMISSAO_AUDITORIA_GLOBAL_VISUALIZAR,
   PERMISSAO_CAIXA_VISUALIZAR,
   PERMISSAO_CATEGORIAS_VISUALIZAR,
+  PERMISSAO_CRM_VISUALIZAR,
   PERMISSAO_CLIENTES_VISUALIZAR,
   PERMISSAO_CONTAS_PAGAR_VISUALIZAR,
   PERMISSAO_CONTAS_RECEBER_VISUALIZAR,
@@ -38,8 +41,10 @@ import {
   PERMISSAO_VENDAS_VISUALIZAR,
   possuiPermissao,
 } from "@/lib/auth";
+import { empresaModulosQueryKeys } from "@/lib/empresa-modulos-query-keys";
 import { menu } from "@/lib/menu";
 import { cn } from "@/lib/utils";
+import { listarModulosAtivosDaEmpresa } from "@/services/empresa-modulos.service";
 
 const permissoesPorRota: Partial<Record<string, string>> = {
   "/funcionarios": PERMISSAO_FUNCIONARIOS_VISUALIZAR,
@@ -48,6 +53,7 @@ const permissoesPorRota: Partial<Record<string, string>> = {
   "/fornecedores": PERMISSAO_FORNECEDORES_VISUALIZAR,
   "/pedidos-compra": PERMISSAO_PEDIDOS_COMPRA_VISUALIZAR,
   "/vendas": PERMISSAO_VENDAS_VISUALIZAR,
+  "/crm": PERMISSAO_CRM_VISUALIZAR,
   "/contas-pagar": PERMISSAO_CONTAS_PAGAR_VISUALIZAR,
   "/contas-receber": PERMISSAO_CONTAS_RECEBER_VISUALIZAR,
   "/produtos": PERMISSAO_PRODUTOS_VISUALIZAR,
@@ -73,6 +79,22 @@ interface SidebarContentProps {
 function SidebarContent({ recolhida = false, aoNavegar }: SidebarContentProps) {
   const pathname = usePathname();
   const { usuario, temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarCrm = temPermissao(PERMISSAO_CRM_VISUALIZAR);
+  const { data: modulosAtivos } = useQuery({
+    queryKey: empresaModulosQueryKeys.ativos(empresaEfetivaId ?? ""),
+    queryFn: listarModulosAtivosDaEmpresa,
+    enabled:
+      !carregando &&
+      possuiEmpresaEfetiva &&
+      podeVisualizarCrm &&
+      Boolean(empresaEfetivaId),
+  });
+  const crmAtivo = modulosAtivos?.modulos.some(
+    (modulo) => modulo.chave === "crm",
+  );
 
   const menuPermitido = menu.filter((item) => {
     if (item.href === "/auditoria") {
@@ -80,6 +102,10 @@ function SidebarContent({ recolhida = false, aoNavegar }: SidebarContentProps) {
         temPermissao(PERMISSAO_AUDITORIA_EMPRESA_VISUALIZAR) ||
         temPermissao(PERMISSAO_AUDITORIA_GLOBAL_VISUALIZAR)
       );
+    }
+
+    if (item.href === "/crm") {
+      return podeVisualizarCrm && crmAtivo === true;
     }
 
     const permissao = permissoesPorRota[item.href];

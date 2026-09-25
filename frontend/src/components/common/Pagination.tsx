@@ -11,6 +11,8 @@ export function Pagination({
   totalPages,
   onPageChange,
 }: PaginationProps) {
+  if (totalPages <= 0) return null;
+
   return (
     <nav
       aria-label="Paginação"

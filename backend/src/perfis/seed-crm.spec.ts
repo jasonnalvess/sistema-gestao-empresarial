@@ -84,7 +84,7 @@ function criarPrismaIsolado() {
 
   const tx = {
     moduloSistema: {
-      upsert: async (args: {
+      upsert: (args: {
         create: { chave: string; ativo: boolean };
         update: { chave?: string; ativo: boolean };
       }) => {
@@ -97,7 +97,7 @@ function criarPrismaIsolado() {
       },
     },
     permissao: {
-      upsert: async (args: {
+      upsert: (args: {
         create: { chave: string };
         update: { chave: string };
       }) => {
@@ -110,10 +110,10 @@ function criarPrismaIsolado() {
         permissoes.set(criada.chave, criada);
         return criada;
       },
-      findMany: async () => [...permissoes.values()],
+      findMany: () => [...permissoes.values()],
     },
     perfil: {
-      findMany: async () =>
+      findMany: () =>
         perfis.filter(
           (perfil) =>
             perfil.sistema &&
@@ -129,7 +129,7 @@ function criarPrismaIsolado() {
         ),
     },
     perfilPermissao: {
-      findUnique: async (args: {
+      findUnique: (args: {
         where: {
           perfilId_permissaoId: { perfilId: string; permissaoId: string };
         };
@@ -139,12 +139,12 @@ function criarPrismaIsolado() {
             vinculo.perfilId === args.where.perfilId_permissaoId.perfilId &&
             vinculo.permissaoId === args.where.perfilId_permissaoId.permissaoId,
         ) ?? null,
-      create: async (args: { data: Omit<VinculoFixture, 'id'> }) => {
+      create: (args: { data: Omit<VinculoFixture, 'id'> }) => {
         const vinculo = { id: `vinculo-${++sequencia}`, ...args.data };
         vinculos.push(vinculo);
         return vinculo;
       },
-      update: async (args: {
+      update: (args: {
         where: { id: string };
         data: { permitido: boolean };
       }) => {
@@ -154,11 +154,11 @@ function criarPrismaIsolado() {
         return vinculo;
       },
     },
-    usuarioPerfil: { findMany: async () => [] },
-    usuario: { updateMany: async () => ({ count: 0 }) },
+    usuarioPerfil: { findMany: () => [] },
+    usuario: { updateMany: () => ({ count: 0 }) },
   };
   const prisma = {
-    $queryRaw: async () => [{ nome: 'sistema_gestao_teste' }],
+    $queryRaw: () => [{ nome: 'sistema_gestao_teste' }],
     $transaction: async (
       callback: (transaction: typeof tx) => Promise<unknown>,
     ) => callback(tx),

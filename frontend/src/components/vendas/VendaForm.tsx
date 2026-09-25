@@ -67,9 +67,16 @@ type ItemFormulario = {
   observacao: string;
 };
 
+export type VendaFormClienteInicial = {
+  id: string;
+  nome: string;
+};
+
 type VendaFormProps = {
   ativo?: boolean;
   initialData?: VendaFormInitialData;
+  clienteBloqueado?: boolean;
+  clienteInicial?: VendaFormClienteInicial;
   salvando?: boolean;
   textoBotao?: string;
   onSubmit: (dados: VendaFormPayload) => Promise<void> | void;
@@ -111,6 +118,8 @@ function converterItensIniciais(
 export function VendaForm({
   ativo = true,
   initialData,
+  clienteBloqueado = false,
+  clienteInicial,
   salvando = false,
   textoBotao = "Salvar",
   onSubmit,
@@ -179,6 +188,7 @@ export function VendaForm({
       }),
     enabled:
       ativo &&
+      !clienteBloqueado &&
       temPermissao(PERMISSAO_CLIENTES_VISUALIZAR) &&
       Boolean(empresaEfetivaId) &&
       !carregando,
@@ -451,19 +461,27 @@ export function VendaForm({
               Cliente *
             </label>
 
-            <select
-              value={clienteId}
-              onChange={(event) => setClienteId(event.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="">Selecione um cliente</option>
+            {clienteBloqueado ? (
+              <Input
+                value={clienteInicial?.nome ?? "Cliente selecionado"}
+                disabled
+                aria-label="Cliente da venda"
+              />
+            ) : (
+              <select
+                value={clienteId}
+                onChange={(event) => setClienteId(event.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">Selecione um cliente</option>
 
-              {clientes.map((cliente) => (
-                <option key={cliente.id} value={cliente.id}>
-                  {cliente.nome}
-                </option>
-              ))}
-            </select>
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nome}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
