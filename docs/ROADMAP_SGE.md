@@ -6,19 +6,19 @@
 - **Arquitetura:** Next.js, React, TypeScript, TanStack Query, Axios e Tailwind no frontend; NestJS, TypeScript e Prisma no backend; PostgreSQL.
 - **Ambiente de trabalho:** teste, `/opt/sistema-gestao/teste`.
 - **Branch atual e de integração:** `develop`.
-- **Último commit versionado:** `a8d3c4e044e851321ba7ccffc19de6fce95ed5b7` — V3.5.5, Frontend e Integração CRM, publicado em `origin/develop`.
+- **Último commit versionado:** `187f34e30619ee574e66adcc226b94aa1580fab1` — fechamento documental da V3.5.5, publicado em `origin/develop`; a V3.5.6 está tecnicamente homologada e aguarda o commit deste fechamento.
 - **Marcos concluídos:** V1, V2, V3.1, V3.2, V3.3 e V3.4.
-- **Sprint atual:** V3.5 — CRM — EM ANDAMENTO.
+- **Sprint atual:** V3.5 — CRM — CONCLUÍDA E HOMOLOGADA; fechamento documental da V3.5.6 em andamento.
 - **V3.4.1:** CONCLUÍDA E VERSIONADA — contrato e arquitetura.
 - **V3.4.2:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — persistência e integridade.
 - **V3.4.3:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — cadastros e consultas.
 - **V3.4.4:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — ciclo de vida.
 - **V3.4.5:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — acesso associado e primeiro login.
 - **V3.4.6:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — integração final, frontend RH, CE-2 e CE-3; commit `ce0ccdd`.
-- **Versão atual:** V3.5 — CRM; V3.5.1 concluída e versionada; V3.5.2 concluída, homologada, versionada e publicada; V3.5.3 concluída, homologada, versionada e publicada em `origin/develop` no commit `3b9a5b87979ce552e64e2f83fde0afefd1635f70`; V3.5.4 concluída, homologada, versionada e publicada em `origin/develop` no commit `8edfbb71cea4d43aa39176ea721f83e1fdc14c95`; V3.5.5 concluída, homologada, versionada e publicada em `origin/develop` no commit `a8d3c4e044e851321ba7ccffc19de6fce95ed5b7`.
-- **Próxima etapa oficial:** V3.5.6 — Homologação Final do CRM — PENDENTE.
+- **Versão atual:** V3.5 — CRM — CONCLUÍDA E HOMOLOGADA; V3.5.1 a V3.5.5 concluídas e versionadas/publicadas conforme referências históricas; V3.5.6 — Homologação Final do CRM concluída e homologada, aguardando o commit deste fechamento documental.
+- **Próxima etapa oficial:** V3.6 — Financeiro Avançado — PENDENTE.
 - **V4.0:** apenas backlog futuro, para novo planejamento após conclusão integral da V3.x.
-- **Progresso geral estimado de planejamento:** aproximadamente 93%; a V3.5 permanece EM ANDAMENTO.
+- **Progresso geral estimado de planejamento:** aproximadamente 94%; a V3.5 foi concluída e homologada.
 - **Regras críticas:** backend decide autorização; preservar tenant, RBAC, sessões e cache por empresa; verificar Git antes de trabalhar; mudanças incrementais; nenhuma ação automática em produção; nunca registrar credenciais.
 - **Documento oficial:** `docs/ROADMAP_SGE.md`. Ler também `AGENTS.md` e `DECISIONS.md` antes de implementar.
 
@@ -48,16 +48,16 @@ A existência de código ou de um teste não comprova, isoladamente, comportamen
 | HEAD antes do fechamento V3.4.6 | `db706e24ecd8cd64a7d2ac1a8c16e48b6946e20c` |
 | Assunto do último commit antes do fechamento V3.4.6 (histórico) | `feat(rh): adiciona acesso associado e primeiro login da V3.4.5` |
 | Referências de integração antes do fechamento V3.4.6 (histórico) | `develop` e `origin/develop` em `db706e2` |
-| Versão/marco atual | V3.5 — CRM — EM ANDAMENTO; V3.5.1 concluída e versionada; V3.5.2 concluída, homologada, versionada e publicada no commit `4d32bcb6f91c6a350917089a4fe4690d40428c43`; V3.5.3 concluída, homologada, versionada e publicada em `origin/develop` no commit `3b9a5b87979ce552e64e2f83fde0afefd1635f70`; V3.5.4 concluída, homologada, versionada e publicada em `origin/develop` no commit `8edfbb71cea4d43aa39176ea721f83e1fdc14c95`; V3.5.5 concluída, homologada, versionada e publicada em `origin/develop` no commit `a8d3c4e044e851321ba7ccffc19de6fce95ed5b7` |
+| Versão/marco atual | V3.5 — CRM — CONCLUÍDA E HOMOLOGADA; V3.5.1 a V3.5.5 concluídas e versionadas/publicadas conforme referências históricas; V3.5.6 concluída e homologada, aguardando o commit deste fechamento documental |
 | V3.4.1 | CONCLUÍDA E VERSIONADA |
 | V3.4.2 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.3 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.4 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.5 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.6 | CONCLUÍDA, HOMOLOGADA E VERSIONADA; commit `ce0ccdd` publicado em `origin/develop` |
-| Versão atual | V3.5 — CRM — EM ANDAMENTO |
-| Próxima etapa oficial | V3.5.6 — Homologação Final do CRM — PENDENTE |
-| Estimativa geral | Aproximadamente 93% (estimativa de planejamento); V3.5 permanece EM ANDAMENTO |
+| Versão atual | V3.5 — CRM — CONCLUÍDA E HOMOLOGADA; fechamento documental da V3.5.6 em andamento |
+| Próxima etapa oficial | V3.6 — Financeiro Avançado — PENDENTE |
+| Estimativa geral | Aproximadamente 94% (estimativa de planejamento); V3.5 concluída e homologada |
 
 Os relatos abaixo preservam o fechamento técnico de 2026-09-09, anterior à publicação de `ce0ccdd`; não representam pendência atual de versionamento da V3.4.
 
@@ -274,7 +274,7 @@ A sequência V3.x abaixo permanece fechada. A exceção controlada aprovada excl
 | Status | Versão | Objetivo |
 |---|---|---|
 | [x] CONCLUÍDO / HOMOLOGADO | V3.4 | Gestão de Funcionários (RH) |
-| [ ] EM ANDAMENTO | V3.5 | CRM |
+| [x] CONCLUÍDO / HOMOLOGADO | V3.5 | CRM |
 | [ ] PENDENTE | V3.6 | Financeiro Avançado |
 | [ ] PENDENTE | V3.7 | Notificações e Automações |
 | [ ] PENDENTE | V3.8 | Configurações da Empresa |
@@ -1007,7 +1007,7 @@ Funcionario INATIVO + Usuario ATIVO
 | V3.4.5 — Acesso Associado e Primeiro Login | CONCLUÍDA, HOMOLOGADA E VERSIONADA | Criar/vincular/desvincular Usuario, primeiro login, troca obrigatória de senha, revogação e concorrência; commit `db706e2`. |
 | V3.4.6 — Homologação Integrada | CONCLUÍDA, HOMOLOGADA E VERSIONADA | Frontend RH, UX/responsividade, integração completa, CE-2, CE-3, regressão automatizada, PostgreSQL real e homologação manual no navegador; commit `ce0ccdd`. |
 
-## V3.5 — CRM — EM ANDAMENTO
+## V3.5 — CRM — CONCLUÍDA / HOMOLOGADA
 
 ### V3.5.1 — Contrato e Arquitetura
 
@@ -1286,11 +1286,19 @@ A integração com Vendas permite criar e vincular, vincular Venda existente, ab
 
 As fases funcionais 2A–2G e a regressão consolidada RF-1 foram aprovadas. Backend: 80 suítes aprovadas, 4 skipped, 0 falhas (84 totais); 1.500 testes aprovados, 174 skipped, 0 falhas (1.674 totais). Lint, typecheck e build backend, lint/build frontend e `git diff --check` aprovados. A base AT-3 opt-in com PostgreSQL real aprovou 10/10 testes, com autenticação/JWT/guards/contexto empresarial reais e cleanup sem resíduos `AUTO_CRM_`; sem opt-in, os dez testes permanecem skipped. Incluídas a correção de lint AT-3.1 em `seed-crm.spec.ts` e a remoção dos resíduos das tentativas AT-4.
 
-Os cenários adicionais de RBAC restrito da 2F não foram repetidos na interface na sessão Super Admin; concorrência/409 não foi artificialmente repetida na regressão final, preservando as evidências anteriores. São delimitações da reexecução, sem defeito ou bloqueador registrado para a V3.5.5. Produção permanece intocada. A V3.5 segue EM ANDAMENTO pela V3.5.6 — Homologação Final do CRM, já prevista e ainda PENDENTE.
+Os cenários adicionais de RBAC restrito da 2F não foram repetidos na interface na sessão Super Admin; concorrência/409 não foi artificialmente repetida na regressão final, preservando as evidências anteriores. São delimitações da reexecução, sem defeito ou bloqueador registrado para a V3.5.5. Produção permanece intocada. No encerramento da V3.5.5, a V3.5 ainda permanecia EM ANDAMENTO pela V3.5.6 — Homologação Final do CRM; essa pendência foi posteriormente encerrada pela V3.5.6.
+
+### V3.5.6 — Homologação Final do CRM
+
+**STATUS: CONCLUÍDA E HOMOLOGADA.** Fechamento documental e versionamento final pendentes neste momento.
+
+A homologação integrada confirmou módulo ativo, RBAC e sete permissões CRM, isolamento multiempresa, funil e etapas, oportunidades e ciclo de vida comercial, interações, integração com Agenda, Clientes e Vendas, histórico/auditoria, concorrência, filtros, paginação, cache por tenant, troca de empresa e responsividade. Nenhuma nova funcionalidade foi adicionada à V3.5.6.
+
+A regressão técnica final aprovou 80 suítes backend, com 4 skipped; 1.500 testes aprovados, 174 skipped e 1.674 totais. Backend lint/build e frontend lint/build foram aprovados, assim como `git diff --check`. A integração opt-in com PostgreSQL real permaneceu validada em 10/10 testes, com cleanup sem resíduos `AUTO_CRM_`. Produção permaneceu intocada.
 
 ### Subdivisão oficial da V3.5
 
-O planejamento incremental abaixo organiza a V3.5 sem ampliar seu objetivo congelado. A V3.5.5 foi concluída, homologada, versionada e publicada; a próxima etapa oficial é a V3.5.6 — Homologação Final do CRM, ainda PENDENTE. A V3.5 permanece EM ANDAMENTO.
+O planejamento incremental abaixo organiza a V3.5 sem ampliar seu objetivo congelado. As etapas V3.5.1 a V3.5.6 foram concluídas; a V3.5.6 encerrou a homologação integrada do CRM. A V3.5 está CONCLUÍDA E HOMOLOGADA, aguardando apenas o commit e a publicação deste fechamento documental.
 
 | Etapa | Status | Entrega planejada |
 |---|---|---|
@@ -1299,7 +1307,7 @@ O planejamento incremental abaixo organiza a V3.5 sem ampliar seu objetivo conge
 | V3.5.3 — Interações e Integração com Agenda | CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA | Interações estruturadas, vínculo opcional com Agenda, integrações e regressão final aprovados no ambiente de teste; commit `3b9a5b87979ce552e64e2f83fde0afefd1635f70` publicado em `origin/develop`. |
 | V3.5.4 — Oportunidades e Funil | CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA | Funil configurável por empresa, oportunidades, operações comerciais, histórico, auditoria e integração explícita com Venda; commit `8edfbb71cea4d43aa39176ea721f83e1fdc14c95` publicado em `origin/develop`. |
 | V3.5.5 — Frontend e Integração CRM | CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA | Frontend CRM, funil/etapas, oportunidades, movimentação, interações, Agenda, Clientes e Vendas, isolamento multiempresa, responsividade, paginação vazia e regressão consolidada com AT-3 PostgreSQL real; commit `a8d3c4e044e851321ba7ccffc19de6fce95ed5b7` publicado em `origin/develop`. |
-| V3.5.6 — Homologação Final do CRM | PENDENTE | Homologação integrada do CRM, permissões, tenant e regressão. |
+| V3.5.6 — Homologação Final do CRM | CONCLUÍDA E HOMOLOGADA | Homologação integrada do CRM, permissões, tenant, integrações, concorrência, filtros, paginação, cache, responsividade e regressão técnica final aprovadas no ambiente de teste. |
 
 ## V4.0 — Evolução Avançada de RH e Automações
 
@@ -1444,7 +1452,7 @@ Não realizar deploy em produção automaticamente. Em tarefas exclusivamente do
 | `frontend/src/app/perfis/` e `frontend/src/components/perfis/` | Implementação da V3.3.6 |
 | Histórico Git | Commits e integrações citados neste documento |
 
-Etapa atual: V3.5 — CRM. A V3.4 foi concluída, homologada, versionada no commit `ce0ccdd` e publicada em `origin/develop`. A V3.5 permanece EM ANDAMENTO; a V3.5.1 foi concluída e versionada, a V3.5.2 foi concluída, homologada, versionada e publicada no commit `4d32bcb6f91c6a350917089a4fe4690d40428c43`, e a V3.5.3 foi concluída, homologada, versionada e publicada em `origin/develop` no commit `3b9a5b87979ce552e64e2f83fde0afefd1635f70`. A V3.5.4 — Oportunidades e Funil foi concluída, homologada, versionada e publicada em `origin/develop` no commit `8edfbb71cea4d43aa39176ea721f83e1fdc14c95`; a V3.5.5 — Frontend e Integração CRM foi concluída, homologada, versionada e publicada em `origin/develop` no commit `a8d3c4e044e851321ba7ccffc19de6fce95ed5b7`. A próxima etapa oficial é a V3.5.6 — Homologação Final do CRM, ainda PENDENTE, preservando o objetivo congelado do roadmap e sem antecipar itens da V3.6 ou do backlog V4.0. Produção permanece intocada.
+Etapa atual: V3.5 — CRM concluída e homologada. As etapas V3.5.1 a V3.5.5 estão versionadas e publicadas em `origin/develop`; a V3.5.6 concluiu a homologação integrada de CRM, permissões, tenant, integrações, concorrência, filtros, paginação, cache, responsividade e regressão técnica. O fechamento documental da V3.5.6 aguarda commit e publicação. A próxima etapa oficial é V3.6 — Financeiro Avançado — PENDENTE. Produção permanece intocada.
 
 ## Como atualizar este documento
 
@@ -1478,3 +1486,4 @@ Não copiar valores de password, senha, token, secret, DATABASE_URL ou PAT. Essa
 | 2026-09-19 | V3.5.3 — Interações e Integração com Agenda | Interações CRM, integração opcional com Agenda, contratos de tenant/RBAC/módulo ativo, auditoria transacional, optimistic locking e regressão final homologados no ambiente de teste; produção intocada. | `3b9a5b87979ce552e64e2f83fde0afefd1635f70` — publicado em `origin/develop` | V3.5.3 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5 EM ANDAMENTO; ~93% |
 | 2026-09-20 | V3.5.4 — Oportunidades e Funil | Backend concluído e homologado: funil configurável, oportunidades, máquina de estados, histórico, auditoria, integração explícita com Venda, proteção inversa, responsáveis CRM e módulos ativos por contexto; produção intocada. | `8edfbb71cea4d43aa39176ea721f83e1fdc14c95` — publicado em `origin/develop` | V3.5.4 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5.5 EM ANDAMENTO |
 | 2026-09-25 | V3.5.5 — Frontend e Integração CRM | Fases 2A–2G e RF-1 aprovadas: frontend CRM, integrações com Clientes/Agenda/Vendas, isolamento multiempresa, responsividade, paginação vazia, regressão consolidada e AT-3 PostgreSQL real 10/10 sem resíduos; produção intocada. | `a8d3c4e044e851321ba7ccffc19de6fce95ed5b7` — implementação publicada em `origin/develop` | V3.5.5 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5 EM ANDAMENTO; próxima etapa V3.5.6 PENDENTE |
+| 2026-09-25 | V3.5.6 — Homologação Final do CRM | Homologação integrada aprovada: módulo/RBAC, tenant, funil, oportunidades, ciclo de vida, interações, Agenda, Clientes, Vendas, histórico/auditoria, concorrência, filtros, paginação, cache, troca de tenant, responsividade e regressão técnica final; produção intocada. | Aguardando commit do fechamento | V3.5.6 CONCLUÍDA E HOMOLOGADA; V3.5 CONCLUÍDA E HOMOLOGADA; V3.6 é a próxima etapa; ~94% |
