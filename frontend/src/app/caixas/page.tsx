@@ -13,6 +13,12 @@ import {
 } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CAIXA_CRIAR, PERMISSAO_CAIXA_VISUALIZAR } from "@/lib/auth";
+import { caixasQueryKeys } from "@/lib/caixas-query-keys";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
@@ -41,51 +47,59 @@ import {
 } from "@/services/caixas.service";
 
 export default function CaixasPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresa = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_CAIXA_VISUALIZAR);
+  const podeCriar = temPermissao(PERMISSAO_CAIXA_CRIAR);
   const [search, setSearch] = useState("");
-  const [searchAplicado, setSearchAplicado] =
-    useState("");
+  const [searchAplicado, setSearchAplicado] = useState("");
 
   const [status, setStatus] = useState("");
   const [ativo, setAtivo] = useState("");
 
   const [page, setPage] = useState(1);
 
-  const {
-    data,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: [
-      "caixas",
-      searchAplicado,
-      status,
-      ativo,
+  const { data, isLoading, error } = useQuery({
+    queryKey: caixasQueryKeys.lista(empresaEfetivaId ?? "", {
+      search: searchAplicado || undefined,
+      status: status ? (status as StatusCaixa) : undefined,
+      ativo: ativo === "" ? undefined : ativo === "true",
       page,
-    ],
+      limit: 10,
+      sortBy: "nome",
+      order: "asc",
+    }),
 
     queryFn: () =>
       listarCaixas({
         search: searchAplicado || undefined,
 
-        status: status
-          ? (status as StatusCaixa)
-          : undefined,
+        status: status ? (status as StatusCaixa) : undefined,
 
-        ativo:
-          ativo === ""
-            ? undefined
-            : ativo === "true",
+        ativo: ativo === "" ? undefined : ativo === "true",
 
         page,
         limit: 10,
         sortBy: "nome",
         order: "asc",
       }),
+    enabled:
+      !carregando &&
+      possuiEmpresa &&
+      podeVisualizar &&
+      Boolean(empresaEfetivaId),
   });
 
   const { data: resumoGlobal } = useQuery({
-    queryKey: ["caixas-resumo-global"],
+    queryKey: caixasQueryKeys.resumo(empresaEfetivaId ?? ""),
     queryFn: () => buscarResumoCaixas(),
+    enabled:
+      !carregando &&
+      possuiEmpresa &&
+      podeVisualizar &&
+      Boolean(empresaEfetivaId),
   });
 
   const caixas = data?.data ?? [];
@@ -104,68 +118,67 @@ export default function CaixasPage() {
     setPage(1);
   }
 
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  if (!podeVisualizar)
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  if (!possuiEmpresa)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Caixas"
           description="Controle de caixas, saldos, aberturas, fechamentos e movimentações."
           actions={
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                asChild
-              >
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 lg:flex lg:w-auto lg:flex-wrap [&>*]:w-full md:[&>*]:w-full lg:[&>*]:w-auto">
+              <Button variant="outline" asChild>
                 <Link href="/caixas/movimentacoes">
-                  <ListFilter
-                    size={16}
-                    className="mr-2"
-                  />
+                  <ListFilter size={16} className="mr-2" />
                   Movimentações
                 </Link>
               </Button>
 
-              <NovoCaixaModal />
+              {podeCriar ? <NovoCaixaModal /> : null}
             </div>
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <ResumoCard
             titulo="Saldo exibido"
-            valor={formatarMoeda(
-              resumoGlobal?.caixas.saldoTotal ?? 0
-            )}
-            icone={
-              <CircleDollarSign size={20} />
-            }
+            valor={formatarMoeda(resumoGlobal?.caixas.saldoTotal ?? 0)}
+            icone={<CircleDollarSign size={20} />}
           />
 
           <ResumoCard
             titulo="Caixas abertos"
-            valor={String(
-              resumoGlobal?.caixas.abertos ?? 0
-            )}
-            icone={
-              <LockKeyholeOpen size={20} />
-            }
+            valor={String(resumoGlobal?.caixas.abertos ?? 0)}
+            icone={<LockKeyholeOpen size={20} />}
           />
 
           <ResumoCard
             titulo="Caixas fechados"
-            valor={String(
-              resumoGlobal?.caixas.fechados ?? 0
-            )}
-            icone={
-              <LockKeyhole size={20} />
-            }
+            valor={String(resumoGlobal?.caixas.fechados ?? 0)}
+            icone={<LockKeyhole size={20} />}
           />
 
           <ResumoCard
             titulo="Caixas inativos"
-            valor={String(
-              resumoGlobal?.caixas.inativos ?? 0
-            )}
+            valor={String(resumoGlobal?.caixas.inativos ?? 0)}
             icone={<WalletCards size={20} />}
           />
         </div>
@@ -180,30 +193,22 @@ export default function CaixasPage() {
             />
           </CrudToolbar>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <select
               value={status}
               onChange={(event) => {
                 setStatus(event.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
-              <option value="">
-                Todos os status
-              </option>
+              <option value="">Todos os status</option>
 
-              <option value="ABERTO">
-                Aberto
-              </option>
+              <option value="ABERTO">Aberto</option>
 
-              <option value="FECHADO">
-                Fechado
-              </option>
+              <option value="FECHADO">Fechado</option>
 
-              <option value="INATIVO">
-                Inativo
-              </option>
+              <option value="INATIVO">Inativo</option>
             </select>
 
             <select
@@ -212,19 +217,13 @@ export default function CaixasPage() {
                 setAtivo(event.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
-              <option value="">
-                Todos
-              </option>
+              <option value="">Todos</option>
 
-              <option value="true">
-                Ativos
-              </option>
+              <option value="true">Ativos</option>
 
-              <option value="false">
-                Inativos
-              </option>
+              <option value="false">Inativos</option>
             </select>
 
             <button
@@ -246,7 +245,7 @@ export default function CaixasPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -255,13 +254,9 @@ export default function CaixasPage() {
                       <TableHead>Status</TableHead>
                       <TableHead>Situação</TableHead>
 
-                      <TableHead className="text-right">
-                        Saldo atual
-                      </TableHead>
+                      <TableHead className="text-right">Saldo atual</TableHead>
 
-                      <TableHead className="text-right">
-                        Ações
-                      </TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
 
@@ -280,14 +275,10 @@ export default function CaixasPage() {
                           )}
                         </TableCell>
 
-                        <TableCell>
-                          {caixa.codigo}
-                        </TableCell>
+                        <TableCell>{caixa.codigo}</TableCell>
 
                         <TableCell>
-                          <StatusBadge
-                            status={caixa.status}
-                          />
+                          <StatusBadge status={caixa.status} />
                         </TableCell>
 
                         <TableCell>
@@ -298,27 +289,21 @@ export default function CaixasPage() {
                                 : "inline-flex rounded-full bg-slate-200 px-2 py-1 text-xs font-medium text-slate-700"
                             }
                           >
-                            {caixa.ativo
-                              ? "Ativo"
-                              : "Inativo"}
+                            {caixa.ativo ? "Ativo" : "Inativo"}
                           </span>
                         </TableCell>
 
                         <TableCell className="text-right font-medium">
-                          {formatarMoeda(
-                            caixa.saldoAtual
-                          )}
+                          {formatarMoeda(caixa.saldoAtual)}
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <DetailsButton
-                            href={`/caixas/${caixa.id}`}
-                          />
+                          <DetailsButton href={`/caixas/${caixa.id}`} />
                         </TableCell>
                       </TableRow>
                     ))}
 
-                    {caixas.length === 0 && (
+                    {!error && caixas.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={6}>
                           <CrudEmpty message="Nenhum caixa encontrado." />
@@ -355,13 +340,9 @@ function ResumoCard({
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-slate-500">
-            {titulo}
-          </p>
+          <p className="text-sm text-slate-500">{titulo}</p>
 
-          <p className="mt-2 text-2xl font-bold text-slate-900">
-            {valor}
-          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{valor}</p>
         </div>
 
         <div className="rounded-lg bg-slate-100 p-2 text-slate-700">
@@ -372,11 +353,7 @@ function ResumoCard({
   );
 }
 
-function StatusBadge({
-  status,
-}: {
-  status: StatusCaixa;
-}) {
+function StatusBadge({ status }: { status: StatusCaixa }) {
   const configuracoes: Record<
     StatusCaixa,
     {
@@ -386,25 +363,21 @@ function StatusBadge({
   > = {
     ABERTO: {
       label: "Aberto",
-      classe:
-        "bg-green-100 text-green-700",
+      classe: "bg-green-100 text-green-700",
     },
 
     FECHADO: {
       label: "Fechado",
-      classe:
-        "bg-amber-100 text-amber-700",
+      classe: "bg-amber-100 text-amber-700",
     },
 
     INATIVO: {
       label: "Inativo",
-      classe:
-        "bg-slate-200 text-slate-700",
+      classe: "bg-slate-200 text-slate-700",
     },
   };
 
-  const configuracao =
-    configuracoes[status];
+  const configuracao = configuracoes[status];
 
   return (
     <span
@@ -415,14 +388,9 @@ function StatusBadge({
   );
 }
 
-function formatarMoeda(
-  valor: string | number
-) {
-  return Number(valor).toLocaleString(
-    "pt-BR",
-    {
-      style: "currency",
-      currency: "BRL",
-    }
-  );
+function formatarMoeda(valor: string | number) {
+  return Number(valor).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }

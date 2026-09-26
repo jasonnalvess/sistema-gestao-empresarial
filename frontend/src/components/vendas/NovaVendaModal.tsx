@@ -8,15 +8,20 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FormDialog } from "@/components/forms/FormDialog";
 
-import {
-  VendaForm,
-  VendaFormPayload,
-} from "@/components/vendas/VendaForm";
+import { VendaForm, VendaFormPayload } from "@/components/vendas/VendaForm";
 
 import { criarVenda } from "@/services/vendas.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_VENDAS_CRIAR } from "@/lib/auth";
+import { obterMensagemErro } from "@/lib/api-error";
+import { vendasQueryKeys } from "@/lib/vendas-query-keys";
 
 export function NovaVendaModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriar = temPermissao(PERMISSAO_VENDAS_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -35,6 +40,7 @@ export function NovaVendaModal() {
   }
 
   async function salvar(dados: VendaFormPayload) {
+    if (!podeCriar || !empresaEfetivaId || carregando) return;
     try {
       setSalvando(true);
 
@@ -44,28 +50,24 @@ export function NovaVendaModal() {
 
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["vendas"],
+          queryKey: vendasQueryKeys.listas(empresaEfetivaId),
         }),
 
         queryClient.invalidateQueries({
-          queryKey: ["dashboard-vendas"],
+          queryKey: vendasQueryKeys.dashboards(empresaEfetivaId),
         }),
       ]);
 
       limparFormulario();
       setAberto(false);
-    } catch (error: any) {
-      const mensagem = error.response?.data?.message;
-
-      toast.error(
-        Array.isArray(mensagem)
-          ? mensagem.join(", ")
-          : mensagem || "Erro ao criar venda."
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao criar venda."));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -90,6 +92,7 @@ export function NovaVendaModal() {
       }
     >
       <VendaForm
+        ativo={aberto}
         key={formularioKey}
         salvando={salvando}
         textoBotao="Criar venda"

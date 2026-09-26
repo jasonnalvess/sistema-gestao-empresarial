@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_VENDAS_EDITAR } from "@/lib/auth";
+import { obterMensagemErro } from "@/lib/api-error";
+import { vendasQueryKeys } from "@/lib/vendas-query-keys";
 
 import {
   buscarVenda,
@@ -12,11 +17,7 @@ import {
   VendaDetalhada,
 } from "@/services/vendas.service";
 
-import {
-  VendaForm,
-  VendaFormPayload,
-  VendaFormInitialData,
-} from "./VendaForm";
+import { VendaForm, VendaFormPayload, VendaFormInitialData } from "./VendaForm";
 
 type Props = {
   vendaId: string;
@@ -24,30 +25,26 @@ type Props = {
   onOpenChange: (open: boolean) => void;
 };
 
-export function EditarVendaModal({
-  vendaId,
-  open,
-  onOpenChange,
-}: Props) {
+export function EditarVendaModal({ vendaId, open, onOpenChange }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_VENDAS_EDITAR);
 
   const [salvando, setSalvando] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["venda", vendaId],
+    queryKey: vendasQueryKeys.detalhe(empresaEfetivaId ?? "", vendaId),
     queryFn: () => buscarVenda(vendaId),
-    enabled: open,
+    enabled: open && Boolean(empresaEfetivaId) && !carregando && podeEditar,
   });
 
   const venda: VendaDetalhada | undefined = data;
 
-  const [initialData, setInitialData] =
-    useState<VendaFormInitialData>();
+  const initialData = useMemo<VendaFormInitialData | undefined>(() => {
+    if (!venda) return undefined;
 
-  useEffect(() => {
-    if (!venda) return;
-
-    setInitialData({
+    return {
       clienteId: venda.cliente?.id ?? "",
       depositoId: venda.deposito?.id ?? "",
 
@@ -74,10 +71,14 @@ export function EditarVendaModal({
         valorDesconto: Number(item.valorDesconto ?? 0),
         observacao: item.observacao ?? "",
       })),
-    });
+    };
   }, [venda]);
 
   async function salvar(dados: VendaFormPayload) {
+    if (!podeEditar || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para editar esta venda.");
+      return;
+    }
     try {
       setSalvando(true);
 
@@ -87,28 +88,30 @@ export function EditarVendaModal({
 
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["vendas"],
+          queryKey: vendasQueryKeys.listas(empresaEfetivaId),
         }),
 
         queryClient.invalidateQueries({
-          queryKey: ["venda", vendaId],
+          queryKey: vendasQueryKeys.detalhe(empresaEfetivaId, vendaId),
         }),
 
         queryClient.invalidateQueries({
-          queryKey: ["dashboard-vendas"],
+          queryKey: vendasQueryKeys.dashboards(empresaEfetivaId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: vendasQueryKeys.historico(empresaEfetivaId, vendaId),
         }),
       ]);
 
       onOpenChange(false);
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ??
-          "Erro ao atualizar venda."
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar venda."));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -118,11 +121,10 @@ export function EditarVendaModal({
       trigger={<span className="hidden" />}
     >
       {isLoading || !initialData ? (
-        <div className="py-10 text-center">
-          Carregando...
-        </div>
+        <div className="py-10 text-center">Carregando...</div>
       ) : (
         <VendaForm
+          ativo={open}
           initialData={initialData}
           textoBotao="Salvar alterações"
           salvando={salvando}

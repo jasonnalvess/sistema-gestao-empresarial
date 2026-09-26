@@ -68,6 +68,23 @@ export class EmpresaModulosService {
     });
   }
 
+  async listarAtivosDaEmpresa(empresaId: string) {
+    const vinculos = await this.prisma.empresaModulo.findMany({
+      where: {
+        empresaId,
+        ativo: true,
+        modulo: { is: { ativo: true } },
+      },
+      select: {
+        modulo: { select: { chave: true } },
+      },
+      orderBy: {
+        modulo: { chave: 'asc' },
+      },
+    });
+    return { modulos: vinculos.map(({ modulo }) => ({ chave: modulo.chave })) };
+  }
+
   async ativar(id: string) {
     await this.buscarPorId(id);
 

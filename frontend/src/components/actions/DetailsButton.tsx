@@ -12,7 +12,7 @@ export function DetailsButton({ href, label = "Detalhes" }: Props) {
   return (
     <Button asChild variant="outline" size="sm">
       <Link href={href}>
-        <Eye size={14} className="mr-2" />
+        <Eye aria-hidden="true" />
         {label}
       </Link>
     </Button>

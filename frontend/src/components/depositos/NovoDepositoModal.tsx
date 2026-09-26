@@ -11,9 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
 
 import { criarDeposito } from "@/services/depositos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_DEPOSITOS_CRIAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 export function NovoDepositoModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriar = temPermissao(PERMISSAO_DEPOSITOS_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -31,6 +39,7 @@ export function NovoDepositoModal() {
   }
 
   async function salvar() {
+    if (!podeCriar || !empresaEfetivaId || carregando) return;
     if (!nome.trim()) {
       toast.error("Informe o nome do depósito.");
       return;
@@ -57,16 +66,16 @@ export function NovoDepositoModal() {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["depositos"],
+        queryKey: estoqueQueryKeys.depositos(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao cadastrar depósito"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao cadastrar depósito"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -74,13 +83,13 @@ export function NovoDepositoModal() {
       onOpenChange={setAberto}
       title="Novo depósito"
       trigger={
-        <Button>
-          <Plus size={16} className="mr-2" />
+        <Button className="w-full md:w-auto">
+          <Plus aria-hidden="true" />
           Novo depósito
         </Button>
       }
     >
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <div>
           <label className="text-sm font-medium text-slate-700">
             Nome *
@@ -128,7 +137,7 @@ export function NovoDepositoModal() {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

@@ -9,12 +9,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_CONTAS_PAGAR_CRIAR,
+  PERMISSAO_FORNECEDORES_VISUALIZAR,
+} from "@/lib/auth";
 
 import { listarFornecedores } from "@/services/fornecedores.service";
-import { criarContaPagar } from "@/services/contas-pagar.service";
+import {
+  contasPagarQueryKeys,
+  criarContaPagar,
+  obterMensagemErroContasPagar,
+} from "@/services/contas-pagar.service";
 
 export function NovaContaPagarModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriarConta = temPermissao(PERMISSAO_CONTAS_PAGAR_CRIAR);
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR,
+  );
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -26,14 +42,12 @@ export function NovaContaPagarModal() {
   const [fornecedorId, setFornecedorId] = useState("");
 
   const [dataEmissao, setDataEmissao] = useState(
-    new Date().toISOString().slice(0, 10)
+    new Date().toISOString().slice(0, 10),
   );
 
-  const [dataCompetencia, setDataCompetencia] =
-    useState("");
+  const [dataCompetencia, setDataCompetencia] = useState("");
 
-  const [dataVencimento, setDataVencimento] =
-    useState("");
+  const [dataVencimento, setDataVencimento] = useState("");
 
   const [parcelaAtual, setParcelaAtual] = useState("1");
   const [totalParcelas, setTotalParcelas] = useState("1");
@@ -44,7 +58,7 @@ export function NovaContaPagarModal() {
   const [valorMulta, setValorMulta] = useState("");
 
   const { data: fornecedoresResponse } = useQuery({
-    queryKey: ["fornecedores-select-nova-conta"],
+    queryKey: ["fornecedores-select-nova-conta", empresaEfetivaId],
     queryFn: () =>
       listarFornecedores({
         ativo: true,
@@ -53,6 +67,12 @@ export function NovaContaPagarModal() {
         sortBy: "razaoSocial",
         order: "asc",
       }),
+    enabled:
+      aberto &&
+      podeCriarConta &&
+      podeVisualizarFornecedores &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const valorAberto =
@@ -67,9 +87,7 @@ export function NovaContaPagarModal() {
     setObservacao("");
     setFornecedorId("");
 
-    setDataEmissao(
-      new Date().toISOString().slice(0, 10)
-    );
+    setDataEmissao(new Date().toISOString().slice(0, 10));
 
     setDataCompetencia("");
     setDataVencimento("");
@@ -84,6 +102,10 @@ export function NovaContaPagarModal() {
   }
 
   async function salvar() {
+    if (!podeCriarConta || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     if (descricao.trim().length < 2) {
       toast.error("Informe a descrição da conta.");
       return;
@@ -99,20 +121,15 @@ export function NovaContaPagarModal() {
       return;
     }
 
-    if (
-      Number(parcelaAtual) >
-      Number(totalParcelas)
-    ) {
+    if (Number(parcelaAtual) > Number(totalParcelas)) {
       toast.error(
-        "A parcela atual não pode ser maior que o total de parcelas."
+        "A parcela atual não pode ser maior que o total de parcelas.",
       );
       return;
     }
 
     if (valorAberto <= 0) {
-      toast.error(
-        "O saldo da conta precisa ser maior que zero."
-      );
+      toast.error("O saldo da conta precisa ser maior que zero.");
       return;
     }
 
@@ -122,19 +139,15 @@ export function NovaContaPagarModal() {
       await criarContaPagar({
         descricao: descricao.trim(),
 
-        documento:
-          documento.trim() || undefined,
+        documento: documento.trim() || undefined,
 
-        observacao:
-          observacao.trim() || undefined,
+        observacao: observacao.trim() || undefined,
 
         origem: "MANUAL",
 
-        dataEmissao:
-          dataEmissao || undefined,
+        dataEmissao: dataEmissao || undefined,
 
-        dataCompetencia:
-          dataCompetencia || undefined,
+        dataCompetencia: dataCompetencia || undefined,
 
         dataVencimento,
 
@@ -143,41 +156,36 @@ export function NovaContaPagarModal() {
 
         valorOriginal: Number(valorOriginal),
 
-        valorDesconto: Number(
-          valorDesconto || 0
-        ),
+        valorDesconto: Number(valorDesconto || 0),
 
-        valorJuros: Number(
-          valorJuros || 0
-        ),
+        valorJuros: Number(valorJuros || 0),
 
-        valorMulta: Number(
-          valorMulta || 0
-        ),
+        valorMulta: Number(valorMulta || 0),
 
-        fornecedorId:
-          fornecedorId || undefined,
+        fornecedorId: fornecedorId || undefined,
       });
 
-      toast.success(
-        "Conta a pagar criada com sucesso!"
-      );
+      toast.success("Conta a pagar criada com sucesso!");
 
       limparCampos();
       setAberto(false);
 
       await queryClient.invalidateQueries({
-        queryKey: ["contas-pagar"],
+        queryKey: contasPagarQueryKeys.listas(empresaEfetivaId),
       });
-    } catch (error: any) {
+      await queryClient.invalidateQueries({
+        queryKey: contasPagarQueryKeys.resumo(empresaEfetivaId),
+      });
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao criar conta a pagar"
+        obterMensagemErroContasPagar(error, "Erro ao criar conta a pagar"),
       );
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriarConta || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -193,9 +201,7 @@ export function NovaContaPagarModal() {
     >
       <div className="max-h-[78vh] space-y-6 overflow-y-auto pr-2">
         <section className="space-y-4">
-          <h3 className="font-semibold text-slate-900">
-            Identificação
-          </h3>
+          <h3 className="font-semibold text-slate-900">Identificação</h3>
 
           <div>
             <label className="text-sm font-medium text-slate-700">
@@ -204,13 +210,11 @@ export function NovaContaPagarModal() {
 
             <Input
               value={descricao}
-              onChange={(event) =>
-                setDescricao(event.target.value)
-              }
+              onChange={(event) => setDescricao(event.target.value)}
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Documento
@@ -218,9 +222,7 @@ export function NovaContaPagarModal() {
 
               <Input
                 value={documento}
-                onChange={(event) =>
-                  setDocumento(event.target.value)
-                }
+                onChange={(event) => setDocumento(event.target.value)}
                 placeholder="Nota fiscal, boleto ou contrato"
               />
             </div>
@@ -232,39 +234,25 @@ export function NovaContaPagarModal() {
 
               <select
                 value={fornecedorId}
-                onChange={(event) =>
-                  setFornecedorId(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => setFornecedorId(event.target.value)}
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
               >
-                <option value="">
-                  Sem fornecedor
-                </option>
+                <option value="">Sem fornecedor</option>
 
-                {fornecedoresResponse?.data.map(
-                  (fornecedor) => (
-                    <option
-                      key={fornecedor.id}
-                      value={fornecedor.id}
-                    >
-                      {fornecedor.nomeFantasia ||
-                        fornecedor.razaoSocial}
-                    </option>
-                  )
-                )}
+                {fornecedoresResponse?.data.map((fornecedor) => (
+                  <option key={fornecedor.id} value={fornecedor.id}>
+                    {fornecedor.nomeFantasia || fornecedor.razaoSocial}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
         </section>
 
         <section className="space-y-4 border-t pt-5">
-          <h3 className="font-semibold text-slate-900">
-            Datas
-          </h3>
+          <h3 className="font-semibold text-slate-900">Datas</h3>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <CampoData
               label="Emissão"
               value={dataEmissao}
@@ -286,11 +274,9 @@ export function NovaContaPagarModal() {
         </section>
 
         <section className="space-y-4 border-t pt-5">
-          <h3 className="font-semibold text-slate-900">
-            Parcelamento
-          </h3>
+          <h3 className="font-semibold text-slate-900">Parcelamento</h3>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <CampoNumero
               label="Parcela atual"
               value={parcelaAtual}
@@ -310,11 +296,9 @@ export function NovaContaPagarModal() {
         </section>
 
         <section className="space-y-4 border-t pt-5">
-          <h3 className="font-semibold text-slate-900">
-            Valores
-          </h3>
+          <h3 className="font-semibold text-slate-900">Valores</h3>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <CampoNumero
               label="Valor original *"
               value={valorOriginal}
@@ -346,9 +330,7 @@ export function NovaContaPagarModal() {
             </p>
 
             <p className="mt-1 text-xl font-bold text-slate-900">
-              {formatarMoeda(
-                Math.max(valorAberto, 0)
-              )}
+              {formatarMoeda(Math.max(valorAberto, 0))}
             </p>
           </div>
         </section>
@@ -360,13 +342,11 @@ export function NovaContaPagarModal() {
 
           <Textarea
             value={observacao}
-            onChange={(event) =>
-              setObservacao(event.target.value)
-            }
+            onChange={(event) => setObservacao(event.target.value)}
           />
         </section>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}
@@ -375,13 +355,8 @@ export function NovaContaPagarModal() {
             Cancelar
           </Button>
 
-          <Button
-            onClick={salvar}
-            disabled={salvando}
-          >
-            {salvando
-              ? "Criando..."
-              : "Criar conta"}
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? "Criando..." : "Criar conta"}
           </Button>
         </div>
       </div>
@@ -400,16 +375,12 @@ function CampoData({
 }) {
   return (
     <div>
-      <label className="text-sm font-medium text-slate-700">
-        {label}
-      </label>
+      <label className="text-sm font-medium text-slate-700">{label}</label>
 
       <Input
         type="date"
         value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(event) => onChange(event.target.value)}
       />
     </div>
   );
@@ -430,18 +401,14 @@ function CampoNumero({
 }) {
   return (
     <div>
-      <label className="text-sm font-medium text-slate-700">
-        {label}
-      </label>
+      <label className="text-sm font-medium text-slate-700">{label}</label>
 
       <Input
         type="number"
         min={min}
         step={step}
         value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(event) => onChange(event.target.value)}
       />
     </div>
   );

@@ -1,11 +1,22 @@
 "use client";
 
+import { isAxiosError } from "axios";
+
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { CalendarDays, UserRound, Wrench, AlertTriangle } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_ORDENS_SERVICO_STATUS_ALTERAR,
+  PERMISSAO_ORDENS_SERVICO_VISUALIZAR,
+} from "@/lib/auth";
+import { ordensServicoQueryKeys } from "@/lib/ordens-servico-query-keys";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudLoading } from "@/components/crud/CrudLoading";
@@ -22,12 +33,50 @@ import { buscarOrdemServicoPorId } from "@/services/ordens-servico.service";
 export default function OrdemServicoDetalhesPage() {
   const params = useParams();
   const ordemId = params.id as string;
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresa = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_ORDENS_SERVICO_VISUALIZAR);
+  const podeAlterarStatus = temPermissao(
+    PERMISSAO_ORDENS_SERVICO_STATUS_ALTERAR,
+  );
 
-  const { data: ordem, isLoading, error } = useQuery({
-    queryKey: ["ordem-servico", ordemId],
+  const {
+    data: ordem,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ordensServicoQueryKeys.detalhe(empresaEfetivaId ?? "", ordemId),
     queryFn: () => buscarOrdemServicoPorId(ordemId),
-    enabled: !!ordemId,
+    enabled:
+      podeVisualizar &&
+      possuiEmpresa &&
+      !carregando &&
+      Boolean(empresaEfetivaId) &&
+      Boolean(ordemId),
   });
+
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+
+  if (!podeVisualizar)
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  if (!possuiEmpresa)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
 
   if (isLoading) {
     return (
@@ -40,42 +89,37 @@ export default function OrdemServicoDetalhesPage() {
   if (error || !ordem) {
     return (
       <AppLayout>
-        <CrudEmpty message="Ordem de serviço não encontrada." />
+        <CrudEmpty
+          message={
+            error && !(isAxiosError(error) && error.response?.status === 404)
+              ? "Erro ao carregar ordem de serviço."
+              : "Ordem de serviço não encontrada."
+          }
+        />
       </AppLayout>
     );
   }
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title={`OS #${ordem.numero}`}
           description={ordem.titulo}
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 lg:flex lg:w-auto lg:flex-wrap [&>*]:w-full md:[&>*]:w-full lg:[&>*]:w-auto">
               <Button variant="outline" asChild>
-                <Link href="/ordens-servico">
-                  Voltar
-                </Link>
+                <Link href="/ordens-servico">Voltar</Link>
               </Button>
 
-              {[
-                "CONCLUIDA",
-                "CONCLUÍDA",
-                "FINALIZADA",
-                "FINALIZADO",
-              ].includes(
-                ordem.status.toUpperCase()
-              ) && (
-                <GerarContaReceberModal
-                  ordem={ordem}
-                />
-              )}
+              {["CONCLUIDA", "CONCLUÍDA", "FINALIZADA", "FINALIZADO"].includes(
+                ordem.status.toUpperCase(),
+              ) && <GerarContaReceberModal ordem={ordem} />}
             </div>
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <CrudCard>
             <Wrench className="mb-2 text-blue-600" size={22} />
             <p className="text-sm text-slate-500">Status</p>
@@ -110,7 +154,7 @@ export default function OrdemServicoDetalhesPage() {
             Dados da OS
           </h2>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <p className="text-sm text-slate-500">Título</p>
               <p className="font-medium text-slate-900">{ordem.titulo}</p>
@@ -157,13 +201,14 @@ export default function OrdemServicoDetalhesPage() {
           )}
         </CrudCard>
 
-        <CrudCard>
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Alterar status
-          </h2>
-
-          <AlterarStatusOrdemServicoCard ordem={ordem} />
-        </CrudCard>
+        {podeAlterarStatus && (
+          <CrudCard>
+            <h2 className="mb-4 text-lg font-semibold text-slate-900">
+              Alterar status
+            </h2>
+            <AlterarStatusOrdemServicoCard ordem={ordem} />
+          </CrudCard>
+        )}
 
         <CrudCard>
           <h2 className="mb-4 text-lg font-semibold text-slate-900">

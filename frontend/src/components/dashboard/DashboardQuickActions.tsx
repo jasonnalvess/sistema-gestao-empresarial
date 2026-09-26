@@ -30,9 +30,9 @@ const actions = [
 
 export function DashboardQuickActions() {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-center gap-2">
-        <Plus size={20} className="text-blue-600" />
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <div className="flex min-w-0 items-center gap-2">
+        <Plus className="shrink-0 text-blue-600" aria-hidden="true" />
         <h2 className="text-lg font-semibold text-slate-900">Ações rápidas</h2>
       </div>
 
@@ -44,14 +44,14 @@ export function DashboardQuickActions() {
             <Link
               key={action.title}
               href={action.href}
-              className="rounded-xl border border-slate-200 p-4 transition hover:border-blue-300 hover:bg-blue-50"
+              className="min-w-0 rounded-xl border border-slate-200 p-4 transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <div className="flex items-start gap-3">
-                <div className="rounded-lg bg-blue-100 p-2 text-blue-700">
-                  <Icon size={18} />
+                <div className="shrink-0 rounded-lg bg-blue-100 p-2 text-blue-700">
+                  <Icon aria-hidden="true" />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-slate-900">{action.title}</p>
                   <p className="mt-1 text-sm text-slate-500">
                     {action.description}

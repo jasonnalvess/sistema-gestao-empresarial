@@ -11,17 +11,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
 
 import { criarCaixa } from "@/services/caixas.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_CAIXA_CRIAR } from "@/lib/auth";
+import { caixasQueryKeys } from "@/lib/caixas-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 export function NovoCaixaModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriar = temPermissao(PERMISSAO_CAIXA_CRIAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   const [nome, setNome] = useState("");
   const [codigo, setCodigo] = useState("");
-  const [descricao, setDescricao] =
-    useState("");
+  const [descricao, setDescricao] = useState("");
 
   function limparCampos() {
     setNome("");
@@ -30,17 +37,17 @@ export function NovoCaixaModal() {
   }
 
   async function salvar() {
+    if (!podeCriar || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     if (nome.trim().length < 2) {
-      toast.error(
-        "Informe um nome válido para o caixa."
-      );
+      toast.error("Informe um nome válido para o caixa.");
       return;
     }
 
     if (codigo.trim().length < 1) {
-      toast.error(
-        "Informe o código do caixa."
-      );
+      toast.error("Informe o código do caixa.");
       return;
     }
 
@@ -51,29 +58,29 @@ export function NovoCaixaModal() {
         nome: nome.trim(),
         codigo: codigo.trim().toUpperCase(),
 
-        descricao:
-          descricao.trim() || undefined,
+        descricao: descricao.trim() || undefined,
       });
 
-      toast.success(
-        "Caixa criado com sucesso!"
-      );
+      toast.success("Caixa criado com sucesso!");
 
       limparCampos();
       setAberto(false);
 
       await queryClient.invalidateQueries({
-        queryKey: ["caixas"],
+        queryKey: caixasQueryKeys.listas(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          "Erro ao criar caixa"
-      );
+
+      await queryClient.invalidateQueries({
+        queryKey: caixasQueryKeys.resumo(empresaEfetivaId),
+      });
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao criar caixa"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -89,31 +96,21 @@ export function NovoCaixaModal() {
     >
       <div className="space-y-5">
         <div>
-          <label className="text-sm font-medium text-slate-700">
-            Nome *
-          </label>
+          <label className="text-sm font-medium text-slate-700">Nome *</label>
 
           <Input
             value={nome}
-            onChange={(event) =>
-              setNome(event.target.value)
-            }
+            onChange={(event) => setNome(event.target.value)}
             placeholder="Ex.: Caixa principal"
           />
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700">
-            Código *
-          </label>
+          <label className="text-sm font-medium text-slate-700">Código *</label>
 
           <Input
             value={codigo}
-            onChange={(event) =>
-              setCodigo(
-                event.target.value.toUpperCase()
-              )
-            }
+            onChange={(event) => setCodigo(event.target.value.toUpperCase())}
             placeholder="Ex.: CX-PRINCIPAL"
           />
         </div>
@@ -125,14 +122,12 @@ export function NovoCaixaModal() {
 
           <Textarea
             value={descricao}
-            onChange={(event) =>
-              setDescricao(event.target.value)
-            }
+            onChange={(event) => setDescricao(event.target.value)}
             placeholder="Descrição opcional do caixa"
           />
         </div>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}
@@ -141,13 +136,8 @@ export function NovoCaixaModal() {
             Cancelar
           </Button>
 
-          <Button
-            onClick={salvar}
-            disabled={salvando}
-          >
-            {salvando
-              ? "Salvando..."
-              : "Criar caixa"}
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? "Salvando..." : "Criar caixa"}
           </Button>
         </div>
       </div>

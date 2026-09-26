@@ -15,14 +15,20 @@ export function SearchBar({
   onSearch,
 }: SearchBarProps) {
   return (
-    <div className="flex flex-col gap-3 md:flex-row">
+    <div
+      className="flex w-full min-w-0 flex-col gap-3 md:flex-row"
+      role="search"
+    >
       <Input
+        aria-label={placeholder}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
 
-      <Button onClick={onSearch}>Pesquisar</Button>
+      <Button type="button" onClick={onSearch} className="w-full md:w-auto">
+        Pesquisar
+      </Button>
     </div>
   );
 }

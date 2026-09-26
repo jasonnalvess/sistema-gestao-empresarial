@@ -1,5 +1,8 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -37,16 +40,52 @@ function formatarTipo(tipo: string) {
 }
 
 export default function UsuariosPage() {
+  const { usuario, autenticado, temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  if (!autenticado || !temPermissao("usuarios.visualizar"))
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  if (!empresaEfetivaId && usuario?.tipo !== "SUPER_ADMIN")
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  return (
+    <UsuariosLista
+      key={empresaEfetivaId ?? "global"}
+      empresaEfetivaId={empresaEfetivaId}
+    />
+  );
+}
+
+function UsuariosLista({
+  empresaEfetivaId,
+}: {
+  empresaEfetivaId: string | null;
+}) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["usuarios", page],
-    queryFn: () =>
-      listarUsuarios({
-        page,
-        limit: 10,
-      }),
+    queryKey: ["usuarios", empresaEfetivaId, page],
+    queryFn: ({ signal }) =>
+      listarUsuarios(
+        {
+          page,
+          limit: 10,
+        },
+        signal,
+      ),
   });
 
   function pesquisar() {
@@ -58,7 +97,7 @@ export default function UsuariosPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Usuários"
           description="Gerencie os usuários cadastrados no sistema."
@@ -85,13 +124,13 @@ export default function UsuariosPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nome</TableHead>
                       <TableHead>E-mail</TableHead>
-                      <TableHead>Perfil</TableHead>
+                      <TableHead>Tipo de usuário</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Cadastro</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
@@ -118,7 +157,7 @@ export default function UsuariosPage() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex min-w-max justify-end gap-2">
                             <EditarUsuarioModal usuario={usuario} />
                             <AlterarStatusUsuarioButton usuario={usuario} />
                           </div>
@@ -126,7 +165,7 @@ export default function UsuariosPage() {
                       </TableRow>
                     ))}
 
-                    {usuarios.length === 0 && (
+                    {!error && usuarios.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={6}>
                           <CrudEmpty message="Nenhum usuário encontrado." />

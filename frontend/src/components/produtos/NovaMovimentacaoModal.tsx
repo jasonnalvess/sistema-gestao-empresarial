@@ -24,23 +24,39 @@ import {
   criarMovimentacao,
   CriarMovimentacaoInput,
 } from "@/services/movimentacoes.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_DEPOSITOS_VISUALIZAR, PERMISSAO_ENTRADAS_REGISTRAR, PERMISSAO_ESTOQUE_AJUSTAR, PERMISSAO_PRODUTOS_VISUALIZAR, PERMISSAO_SAIDAS_REGISTRAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type TipoPermitido =
   | "ENTRADA"
   | "SAIDA"
-  | "AJUSTE"
-  | "INVENTARIO";
+  | "AJUSTE";
 
 export function NovaMovimentacaoModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const permissoesPorTipo: Record<TipoPermitido, boolean> = {
+    ENTRADA: temPermissao(PERMISSAO_ENTRADAS_REGISTRAR),
+    SAIDA: temPermissao(PERMISSAO_SAIDAS_REGISTRAR),
+    AJUSTE: temPermissao(PERMISSAO_ESTOQUE_AJUSTAR),
+  };
+  const podeRegistrar = Object.values(permissoesPorTipo).some(Boolean);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   const [produtoId, setProdutoId] = useState("");
   const [depositoId, setDepositoId] = useState("");
-  const [tipo, setTipo] =
-    useState<TipoPermitido>("ENTRADA");
+  const [tipo, setTipo] = useState<TipoPermitido>(() => {
+    if (permissoesPorTipo.ENTRADA) return "ENTRADA";
+    if (permissoesPorTipo.SAIDA) return "SAIDA";
+    if (permissoesPorTipo.AJUSTE) return "AJUSTE";
+    return "AJUSTE";
+  });
 
   const [quantidade, setQuantidade] = useState("");
   const [custoUnitario, setCustoUnitario] = useState("");
@@ -49,7 +65,7 @@ export function NovaMovimentacaoModal() {
   const [observacao, setObservacao] = useState("");
 
   const { data: produtosResponse } = useQuery({
-    queryKey: ["produtos-select-movimentacao"],
+    queryKey: estoqueQueryKeys.produtosSelect(empresaEfetivaId ?? "", "movimentacao"),
     queryFn: () =>
       listarProdutos({
         page: 1,
@@ -58,10 +74,11 @@ export function NovaMovimentacaoModal() {
         order: "asc",
         ativo: true,
       }),
+    enabled: aberto && podeRegistrar && temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-movimentacao"],
+    queryKey: estoqueQueryKeys.depositosSelect(empresaEfetivaId ?? "", "movimentacao"),
     queryFn: () =>
       listarDepositos({
         page: 1,
@@ -70,6 +87,7 @@ export function NovaMovimentacaoModal() {
         order: "asc",
         ativo: true,
       }),
+    enabled: aberto && podeRegistrar && temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR) && Boolean(empresaEfetivaId) && !carregando,
   });
 
   function limparCampos() {
@@ -83,6 +101,7 @@ export function NovaMovimentacaoModal() {
   }
 
   async function salvar() {
+    if (!empresaEfetivaId || carregando || !permissoesPorTipo[tipo]) return;
     if (!produtoId) {
       toast.error("Selecione o produto.");
       return;
@@ -125,29 +144,28 @@ export function NovaMovimentacaoModal() {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["movimentacoes"],
+        queryKey: estoqueQueryKeys.movimentacoes(empresaEfetivaId),
       });
 
       queryClient.invalidateQueries({
-        queryKey: ["estoque"],
+        queryKey: estoqueQueryKeys.estoque(empresaEfetivaId),
       });
 
       queryClient.invalidateQueries({
-        queryKey: ["produtos"],
+        queryKey: estoqueQueryKeys.produtos(empresaEfetivaId),
       });
 
       queryClient.invalidateQueries({
-        queryKey: ["produto"],
+        queryKey: estoqueQueryKeys.produtosDetalhes(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          "Erro ao registrar movimentação"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao registrar movimentação"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeRegistrar || !empresaEfetivaId || carregando) return null;
 
   function obterAjudaTipo() {
     switch (tipo) {
@@ -160,8 +178,6 @@ export function NovaMovimentacaoModal() {
       case "AJUSTE":
         return "A quantidade informada será o novo saldo do depósito.";
 
-      case "INVENTARIO":
-        return "A quantidade informada será considerada o saldo contado fisicamente.";
 
       default:
         return "";
@@ -171,19 +187,19 @@ export function NovaMovimentacaoModal() {
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus size={16} className="mr-2" />
+        <Button className="w-full md:w-auto">
+          <Plus aria-hidden="true" />
           Nova movimentação
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nova movimentação de estoque</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
+        <div className="min-w-0 space-y-5">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Produto *
@@ -239,12 +255,9 @@ export function NovaMovimentacaoModal() {
               }
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="ENTRADA">Entrada</option>
-              <option value="SAIDA">Saída</option>
-              <option value="AJUSTE">Ajuste de saldo</option>
-              <option value="INVENTARIO">
-                Contagem de inventário
-              </option>
+              {permissoesPorTipo.ENTRADA && <option value="ENTRADA">Entrada</option>}
+              {permissoesPorTipo.SAIDA && <option value="SAIDA">Saída</option>}
+              {permissoesPorTipo.AJUSTE && <option value="AJUSTE">Ajuste de saldo</option>}
             </select>
 
             <p className="mt-1 text-xs text-slate-500">
@@ -252,7 +265,7 @@ export function NovaMovimentacaoModal() {
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Quantidade *
@@ -316,7 +329,7 @@ export function NovaMovimentacaoModal() {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
               onClick={() => setAberto(false)}

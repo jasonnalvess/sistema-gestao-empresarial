@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -16,25 +15,30 @@ export function chaveLockEstoque(
 
 export async function bloquearEstoques(
   tx: Prisma.TransactionClient,
+  empresaId: string,
   chaves: string[],
 ) {
-  for (const chave of [...new Set(chaves)].sort()) {
-    await tx.$queryRaw`
-      SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))
-    `;
+  const prefixoTenant = `${empresaId}:`;
+  const chavesOrdenadas = [...new Set(chaves)].sort();
+  if (chavesOrdenadas.some((chave) => !chave.startsWith(prefixoTenant))) {
+    throw new BadRequestException('Chave de estoque pertence a outra empresa');
+  }
+  for (const chave of chavesOrdenadas) {
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${chave}, 0))`,
+    );
   }
 }
 
 export async function validarProdutoEstoque(
   tx: Prisma.TransactionClient,
-  produtoId: string,
   empresaId: string,
+  produtoId: string,
 ) {
-  const produto = await tx.produto.findUnique({ where: { id: produtoId } });
+  const produto = await tx.produto.findFirst({
+    where: { id: produtoId, empresaId },
+  });
   if (!produto) throw new NotFoundException('Produto não encontrado');
-  if (produto.empresaId !== empresaId) {
-    throw new ForbiddenException('Produto pertence a outra empresa');
-  }
   if (!produto.ativo) {
     throw new BadRequestException(
       'Não é possível movimentar um produto inativo',
@@ -45,14 +49,13 @@ export async function validarProdutoEstoque(
 
 export async function validarDepositoEstoque(
   tx: Prisma.TransactionClient,
-  depositoId: string,
   empresaId: string,
+  depositoId: string,
 ) {
-  const deposito = await tx.deposito.findUnique({ where: { id: depositoId } });
+  const deposito = await tx.deposito.findFirst({
+    where: { id: depositoId, empresaId },
+  });
   if (!deposito) throw new NotFoundException('Depósito não encontrado');
-  if (deposito.empresaId !== empresaId) {
-    throw new ForbiddenException('Depósito pertence a outra empresa');
-  }
   if (!deposito.ativo) {
     throw new BadRequestException(
       'Não é possível movimentar um depósito inativo',
@@ -68,12 +71,11 @@ export function isP2002Estoque(error: unknown) {
   )
     return false;
   const target = error.meta?.target;
+  const camposEsperados = ['empresaId', 'produtoId', 'depositoId'];
   return Array.isArray(target)
-    ? ['empresaId', 'produtoId', 'depositoId'].every((campo) =>
-        target.includes(campo),
-      )
-    : typeof target === 'string' &&
-        target.includes('EstoqueProduto_empresaId_produtoId_depositoId_key');
+    ? target.length === camposEsperados.length &&
+        camposEsperados.every((campo) => target.includes(campo))
+    : target === 'EstoqueProduto_empresaId_produtoId_depositoId_key';
 }
 
 export function tratarP2002Estoque(error: unknown): never {

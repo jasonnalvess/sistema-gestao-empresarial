@@ -1,11 +1,18 @@
 import {
   IsDateString,
+  IsIn,
   IsOptional,
   IsString,
   ValidateIf,
 } from 'class-validator';
 
 export class AtualizarAgendaEventoDto {
+  @IsOptional()
+  @IsIn(['AGENDADO', 'EM_ANDAMENTO', 'CONCLUIDO'], {
+    message:
+      'status deve ser AGENDADO, EM_ANDAMENTO ou CONCLUIDO. Para cancelar, utilize a operação de cancelamento.',
+  })
+  status?: 'AGENDADO' | 'EM_ANDAMENTO' | 'CONCLUIDO';
   @IsOptional()
   @IsString()
   titulo?: string;

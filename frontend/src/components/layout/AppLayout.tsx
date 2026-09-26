@@ -1,62 +1,77 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
-import { Sidebar } from "./Sidebar";
+import { ReactNode, useState } from "react";
+
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { Sheet } from "@/components/ui/sheet";
 import { Header } from "./Header";
+import { DesktopSidebar, MobileSidebar } from "./Sidebar";
 
-export function AppLayout({ children }: { children: ReactNode }) {
-  const router = useRouter();
-  const { autenticado, carregando } = useAuth();
-  const [menuMobileAberto, setMenuMobileAberto] = useState(false);
+const SIDEBAR_RECOLHIDA_STORAGE_KEY = "layout.sidebar.recolhida";
 
-  useEffect(() => {
-    if (!carregando && !autenticado) {
-      router.push("/login");
-    }
-  }, [autenticado, carregando, router]);
-
-  useEffect(() => {
-    if (!menuMobileAberto) return;
-
-    const fecharComEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMenuMobileAberto(false);
-      }
-    };
-
-    document.addEventListener("keydown", fecharComEscape);
-    return () => document.removeEventListener("keydown", fecharComEscape);
-  }, [menuMobileAberto]);
-
-  if (carregando) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100">
-        <p className="text-slate-600">Carregando sistema...</p>
-      </main>
-    );
+function obterPreferenciaSidebarRecolhida(): boolean {
+  if (typeof window === "undefined") {
+    return false;
   }
 
-  if (!autenticado) {
-    return null;
+  try {
+    return (
+      window.localStorage.getItem(SIDEBAR_RECOLHIDA_STORAGE_KEY) === "true"
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function AppLayout({ children }: { children: ReactNode }) {
+  const [menuMobileAberto, setMenuMobileAberto] = useState(false);
+  const [sidebarRecolhida, setSidebarRecolhida] = useState(
+    obterPreferenciaSidebarRecolhida,
+  );
+
+  function alternarSidebar() {
+    setSidebarRecolhida((recolhidaAtual) => {
+      const novoEstado = !recolhidaAtual;
+
+      try {
+        window.localStorage.setItem(
+          SIDEBAR_RECOLHIDA_STORAGE_KEY,
+          String(novoEstado),
+        );
+      } catch {
+        // A preferência visual é opcional; o layout continua funcional sem ela.
+      }
+
+      return novoEstado;
+    });
+  }
+
+  function fecharMenuMobile() {
+    setMenuMobileAberto(false);
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
-      <Sidebar
-        aberto={menuMobileAberto}
-        aoFechar={() => setMenuMobileAberto(false)}
-      />
+    <ProtectedRoute>
+      <Sheet open={menuMobileAberto} onOpenChange={setMenuMobileAberto}>
+        <div className="flex min-h-dvh w-full overflow-x-hidden bg-slate-100">
+          <DesktopSidebar recolhida={sidebarRecolhida} />
+          <MobileSidebar aoNavegar={fecharMenuMobile} />
 
-      <div className="flex min-h-screen flex-1 flex-col">
-        <Header
-          menuAberto={menuMobileAberto}
-          aoAbrirMenu={() => setMenuMobileAberto(true)}
-        />
+          <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
+            <Header
+              menuAberto={menuMobileAberto}
+              sidebarRecolhida={sidebarRecolhida}
+              aoAlternarSidebar={alternarSidebar}
+            />
 
-        <main className="flex-1 p-6">{children}</main>
-      </div>
-    </div>
+            <main className="min-w-0 flex-1 overflow-x-hidden p-3 sm:p-4 lg:p-6">
+              <div className="mx-auto w-full min-w-0 max-w-[1920px]">
+                {children}
+              </div>
+            </main>
+          </div>
+        </div>
+      </Sheet>
+    </ProtectedRoute>
   );
 }

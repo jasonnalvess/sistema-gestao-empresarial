@@ -19,7 +19,7 @@ export function AgendaStatusBadge({ status }: Props) {
 
   return (
     <span
-      className={`rounded-full px-2 py-1 text-xs font-medium ${
+      className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium ${
         classes[status] ?? "bg-slate-100 text-slate-700"
       }`}
     >

@@ -9,11 +9,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_FORNECEDORES_VISUALIZAR,
+  PERMISSAO_PEDIDOS_COMPRA_CRIAR,
+} from "@/lib/auth";
+import { PERMISSAO_DEPOSITOS_VISUALIZAR, PERMISSAO_PRODUTOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 import { listarFornecedores } from "@/services/fornecedores.service";
 import { listarDepositos } from "@/services/depositos.service";
 import { listarProdutos } from "@/services/produtos.service";
-import { criarPedidoCompra } from "@/services/pedidos-compra.service";
+import {
+  criarPedidoCompra,
+  pedidosCompraQueryKeys,
+  obterMensagemErroPedidoCompra,
+} from "@/services/pedidos-compra.service";
 
 type ItemFormulario = {
   idTemporario: string;
@@ -26,9 +38,7 @@ type ItemFormulario = {
 function criarItemVazio(): ItemFormulario {
   return {
     idTemporario:
-      Date.now().toString() +
-      "-" +
-      Math.random().toString(36).substring(2, 9),
+      Date.now().toString() + "-" + Math.random().toString(36).substring(2, 9),
 
     produtoId: "",
     quantidadeSolicitada: "",
@@ -39,29 +49,33 @@ function criarItemVazio(): ItemFormulario {
 
 export function NovoPedidoCompraModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriarPedido = temPermissao(PERMISSAO_PEDIDOS_COMPRA_CRIAR);
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR,
+  );
+  const podeVisualizarDepositos = temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR);
+  const podeVisualizarProdutos = temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   const [fornecedorId, setFornecedorId] = useState("");
   const [depositoId, setDepositoId] = useState("");
-  const [dataPrevistaEntrega, setDataPrevistaEntrega] =
-    useState("");
+  const [dataPrevistaEntrega, setDataPrevistaEntrega] = useState("");
 
   const [observacao, setObservacao] = useState("");
-  const [observacaoInterna, setObservacaoInterna] =
-    useState("");
+  const [observacaoInterna, setObservacaoInterna] = useState("");
 
   const [valorDesconto, setValorDesconto] = useState("");
   const [valorFrete, setValorFrete] = useState("");
   const [valorOutros, setValorOutros] = useState("");
 
-  const [itens, setItens] = useState<ItemFormulario[]>([
-    criarItemVazio(),
-  ]);
+  const [itens, setItens] = useState<ItemFormulario[]>([criarItemVazio()]);
 
   const { data: fornecedoresResponse } = useQuery({
-    queryKey: ["fornecedores-select-novo-pedido"],
+    queryKey: ["fornecedores-select-novo-pedido", empresaEfetivaId],
     queryFn: () =>
       listarFornecedores({
         ativo: true,
@@ -70,10 +84,16 @@ export function NovoPedidoCompraModal() {
         sortBy: "razaoSocial",
         order: "asc",
       }),
+    enabled:
+      aberto &&
+      podeCriarPedido &&
+      podeVisualizarFornecedores &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-novo-pedido"],
+    queryKey: estoqueQueryKeys.depositosSelect(empresaEfetivaId ?? "", "novo-pedido"),
     queryFn: () =>
       listarDepositos({
         ativo: true,
@@ -82,10 +102,12 @@ export function NovoPedidoCompraModal() {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled:
+      aberto && podeCriarPedido && podeVisualizarDepositos && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: produtosResponse } = useQuery({
-    queryKey: ["produtos-select-novo-pedido"],
+    queryKey: estoqueQueryKeys.produtosSelect(empresaEfetivaId ?? "", "novo-pedido"),
     queryFn: () =>
       listarProdutos({
         ativo: true,
@@ -94,28 +116,20 @@ export function NovoPedidoCompraModal() {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled:
+      aberto && podeCriarPedido && podeVisualizarProdutos && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const totais = useMemo(() => {
     const valorProdutos = itens.reduce((total, item) => {
-      const quantidade = Number(
-        item.quantidadeSolicitada || 0
-      );
+      const quantidade = Number(item.quantidadeSolicitada || 0);
 
-      const valorUnitarioNumero = Number(
-        item.valorUnitario || 0
-      );
+      const valorUnitarioNumero = Number(item.valorUnitario || 0);
 
-      const descontoItem = Number(
-        item.valorDesconto || 0
-      );
+      const descontoItem = Number(item.valorDesconto || 0);
 
       return (
-        total +
-        Math.max(
-          quantidade * valorUnitarioNumero - descontoItem,
-          0
-        )
+        total + Math.max(quantidade * valorUnitarioNumero - descontoItem, 0)
       );
     }, 0);
 
@@ -125,8 +139,7 @@ export function NovoPedidoCompraModal() {
 
     return {
       valorProdutos,
-      valorTotal:
-        valorProdutos - descontoGeral + frete + outros,
+      valorTotal: valorProdutos - descontoGeral + frete + outros,
     };
   }, [itens, valorDesconto, valorFrete, valorOutros]);
 
@@ -143,31 +156,24 @@ export function NovoPedidoCompraModal() {
   }
 
   function adicionarItem() {
-    setItens((estadoAtual) => [
-      ...estadoAtual,
-      criarItemVazio(),
-    ]);
+    setItens((estadoAtual) => [...estadoAtual, criarItemVazio()]);
   }
 
   function removerItem(idTemporario: string) {
     setItens((estadoAtual) => {
       if (estadoAtual.length === 1) {
-        toast.error(
-          "O pedido precisa possuir pelo menos um item."
-        );
+        toast.error("O pedido precisa possuir pelo menos um item.");
         return estadoAtual;
       }
 
-      return estadoAtual.filter(
-        (item) => item.idTemporario !== idTemporario
-      );
+      return estadoAtual.filter((item) => item.idTemporario !== idTemporario);
     });
   }
 
   function atualizarItem(
     idTemporario: string,
     campo: keyof Omit<ItemFormulario, "idTemporario">,
-    valor: string
+    valor: string,
   ) {
     setItens((estadoAtual) =>
       estadoAtual.map((item) =>
@@ -176,12 +182,16 @@ export function NovoPedidoCompraModal() {
               ...item,
               [campo]: valor,
             }
-          : item
-      )
+          : item,
+      ),
     );
   }
 
   async function salvar() {
+    if (!podeCriarPedido || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     if (!fornecedorId) {
       toast.error("Selecione o fornecedor.");
       return;
@@ -196,34 +206,25 @@ export function NovoPedidoCompraModal() {
       (item) =>
         !item.produtoId ||
         Number(item.quantidadeSolicitada) <= 0 ||
-        Number(item.valorUnitario) < 0
+        Number(item.valorUnitario) < 0,
     );
 
     if (possuiItemInvalido) {
       toast.error(
-        "Preencha produto, quantidade e valor unitário de todos os itens."
+        "Preencha produto, quantidade e valor unitário de todos os itens.",
       );
       return;
     }
 
-    const produtosSelecionados = itens.map(
-      (item) => item.produtoId
-    );
+    const produtosSelecionados = itens.map((item) => item.produtoId);
 
-    if (
-      new Set(produtosSelecionados).size !==
-      produtosSelecionados.length
-    ) {
-      toast.error(
-        "O mesmo produto não pode ser adicionado mais de uma vez."
-      );
+    if (new Set(produtosSelecionados).size !== produtosSelecionados.length) {
+      toast.error("O mesmo produto não pode ser adicionado mais de uma vez.");
       return;
     }
 
     if (totais.valorTotal < 0) {
-      toast.error(
-        "O desconto geral não pode tornar o pedido negativo."
-      );
+      toast.error("O desconto geral não pode tornar o pedido negativo.");
       return;
     }
 
@@ -234,13 +235,11 @@ export function NovoPedidoCompraModal() {
         fornecedorId,
         depositoId,
 
-        dataPrevistaEntrega:
-          dataPrevistaEntrega || undefined,
+        dataPrevistaEntrega: dataPrevistaEntrega || undefined,
 
         observacao: observacao.trim() || undefined,
 
-        observacaoInterna:
-          observacaoInterna.trim() || undefined,
+        observacaoInterna: observacaoInterna.trim() || undefined,
 
         valorDesconto: Number(valorDesconto || 0),
         valorFrete: Number(valorFrete || 0),
@@ -248,35 +247,30 @@ export function NovoPedidoCompraModal() {
 
         itens: itens.map((item) => ({
           produtoId: item.produtoId,
-          quantidadeSolicitada: Number(
-            item.quantidadeSolicitada
-          ),
+          quantidadeSolicitada: Number(item.quantidadeSolicitada),
           valorUnitario: Number(item.valorUnitario),
-          valorDesconto: Number(
-            item.valorDesconto || 0
-          ),
+          valorDesconto: Number(item.valorDesconto || 0),
         })),
       });
 
-      toast.success(
-        "Pedido de compra criado com sucesso!"
-      );
+      toast.success("Pedido de compra criado com sucesso!");
 
       limparCampos();
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["pedidos-compra"],
+        queryKey: pedidosCompraQueryKeys.listas(empresaEfetivaId),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao criar pedido de compra"
+        obterMensagemErroPedidoCompra(error, "Erro ao criar pedido de compra"),
       );
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriarPedido || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -292,11 +286,9 @@ export function NovoPedidoCompraModal() {
     >
       <div className="max-h-[78vh] space-y-6 overflow-y-auto pr-2">
         <section className="space-y-4">
-          <h3 className="font-semibold text-slate-900">
-            Dados gerais
-          </h3>
+          <h3 className="font-semibold text-slate-900">Dados gerais</h3>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Fornecedor *
@@ -304,26 +296,16 @@ export function NovoPedidoCompraModal() {
 
               <select
                 value={fornecedorId}
-                onChange={(e) =>
-                  setFornecedorId(e.target.value)
-                }
+                onChange={(e) => setFornecedorId(e.target.value)}
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
               >
-                <option value="">
-                  Selecione um fornecedor
-                </option>
+                <option value="">Selecione um fornecedor</option>
 
-                {fornecedoresResponse?.data.map(
-                  (fornecedor) => (
-                    <option
-                      key={fornecedor.id}
-                      value={fornecedor.id}
-                    >
-                      {fornecedor.nomeFantasia ||
-                        fornecedor.razaoSocial}
-                    </option>
-                  )
-                )}
+                {fornecedoresResponse?.data.map((fornecedor) => (
+                  <option key={fornecedor.id} value={fornecedor.id}>
+                    {fornecedor.nomeFantasia || fornecedor.razaoSocial}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -334,25 +316,16 @@ export function NovoPedidoCompraModal() {
 
               <select
                 value={depositoId}
-                onChange={(e) =>
-                  setDepositoId(e.target.value)
-                }
+                onChange={(e) => setDepositoId(e.target.value)}
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
               >
-                <option value="">
-                  Selecione um depósito
-                </option>
+                <option value="">Selecione um depósito</option>
 
-                {depositosResponse?.data.map(
-                  (deposito) => (
-                    <option
-                      key={deposito.id}
-                      value={deposito.id}
-                    >
-                      {deposito.codigo} - {deposito.nome}
-                    </option>
-                  )
-                )}
+                {depositosResponse?.data.map((deposito) => (
+                  <option key={deposito.id} value={deposito.id}>
+                    {deposito.codigo} - {deposito.nome}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -364,9 +337,7 @@ export function NovoPedidoCompraModal() {
               <Input
                 type="date"
                 value={dataPrevistaEntrega}
-                onChange={(e) =>
-                  setDataPrevistaEntrega(e.target.value)
-                }
+                onChange={(e) => setDataPrevistaEntrega(e.target.value)}
               />
             </div>
           </div>
@@ -375,9 +346,7 @@ export function NovoPedidoCompraModal() {
         <section className="space-y-4 border-t pt-5">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-slate-900">
-                Itens do pedido
-              </h3>
+              <h3 className="font-semibold text-slate-900">Itens do pedido</h3>
 
               <p className="text-sm text-slate-500">
                 Adicione os produtos que serão comprados.
@@ -397,16 +366,11 @@ export function NovoPedidoCompraModal() {
 
           <div className="space-y-4">
             {itens.map((item, indice) => {
-              const produtosSelecionadosEmOutrosItens =
-                itens
-                  .filter(
-                    (outroItem) =>
-                      outroItem.idTemporario !==
-                      item.idTemporario
-                  )
-                  .map(
-                    (outroItem) => outroItem.produtoId
-                  );
+              const produtosSelecionadosEmOutrosItens = itens
+                .filter(
+                  (outroItem) => outroItem.idTemporario !== item.idTemporario,
+                )
+                .map((outroItem) => outroItem.produtoId);
 
               const valorTotalItem =
                 Number(item.quantidadeSolicitada || 0) *
@@ -427,18 +391,13 @@ export function NovoPedidoCompraModal() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() =>
-                        removerItem(item.idTemporario)
-                      }
+                      onClick={() => removerItem(item.idTemporario)}
                     >
-                      <Trash2
-                        size={15}
-                        className="text-red-600"
-                      />
+                      <Trash2 size={15} className="text-red-600" />
                     </Button>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div className="md:col-span-2">
                       <label className="text-sm font-medium text-slate-700">
                         Produto *
@@ -450,27 +409,22 @@ export function NovoPedidoCompraModal() {
                           atualizarItem(
                             item.idTemporario,
                             "produtoId",
-                            e.target.value
+                            e.target.value,
                           )
                         }
                         className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
                       >
-                        <option value="">
-                          Selecione um produto
-                        </option>
+                        <option value="">Selecione um produto</option>
 
                         {produtosResponse?.data
                           .filter(
                             (produto) =>
                               !produtosSelecionadosEmOutrosItens.includes(
-                                produto.id
-                              )
+                                produto.id,
+                              ),
                           )
                           .map((produto) => (
-                            <option
-                              key={produto.id}
-                              value={produto.id}
-                            >
+                            <option key={produto.id} value={produto.id}>
                               {produto.codigo
                                 ? `${produto.codigo} - ${produto.nome}`
                                 : produto.nome}
@@ -488,14 +442,12 @@ export function NovoPedidoCompraModal() {
                         type="number"
                         min="0.01"
                         step="0.01"
-                        value={
-                          item.quantidadeSolicitada
-                        }
+                        value={item.quantidadeSolicitada}
                         onChange={(e) =>
                           atualizarItem(
                             item.idTemporario,
                             "quantidadeSolicitada",
-                            e.target.value
+                            e.target.value,
                           )
                         }
                       />
@@ -515,7 +467,7 @@ export function NovoPedidoCompraModal() {
                           atualizarItem(
                             item.idTemporario,
                             "valorUnitario",
-                            e.target.value
+                            e.target.value,
                           )
                         }
                       />
@@ -535,7 +487,7 @@ export function NovoPedidoCompraModal() {
                           atualizarItem(
                             item.idTemporario,
                             "valorDesconto",
-                            e.target.value
+                            e.target.value,
                           )
                         }
                       />
@@ -547,9 +499,7 @@ export function NovoPedidoCompraModal() {
                       </label>
 
                       <div className="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium">
-                        {formatarMoeda(
-                          Math.max(valorTotalItem, 0)
-                        )}
+                        {formatarMoeda(Math.max(valorTotalItem, 0))}
                       </div>
                     </div>
                   </div>
@@ -560,11 +510,9 @@ export function NovoPedidoCompraModal() {
         </section>
 
         <section className="space-y-4 border-t pt-5">
-          <h3 className="font-semibold text-slate-900">
-            Valores adicionais
-          </h3>
+          <h3 className="font-semibold text-slate-900">Valores adicionais</h3>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <CampoValor
               label="Desconto geral"
               value={valorDesconto}
@@ -584,7 +532,7 @@ export function NovoPedidoCompraModal() {
             />
           </div>
 
-          <div className="grid gap-3 rounded-lg bg-slate-50 p-4 md:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 gap-3 rounded-lg bg-slate-50 p-4 md:grid-cols-2">
             <ResumoValor
               label="Valor dos produtos"
               valor={totais.valorProdutos}
@@ -606,9 +554,7 @@ export function NovoPedidoCompraModal() {
 
             <Textarea
               value={observacao}
-              onChange={(e) =>
-                setObservacao(e.target.value)
-              }
+              onChange={(e) => setObservacao(e.target.value)}
             />
           </div>
 
@@ -619,14 +565,12 @@ export function NovoPedidoCompraModal() {
 
             <Textarea
               value={observacaoInterna}
-              onChange={(e) =>
-                setObservacaoInterna(e.target.value)
-              }
+              onChange={(e) => setObservacaoInterna(e.target.value)}
             />
           </div>
         </section>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}
@@ -638,20 +582,12 @@ export function NovoPedidoCompraModal() {
           <Button
             onClick={salvar}
             disabled={
-              salvando ||
-              !fornecedorId ||
-              !depositoId ||
-              itens.length === 0
+              salvando || !fornecedorId || !depositoId || itens.length === 0
             }
           >
-            <ShoppingCart
-              size={16}
-              className="mr-2"
-            />
+            <ShoppingCart size={16} className="mr-2" />
 
-            {salvando
-              ? "Criando..."
-              : "Criar pedido"}
+            {salvando ? "Criando..." : "Criar pedido"}
           </Button>
         </div>
       </div>
@@ -670,9 +606,7 @@ function CampoValor({
 }) {
   return (
     <div>
-      <label className="text-sm font-medium text-slate-700">
-        {label}
-      </label>
+      <label className="text-sm font-medium text-slate-700">{label}</label>
 
       <Input
         type="number"

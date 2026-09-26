@@ -20,6 +20,16 @@ import { atualizarProduto, Produto } from "@/services/produtos.service";
 import { listarCategorias } from "@/services/categorias.service";
 import { listarMarcasProdutos } from "@/services/marcas-produtos.service";
 import { listarUnidadesMedida } from "@/services/unidades-medida.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_CATEGORIAS_VISUALIZAR,
+  PERMISSAO_MARCAS_VISUALIZAR,
+  PERMISSAO_PRODUTOS_EDITAR,
+  PERMISSAO_UNIDADES_VISUALIZAR,
+} from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   produto: Produto;
@@ -27,6 +37,9 @@ type Props = {
 
 export function EditarProdutoModal({ produto }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_PRODUTOS_EDITAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -38,8 +51,12 @@ export function EditarProdutoModal({ produto }: Props) {
   const [ncm, setNcm] = useState(produto.ncm ?? "");
   const [precoCusto, setPrecoCusto] = useState(produto.precoCusto ?? "0");
   const [precoVenda, setPrecoVenda] = useState(produto.precoVenda ?? "0");
-  const [estoqueMinimo, setEstoqueMinimo] = useState(produto.estoqueMinimo ?? "0");
-  const [estoqueMaximo, setEstoqueMaximo] = useState(produto.estoqueMaximo ?? "");
+  const [estoqueMinimo, setEstoqueMinimo] = useState(
+    produto.estoqueMinimo ?? "0",
+  );
+  const [estoqueMaximo, setEstoqueMaximo] = useState(
+    produto.estoqueMaximo ?? "",
+  );
   const [peso, setPeso] = useState(produto.peso ?? "");
   const [altura, setAltura] = useState(produto.altura ?? "");
   const [largura, setLargura] = useState(produto.largura ?? "");
@@ -47,11 +64,11 @@ export function EditarProdutoModal({ produto }: Props) {
   const [categoriaId, setCategoriaId] = useState(produto.categoriaId ?? "");
   const [marcaId, setMarcaId] = useState(produto.marcaId ?? "");
   const [unidadeMedidaId, setUnidadeMedidaId] = useState(
-    produto.unidadeMedidaId ?? ""
+    produto.unidadeMedidaId ?? "",
   );
 
   const { data: categoriasResponse } = useQuery({
-    queryKey: ["categorias-produtos-select"],
+    queryKey: estoqueQueryKeys.categoriasSelect(empresaEfetivaId ?? ""),
     queryFn: () =>
       listarCategorias({
         page: 1,
@@ -59,19 +76,38 @@ export function EditarProdutoModal({ produto }: Props) {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled:
+      aberto &&
+      podeEditar &&
+      temPermissao(PERMISSAO_CATEGORIAS_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: marcasResponse } = useQuery({
-    queryKey: ["marcas-produtos-select"],
+    queryKey: estoqueQueryKeys.marcasSelect(empresaEfetivaId ?? ""),
     queryFn: () => listarMarcasProdutos({ page: 1, limit: 100 }),
+    enabled:
+      aberto &&
+      podeEditar &&
+      temPermissao(PERMISSAO_MARCAS_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: unidadesResponse } = useQuery({
-    queryKey: ["unidades-medida-select"],
+    queryKey: estoqueQueryKeys.unidadesSelect(empresaEfetivaId ?? ""),
     queryFn: () => listarUnidadesMedida({ page: 1, limit: 100 }),
+    enabled:
+      aberto &&
+      podeEditar &&
+      temPermissao(PERMISSAO_UNIDADES_VISUALIZAR) &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   async function salvar() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     if (!nome.trim()) {
       toast.error("Informe o nome do produto.");
       return;
@@ -108,35 +144,40 @@ export function EditarProdutoModal({ produto }: Props) {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["produtos"],
+        queryKey: estoqueQueryKeys.produtos(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao atualizar produto"
-      );
+      queryClient.invalidateQueries({
+        queryKey: estoqueQueryKeys.produtosDetalhes(empresaEfetivaId),
+      });
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar produto"));
     } finally {
       setSalvando(false);
     }
   }
 
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
+
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Pencil size={14} className="mr-2" />
+        <Button className="shrink-0" variant="outline" size="sm">
+          <Pencil aria-hidden="true" />
           Editar
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar produto</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
+        <div className="min-w-0 space-y-5">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="text-sm font-medium text-slate-700">Nome *</label>
+              <label className="text-sm font-medium text-slate-700">
+                Nome *
+              </label>
               <Input value={nome} onChange={(e) => setNome(e.target.value)} />
             </div>
 
@@ -144,19 +185,24 @@ export function EditarProdutoModal({ produto }: Props) {
               <label className="text-sm font-medium text-slate-700">
                 Código interno
               </label>
-              <Input value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+              <Input
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
+              />
             </div>
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">Descrição</label>
+            <label className="text-sm font-medium text-slate-700">
+              Descrição
+            </label>
             <Textarea
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Código de barras
@@ -173,7 +219,9 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Unidade</label>
+              <label className="text-sm font-medium text-slate-700">
+                Unidade
+              </label>
               <select
                 value={unidadeMedidaId}
                 onChange={(e) => setUnidadeMedidaId(e.target.value)}
@@ -189,7 +237,7 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Categoria
@@ -209,7 +257,9 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Marca</label>
+              <label className="text-sm font-medium text-slate-700">
+                Marca
+              </label>
               <select
                 value={marcaId}
                 onChange={(e) => setMarcaId(e.target.value)}
@@ -237,7 +287,7 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Preço de venda *
@@ -275,7 +325,7 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="text-sm font-medium text-slate-700">Peso</label>
               <Input
@@ -287,7 +337,9 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Altura</label>
+              <label className="text-sm font-medium text-slate-700">
+                Altura
+              </label>
               <Input
                 type="number"
                 step="0.01"
@@ -297,7 +349,9 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Largura</label>
+              <label className="text-sm font-medium text-slate-700">
+                Largura
+              </label>
               <Input
                 type="number"
                 step="0.01"
@@ -319,7 +373,7 @@ export function EditarProdutoModal({ produto }: Props) {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
               onClick={() => setAberto(false)}

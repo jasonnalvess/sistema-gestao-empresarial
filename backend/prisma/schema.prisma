@@ -13,6 +13,11 @@ enum UserType {
   USUARIO_EMPRESA
 }
 
+enum PerfilEscopo {
+  SISTEMA
+  EMPRESA
+}
+
 enum TipoMovimentacaoEstoque {
   ENTRADA
   SAIDA
@@ -153,6 +158,70 @@ enum FormaPagamentoVenda {
   OUTRA
 }
 
+enum StatusFuncionario {
+  ATIVO
+  FERIAS
+  AFASTADO
+  LICENCA
+  INATIVO
+  DESLIGADO
+}
+
+enum TipoVinculoFuncionario {
+  CLT
+  ESTAGIARIO
+  APRENDIZ
+  TEMPORARIO
+  TERCEIRIZADO
+  PRESTADOR_SERVICO
+  SOCIO
+  OUTRO
+}
+
+enum OrigemFuncionarioHistorico {
+  RH
+  USUARIO
+  SISTEMA
+}
+
+enum EstadoAcessoFuncionario {
+  SEM_USUARIO
+  USUARIO_ATIVO
+  USUARIO_INATIVO
+}
+
+enum TipoEventoFuncionarioHistorico {
+  CRIACAO
+  EDICAO
+  ALTERACAO_CARGO
+  ALTERACAO_DEPARTAMENTO
+  ALTERACAO_GESTOR
+  ALTERACAO_STATUS
+  RECLASSIFICACAO_STATUS
+  CRIACAO_ACESSO
+  VINCULO_ACESSO
+  DESVINCULO_ACESSO
+  INATIVACAO_ACESSO
+  REATIVACAO_ACESSO
+  REDEFINICAO_SENHA
+}
+
+enum TipoEtapaCRM {
+  ABERTA
+  GANHA
+  PERDIDA
+}
+
+enum TipoInteracaoCRM {
+  LIGACAO
+  EMAIL
+  MENSAGEM
+  REUNIAO
+  VISITA
+  NOTA
+  OUTRO
+}
+
 model Empresa {
   id        String   @id @default(uuid())
   nome      String
@@ -161,40 +230,56 @@ model Empresa {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  usuarios                 Usuario[]
-  modulos                  EmpresaModulo[]
-  categoriasProduto        CategoriaProduto[]
-  produtos                 Produto[]
-  estoquesProduto          EstoqueProduto[]
-  movimentacoesEstoque     MovimentacaoEstoque[]
-  auditoriaLogs            AuditoriaLog[]
-  agendaEventos            AgendaEvento[]
-  clientes                 Cliente[]
-  fornecedores             Fornecedor[]
-  ordensServico            OrdemServico[]
-  marcasProdutos           MarcaProduto[]
-  unidadesMedida           UnidadeMedida[]
-  depositos                Deposito[]
-  inventariosEstoque       InventarioEstoque[]
-  pedidosCompra            PedidoCompra[]
-  contasPagar              ContaPagar[]
-  pagamentosContaPagar     PagamentoContaPagar[]
-  contasReceber            ContaReceber[]
-  recebimentosContaReceber RecebimentoContaReceber[]
-  caixas                   Caixa[]
-  movimentacoesCaixa       MovimentacaoCaixa[]
-  aberturasCaixa           AberturaCaixa[]
-  vendas                   Venda[]
-  caixaHistoricos          CaixaHistorico[]
+  cargos                Cargo[]
+  departamentos         Departamento[]
+  funcionarios          Funcionario[]
+  funcionarioHistoricos FuncionarioHistorico[]
+
+  usuarios                  Usuario[]
+  perfis                    Perfil[]
+  modulos                   EmpresaModulo[]
+  categoriasProduto         CategoriaProduto[]
+  produtos                  Produto[]
+  estoquesProduto           EstoqueProduto[]
+  movimentacoesEstoque      MovimentacaoEstoque[]
+  auditoriaLogs             AuditoriaLog[]
+  agendaEventos             AgendaEvento[]
+  clientes                  Cliente[]
+  fornecedores              Fornecedor[]
+  ordensServico             OrdemServico[]
+  marcasProdutos            MarcaProduto[]
+  unidadesMedida            UnidadeMedida[]
+  depositos                 Deposito[]
+  inventariosEstoque        InventarioEstoque[]
+  pedidosCompra             PedidoCompra[]
+  contasPagar               ContaPagar[]
+  pagamentosContaPagar      PagamentoContaPagar[]
+  contasReceber             ContaReceber[]
+  recebimentosContaReceber  RecebimentoContaReceber[]
+  caixas                    Caixa[]
+  movimentacoesCaixa        MovimentacaoCaixa[]
+  aberturasCaixa            AberturaCaixa[]
+  vendas                    Venda[]
+  caixaHistoricos           CaixaHistorico[]
+  crmEtapas                 CrmEtapa[]
+  crmOportunidades          CrmOportunidade[]
+  crmInteracoes             ClienteInteracao[]
+  crmOportunidadeHistoricos CrmOportunidadeHistorico[]
 }
 
 model Usuario {
-  id    String   @id @default(uuid())
-  nome  String
-  email String   @unique
-  senha String
-  tipo  UserType
-  ativo Boolean  @default(true)
+  id                    String   @id @default(uuid())
+  nome                  String
+  email                 String   @unique
+  senha                 String
+  tipo                  UserType
+  ativo                 Boolean  @default(true)
+  versaoAutorizacao     Int      @default(0)
+  trocaSenhaObrigatoria Boolean  @default(false)
+
+  funcionario                  Funcionario?           @relation("FuncionarioUsuario")
+  funcionarioHistoricosAtor    FuncionarioHistorico[] @relation("FuncionarioHistoricoAtor")
+  funcionarioHistoricosAfetado FuncionarioHistorico[] @relation("FuncionarioHistoricoAfetado")
 
   empresaId String?
   empresa   Empresa? @relation(fields: [empresaId], references: [id])
@@ -234,6 +319,13 @@ model Usuario {
   vendasConcluidas         Venda[]                   @relation("VendaUsuarioConclusao")
   vendaHistoricos          VendaHistorico[]
   caixaHistoricos          CaixaHistorico[]
+  perfis                   UsuarioPerfil[]
+
+  crmOportunidadesResponsavel CrmOportunidade[]          @relation("CrmOportunidadeResponsavel")
+  crmInteracoesResponsavel    ClienteInteracao[]         @relation("ClienteInteracaoResponsavel")
+  crmHistoricosComoAutor      CrmOportunidadeHistorico[] @relation("CrmOportunidadeHistoricoAutor")
+
+  @@unique([empresaId, id])
 }
 
 model ModuloSistema {
@@ -264,6 +356,86 @@ model EmpresaModulo {
   updatedAt DateTime @updatedAt
 
   @@unique([empresaId, moduloId])
+}
+
+model Perfil {
+  id        String       @id @default(uuid())
+  nome      String
+  chave     String
+  descricao String?
+  sistema   Boolean      @default(false)
+  escopo    PerfilEscopo @default(EMPRESA)
+  ativo     Boolean      @default(true)
+
+  empresaId String?
+  empresa   Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuarios   UsuarioPerfil[]
+  permissoes PerfilPermissao[]
+
+  @@unique([empresaId, chave])
+  @@index([empresaId])
+  @@index([ativo])
+}
+
+model Permissao {
+  id        String  @id @default(uuid())
+  nome      String
+  chave     String  @unique
+  descricao String?
+  modulo    String
+  ativo     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  perfis PerfilPermissao[]
+
+  @@index([modulo])
+  @@index([ativo])
+}
+
+model PerfilPermissao {
+  id String @id @default(uuid())
+
+  perfilId String
+  perfil   Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  permissaoId String
+  permissao   Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
+
+  permitido Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([perfilId, permissaoId])
+  @@index([perfilId])
+  @@index([permissaoId])
+  @@index([permitido])
+}
+
+model UsuarioPerfil {
+  id String @id @default(uuid())
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  perfilId String
+  perfil   Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  ativo Boolean @default(true)
+
+  atribuidoEm DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([usuarioId, perfilId])
+  @@index([usuarioId])
+  @@index([perfilId])
+  @@index([ativo])
 }
 
 model CategoriaProduto {
@@ -476,6 +648,10 @@ model AgendaEvento {
   clienteId     String?
   cliente       Cliente?       @relation(fields: [clienteId], references: [id])
   ordensServico OrdemServico[]
+
+  crmInteracoes ClienteInteracao[]
+
+  @@unique([empresaId, id])
 }
 
 model AgendaEventoHistorico {
@@ -516,6 +692,12 @@ model Cliente {
   ordensServico OrdemServico[]
   contasReceber ContaReceber[]
   vendas        Venda[]
+
+  crmInteracoes    ClienteInteracao[]
+  crmOportunidades CrmOportunidade[]
+
+  @@unique([empresaId, id])
+  @@unique([empresaId, documento])
 }
 
 model ClienteHistorico {
@@ -1190,6 +1372,10 @@ model Venda {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  crmOportunidade CrmOportunidade? @relation("CrmOportunidadeVenda")
+
+  @@unique([empresaId, id])
+  @@unique([empresaId, id, clienteId], map: "Venda_empresa_id_cliente_key")
   @@unique([empresaId, numero])
   @@index([empresaId])
   @@index([clienteId])
@@ -1240,4 +1426,219 @@ model VendaHistorico {
 
   @@index([vendaId])
   @@index([usuarioId])
+}
+
+model Cargo {
+  id           String        @id @default(uuid())
+  empresaId    String
+  empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  nome         String
+  descricao    String?
+  ativo        Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  funcionarios Funcionario[]
+
+  @@unique([empresaId, id])
+  @@unique([empresaId, nome])
+  @@index([empresaId, ativo])
+}
+
+model Departamento {
+  id           String        @id @default(uuid())
+  empresaId    String
+  empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  nome         String
+  descricao    String?
+  ativo        Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  funcionarios Funcionario[]
+
+  @@unique([empresaId, id])
+  @@unique([empresaId, nome])
+  @@index([empresaId, ativo])
+}
+
+model Funcionario {
+  id                  String                 @id @default(uuid())
+  empresaId           String
+  empresa             Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  nome                String
+  nomePreferido       String?
+  cpf                 String?
+  emailCorporativo    String?
+  telefoneCorporativo String?
+  emailPessoal        String?
+  telefonePessoal     String?
+  cep                 String?
+  logradouro          String?
+  numero              String?
+  complemento         String?
+  bairro              String?
+  cidade              String?
+  uf                  String?
+  matricula           String
+  dataAdmissao        DateTime
+  dataDesligamento    DateTime?
+  tipoVinculo         TipoVinculoFuncionario
+
+  // A migration limita SET NULL ao ID opcional, preservando empresaId.
+  cargoId        String?
+  cargo          Cargo?        @relation(fields: [empresaId, cargoId], references: [empresaId, id], onDelete: SetNull, onUpdate: Restrict)
+  departamentoId String?
+  departamento   Departamento? @relation(fields: [empresaId, departamentoId], references: [empresaId, id], onDelete: SetNull, onUpdate: Restrict)
+  gestorId       String?
+  gestor         Funcionario?  @relation("FuncionarioGestor", fields: [empresaId, gestorId], references: [empresaId, id], onDelete: SetNull, onUpdate: Restrict)
+  subordinados   Funcionario[] @relation("FuncionarioGestor")
+
+  status         StatusFuncionario
+  statusDesde    DateTime
+  usuarioId      String?                @unique
+  usuario        Usuario?               @relation("FuncionarioUsuario", fields: [usuarioId], references: [id], onDelete: SetNull)
+  versaoRegistro Int                    @default(0)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  historicos     FuncionarioHistorico[]
+
+  @@unique([empresaId, id])
+  @@unique([empresaId, matricula])
+  @@unique([empresaId, cpf])
+  @@index([empresaId, status])
+  @@index([empresaId, cargoId])
+  @@index([empresaId, departamentoId])
+  @@index([empresaId, gestorId])
+  @@index([empresaId, createdAt])
+}
+
+/// Timeline append-only: não expor edição/exclusão nos futuros fluxos de RH.
+model FuncionarioHistorico {
+  id                   String                         @id @default(uuid())
+  empresaId            String
+  empresa              Empresa                        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  funcionarioId        String
+  funcionario          Funcionario                    @relation(fields: [empresaId, funcionarioId], references: [empresaId, id], onDelete: Restrict, onUpdate: Restrict)
+  tipo                 TipoEventoFuncionarioHistorico
+  statusAnterior       StatusFuncionario?
+  statusNovo           StatusFuncionario?
+  acessoAnterior       EstadoAcessoFuncionario?
+  acessoNovo           EstadoAcessoFuncionario?
+  origem               OrigemFuncionarioHistorico
+  atorUsuarioId        String?
+  atorUsuario          Usuario?                       @relation("FuncionarioHistoricoAtor", fields: [atorUsuarioId], references: [id], onDelete: SetNull)
+  usuarioAfetadoId     String?
+  usuarioAfetado       Usuario?                       @relation("FuncionarioHistoricoAfetado", fields: [usuarioAfetadoId], references: [id], onDelete: SetNull)
+  acaoAcessoSolicitada String?
+  operacaoId           String?
+  createdAt            DateTime                       @default(now())
+
+  @@index([empresaId, funcionarioId, createdAt])
+  @@index([empresaId, createdAt])
+  @@index([atorUsuarioId])
+  @@index([usuarioAfetadoId])
+  @@index([operacaoId])
+}
+
+model CrmEtapa {
+  id        String       @id @default(uuid())
+  empresaId String
+  nome      String
+  ordem     Int
+  tipo      TipoEtapaCRM
+  ativo     Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  empresa            Empresa                    @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  oportunidades      CrmOportunidade[]
+  historicosAnterior CrmOportunidadeHistorico[] @relation("CrmHistoricoEtapaAnterior")
+  historicosNova     CrmOportunidadeHistorico[] @relation("CrmHistoricoEtapaNova")
+
+  @@unique([empresaId, id])
+  @@index([empresaId, ativo, ordem, id], map: "CrmEtapa_empresa_ativo_ordem_idx")
+}
+
+model CrmOportunidade {
+  id                 String    @id @default(uuid())
+  empresaId          String
+  clienteId          String
+  etapaId            String
+  responsavelId      String
+  titulo             String
+  descricao          String?
+  valorEstimado      Decimal?  @db.Decimal(65, 30)
+  previsaoFechamento DateTime?
+  dataFechamento     DateTime?
+  motivoPerda        String?
+  vendaId            String?   @unique
+  versaoRegistro     Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cliente     Cliente  @relation(fields: [empresaId, clienteId], references: [empresaId, id], onDelete: Restrict, onUpdate: Restrict)
+  etapa       CrmEtapa @relation(fields: [empresaId, etapaId], references: [empresaId, id], onDelete: Restrict, onUpdate: Restrict)
+  responsavel Usuario  @relation("CrmOportunidadeResponsavel", fields: [empresaId, responsavelId], references: [empresaId, id], onDelete: Restrict, onUpdate: Restrict)
+  venda       Venda?   @relation("CrmOportunidadeVenda", fields: [empresaId, vendaId, clienteId], references: [empresaId, id, clienteId], onDelete: Restrict, onUpdate: Restrict)
+
+  interacoes ClienteInteracao[]
+  historicos CrmOportunidadeHistorico[]
+
+  @@unique([empresaId, id])
+  @@unique([empresaId, id, clienteId], map: "CrmOportunidade_empresa_id_cliente_key")
+  @@unique([empresaId, vendaId, clienteId], map: "CrmOportunidade_empresa_venda_cliente_key")
+  @@index([empresaId, clienteId, createdAt, id], map: "CrmOportunidade_empresa_cliente_data_idx")
+  @@index([empresaId, etapaId, createdAt, id], map: "CrmOportunidade_empresa_etapa_data_idx")
+  @@index([empresaId, responsavelId, createdAt, id], map: "CrmOportunidade_empresa_responsavel_data_idx")
+  @@index([empresaId, createdAt, id], map: "CrmOportunidade_empresa_data_idx")
+}
+
+model ClienteInteracao {
+  id             String           @id @default(uuid())
+  empresaId      String
+  clienteId      String
+  oportunidadeId String?
+  agendaEventoId String?
+  responsavelId  String
+  tipo           TipoInteracaoCRM
+  assunto        String?
+  descricao      String
+  dataHora       DateTime
+  versaoRegistro Int              @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  empresa      Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cliente      Cliente          @relation(fields: [empresaId, clienteId], references: [empresaId, id], onDelete: Restrict, onUpdate: Restrict)
+  oportunidade CrmOportunidade? @relation(fields: [empresaId, oportunidadeId, clienteId], references: [empresaId, id, clienteId], onDelete: Restrict, onUpdate: Restrict)
+  responsavel  Usuario          @relation("ClienteInteracaoResponsavel", fields: [empresaId, responsavelId], references: [empresaId, id], onDelete: Restrict, onUpdate: Restrict)
+  agendaEvento AgendaEvento?    @relation(fields: [empresaId, agendaEventoId], references: [empresaId, id], onDelete: SetNull, onUpdate: Restrict)
+
+  @@index([empresaId, clienteId, dataHora, id], map: "ClienteInteracao_empresa_cliente_data_idx")
+  @@index([empresaId, oportunidadeId, clienteId], map: "ClienteInteracao_empresa_oportunidade_cliente_idx")
+  @@index([empresaId, agendaEventoId], map: "ClienteInteracao_empresa_agenda_idx")
+  @@index([empresaId, responsavelId, dataHora, id], map: "ClienteInteracao_empresa_responsavel_data_idx")
+  @@index([empresaId, dataHora, id], map: "ClienteInteracao_empresa_data_idx")
+}
+
+model CrmOportunidadeHistorico {
+  id              String   @id @default(uuid())
+  empresaId       String
+  oportunidadeId  String
+  etapaAnteriorId String?
+  etapaNovaId     String?
+  descricao       String
+  usuarioId       String
+  createdAt       DateTime @default(now())
+
+  empresa       Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  oportunidade  CrmOportunidade @relation(fields: [empresaId, oportunidadeId], references: [empresaId, id], onDelete: Restrict, onUpdate: Restrict)
+  etapaAnterior CrmEtapa?       @relation("CrmHistoricoEtapaAnterior", fields: [empresaId, etapaAnteriorId], references: [empresaId, id], onDelete: Restrict, onUpdate: Restrict)
+  etapaNova     CrmEtapa?       @relation("CrmHistoricoEtapaNova", fields: [empresaId, etapaNovaId], references: [empresaId, id], onDelete: Restrict, onUpdate: Restrict)
+  autor         Usuario         @relation("CrmOportunidadeHistoricoAutor", fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([empresaId, oportunidadeId, createdAt, id], map: "CrmHistorico_empresa_oportunidade_data_idx")
+  @@index([empresaId, etapaAnteriorId], map: "CrmHistorico_empresa_etapa_anterior_idx")
+  @@index([empresaId, etapaNovaId], map: "CrmHistorico_empresa_etapa_nova_idx")
+  @@index([usuarioId], map: "CrmHistorico_usuario_idx")
 }

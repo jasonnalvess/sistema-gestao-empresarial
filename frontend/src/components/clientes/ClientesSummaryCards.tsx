@@ -15,10 +15,10 @@ export function ClientesSummaryCards({ clientes }: Props) {
   const pj = clientes.filter((c) => c.tipo === "PJ").length;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-      <StatsCard title="Total" value={total} icon={<UsersRound size={22} />} />
-      <StatsCard title="Ativos" value={ativos} icon={<UserCheck size={22} />} />
-      <StatsCard title="Inativos" value={inativos} icon={<UserX size={22} />} />
+    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <StatsCard title="Total" value={total} icon={<UsersRound aria-hidden="true" />} />
+      <StatsCard title="Ativos" value={ativos} icon={<UserCheck aria-hidden="true" />} />
+      <StatsCard title="Inativos" value={inativos} icon={<UserX aria-hidden="true" />} />
       <StatsCard title="Pessoa Física" value={pf} icon={<UserRound size={22} />} />
       <StatsCard title="Pessoa Jurídica" value={pj} icon={<Building2 size={22} />} />
     </div>
