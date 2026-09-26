@@ -6,9 +6,9 @@
 - **Arquitetura:** Next.js, React, TypeScript, TanStack Query, Axios e Tailwind no frontend; NestJS, TypeScript e Prisma no backend; PostgreSQL.
 - **Ambiente de trabalho:** teste, `/opt/sistema-gestao/teste`.
 - **Branch atual e de integração:** `develop`.
-- **Último commit versionado:** `ca5e66226fd2a63d2a2bfff37266d3f0fd9941ec` — fechamento documental da V3.5.6, publicado em `origin/develop`.
+- **Último commit versionado de referência:** `80fd3c07f3dd82a14d01f8e3a555eaa156a87e3c` — reorganização do roadmap; HEAD e referência local `origin/develop` conferidos antes da V3.6.1. O contrato abaixo ainda não possui commit.
 - **Marcos concluídos:** V1, V2, V3.1, V3.2, V3.3 e V3.4.
-- **Sprint atual:** V3.6 — Acesso, Identidade e Onboarding SaaS — PENDENTE.
+- **Sprint atual:** V3.6 — Acesso, Identidade e Onboarding SaaS — EM ANDAMENTO, somente planejamento documental. V3.6.1: contrato aprovado e documentado, sem commit; nenhuma implementação funcional.
 - **V3.4.1:** CONCLUÍDA E VERSIONADA — contrato e arquitetura.
 - **V3.4.2:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — persistência e integridade.
 - **V3.4.3:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — cadastros e consultas.
@@ -16,9 +16,9 @@
 - **V3.4.5:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — acesso associado e primeiro login.
 - **V3.4.6:** CONCLUÍDA, HOMOLOGADA E VERSIONADA — integração final, frontend RH, CE-2 e CE-3; commit `ce0ccdd`.
 - **Versão atual:** V3.5 — CRM — CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; fechamento documental da V3.5.6 publicado em `origin/develop` no commit `ca5e662`.
-- **Próxima etapa oficial:** V3.6 — Acesso, Identidade e Onboarding SaaS — PENDENTE.
+- **Próxima etapa oficial:** V3.6.2 — Recuperação de Senha e SMTP — PENDENTE; não iniciada nesta tarefa.
 - **V4.0:** apenas backlog futuro, para novo planejamento após conclusão integral da V3.x.
-- **Progresso geral estimado de planejamento:** aproximadamente 94%; a V3.5 foi concluída e homologada.
+- **Progresso geral estimado de planejamento:** proposta de recalibração para aproximadamente 85%, sujeita à revisão do responsável, em razão do escopo adicional da V3.6. Os 94% anteriores permanecem como referência histórica; documentar o contrato não representa entrega funcional.
 - **Regras críticas:** backend decide autorização; preservar tenant, RBAC, sessões e cache por empresa; verificar Git antes de trabalhar; mudanças incrementais; nenhuma ação automática em produção; nunca registrar credenciais.
 - **Documento oficial:** `docs/ROADMAP_SGE.md`. Ler também `AGENTS.md` e `DECISIONS.md` antes de implementar.
 
@@ -41,7 +41,7 @@ A existência de código ou de um teste não comprova, isoladamente, comportamen
 
 | Campo | Estado atual e referências históricas |
 |---|---|
-| Data da atualização | 2026-09-25 |
+| Data da atualização | 2026-09-26 |
 | Data do fechamento técnico da V3.4.6 (histórico) | 2026-09-09 |
 | Ambiente auditado | Teste: `/opt/sistema-gestao/teste` |
 | Branch atual | `develop` |
@@ -56,8 +56,10 @@ A existência de código ou de um teste não comprova, isoladamente, comportamen
 | V3.4.5 | CONCLUÍDA, HOMOLOGADA E VERSIONADA |
 | V3.4.6 | CONCLUÍDA, HOMOLOGADA E VERSIONADA; commit `ce0ccdd` publicado em `origin/develop` |
 | Versão atual | V3.5 — CRM — CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA |
-| Próxima etapa oficial | V3.6 — Acesso, Identidade e Onboarding SaaS — PENDENTE |
-| Estimativa geral | Aproximadamente 94% (estimativa de planejamento); V3.5 concluída e homologada |
+| Etapa em planejamento | V3.6 — Acesso, Identidade e Onboarding SaaS; V3.6.1 aprovada e documentada, sem commit |
+| Referência inicial da V3.6.1 | `develop`, HEAD e `origin/develop` local em `80fd3c07f3dd82a14d01f8e3a555eaa156a87e3c`; working tree inicialmente limpo |
+| Próxima etapa oficial | V3.6.2 — Recuperação de Senha e SMTP — PENDENTE |
+| Estimativa geral | Aproximadamente 85% propostos para revisão; recalibração de planejamento pelo escopo adicional, sem reduzir entregas históricas nem contabilizar contrato como funcionalidade |
 
 Os relatos abaixo preservam o fechamento técnico de 2026-09-09, anterior à publicação de `ce0ccdd`; não representam pendência atual de versionamento da V3.4.
 
@@ -275,7 +277,7 @@ A sequência V3.x permanece controlada. Em 2026-09-26 foi aprovada pelo respons�
 |---|---|---|
 | [x] CONCLUÍDO / HOMOLOGADO | V3.4 | Gestão de Funcionários (RH) |
 | [x] CONCLUÍDO / HOMOLOGADO | V3.5 | CRM |
-| [ ] PENDENTE | V3.6 | Acesso, Identidade e Onboarding SaaS |
+| [ ] EM ANDAMENTO — PLANEJAMENTO | V3.6 | Acesso, Identidade e Onboarding SaaS; V3.6.1 aprovada e documentada, implementação pendente |
 | [ ] PENDENTE | V3.7 | Financeiro Avançado |
 | [ ] PENDENTE | V3.8 | Notificações e Automações |
 | [ ] PENDENTE | V3.9 | Configurações da Empresa |
@@ -285,7 +287,7 @@ A sequência V3.x permanece controlada. Em 2026-09-26 foi aprovada pelo respons�
 
 A reorganização aprovada em 2026-09-26 não reescreve referências históricas anteriores à antiga numeração. Quando uma seção histórica mencionar, por exemplo, Financeiro Avançado V3.6 ou Notificações/Automações V3.7, essa referência deve ser interpretada conforme a numeração vigente na data daquele registro.
 
-O escopo detalhado da **V3.5** foi consolidado na V3.5.1, preservando o objetivo estabelecido no roadmap. Para as etapas futuras, o escopo detalhado será definido na abertura de cada sprint, preservando seu objetivo. A V3.6 constitui a exceção de priorização aprovada em 2026-09-26.
+O escopo detalhado da **V3.5** foi consolidado na V3.5.1, preservando o objetivo estabelecido no roadmap. A **V3.6** teve seu contrato aprovado e documentado na V3.6.1 em 2026-09-26, conforme seção própria abaixo. Para as demais etapas futuras, o escopo detalhado será definido na abertura de cada sprint, preservando seu objetivo. A V3.6 constitui a exceção de priorização aprovada em 2026-09-26.
 
 A existência de Financeiro e de APIs de empresas não encerra Financeiro Avançado nem Configurações da Empresa. Catálogos ou nomes reservados também não significam implementação funcional de RH, CRM ou Fiscal.
 
@@ -1312,6 +1314,219 @@ O planejamento incremental abaixo organiza a V3.5 sem ampliar seu objetivo conge
 | V3.5.5 — Frontend e Integração CRM | CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA | Frontend CRM, funil/etapas, oportunidades, movimentação, interações, Agenda, Clientes e Vendas, isolamento multiempresa, responsividade, paginação vazia e regressão consolidada com AT-3 PostgreSQL real; commit `a8d3c4e044e851321ba7ccffc19de6fce95ed5b7` publicado em `origin/develop`. |
 | V3.5.6 — Homologação Final do CRM | CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA | Homologação integrada do CRM, permissões, tenant, integrações, concorrência, filtros, paginação, cache, responsividade e regressão técnica final aprovadas no ambiente de teste; fechamento documental publicado em `origin/develop` no commit `ca5e662`. |
 
+## V3.6 — Acesso, Identidade e Onboarding SaaS — EM ANDAMENTO
+
+### V3.6.1 — Contrato e Arquitetura
+
+**STATUS: CONTRATO APROVADO E DOCUMENTADO; SEM COMMIT.** A auditoria técnica anterior foi revisada e aprovada pelo responsável pelo projeto. Em 2026-09-26, o responsável aprovou as regras desta seção e autorizou somente sua formalização documental. A implementação funcional da V3.6 permanece pendente; a V3.6.2 não foi iniciada.
+
+Base de referência: commit `80fd3c07f3dd82a14d01f8e3a555eaa156a87e3c`, branch `develop`, HEAD e referência local `origin/develop` iguais, working tree limpo antes da edição. Não houve consulta ao remoto, alteração de banco, serviços ou produção. Este registro não declara deploy, execução de migrations ou homologação funcional dos fluxos futuros.
+
+O contrato detalhado permanece neste roadmap, seguindo o padrão de V3.4.1 e V3.5.1. As decisões permanentes complementares estão nas ADR-026 e ADR-027 de [DECISIONS.md](../DECISIONS.md). O histórico anterior não é reescrito como decisão desta etapa.
+
+#### Objetivo e invariantes de compatibilidade
+
+A V3.6 entregará incrementalmente recuperação segura de senha, infraestrutura SMTP/e-mail, reset administrativo, trial e validade comercial, cadastro público e onboarding SaaS, melhoria da landing page e identidade visual pública, metadata/título/idioma/favicon e homologação integrada.
+
+Preservar obrigatoriamente:
+
+- JWT atual e autoridade de autenticação/autorização no backend;
+- RBAC, perfis, permissões e limites de delegação existentes;
+- isolamento multiempresa em consultas, escritas e relacionamentos;
+- integração Funcionario x Usuario, associação opcional 1:1 e separação entre situação funcional e acesso;
+- `trocaSenhaObrigatoria`, seu bloqueio backend e fluxo próprio de troca de senha;
+- `versaoAutorizacao` como revogação global e as regras existentes de mudanças de autorização;
+- auditoria, atomicidade de operações críticas e isolamento de sessão/cache no frontend.
+
+Recuperação e reset não são mecanismos de reativação. Não podem reativar Usuario ou Empresa, alterar Funcionario/situação funcional, nem criar ou remover vínculo RH implicitamente. Preservar as restrições de acesso de funcionários INATIVOS/DESLIGADOS e a elegibilidade de vínculo apenas para USUARIO_EMPRESA da mesma empresa.
+
+#### Identidade e e-mail
+
+O backend deverá canonicalizar o e-mail com `trim + lowercase`. O e-mail continua globalmente único; normalização no frontend não substitui a validação backend.
+
+Recuperação sempre usa o endereço persistido e elegível no backend. Alteração de endereço e verificação de nova identidade não serão misturadas à recuperação. Um fluxo próprio de alteração/verificação de e-mail poderá ser planejado separadamente; um sistema completo de alteração de e-mail está fora desta V3.6.
+
+A implementação deverá avaliar compatibilidade e eventuais colisões de canonicalização em registros existentes antes de qualquer ajuste de dados; este contrato não autoriza alteração silenciosa de identidades.
+
+#### Senha inicial: compatibilidade administrativa e RH
+
+Preservar nesta versão a definição administrativa de senha inicial na criação comum e na criação de acesso pelo RH. Não substituir esses fluxos por convites. A recuperação nova não os substitui automaticamente.
+
+A auditoria distinguiu criação comum sem imposição explícita de troca obrigatória e criação pelo RH com `trocaSenhaObrigatoria=true`. Esta decisão preserva os comportamentos existentes; não uniformiza silenciosamente os dois fluxos.
+
+A proibição de ADMIN_EMPRESA definir nova senha de outro usuário refere-se à redefinição de conta existente. A definição de senha inicial nos dois fluxos preservados continua sendo a exceção de compatibilidade explicitamente aprovada.
+
+#### Reset manual e solicitação administrativa por e-mail
+
+| Ator | Reset manual de outro usuário | Solicitar recuperação por e-mail |
+|---|---|---|
+| SUPER_ADMIN | Permitido em comando específico, inclusive para outro SUPER_ADMIN; proibido para a própria conta | Permitido, com validação backend de alvo elegível e destinatário persistido |
+| ADMIN_EMPRESA | Proibido para conta existente | Somente alvo elegível da própria empresa; nunca SUPER_ADMIN ou outra empresa |
+| USUARIO_EMPRESA | Não recebe poder administrativo de reset | Recuperação própria pelo fluxo público; sem concessão de administração de terceiros |
+
+O reset manual deve possuir endpoint/comando específico, validar ator e alvo no backend, aplicar a política de senha aprovada e gerar hash seguro. Na mesma operação transacional, deverá persistir a nova senha, definir `trocaSenhaObrigatoria=true`, incrementar `versaoAutorizacao`, invalidar os tokens de recuperação aplicáveis e registrar auditoria. JWT/sessões anteriores ficam inválidos pela versão.
+
+SUPER_ADMIN pode resetar outro SUPER_ADMIN, mas o backend deve impedir `ator = alvo` no comando administrativo. Autoalteração permanece no fluxo próprio de troca de senha. Papel global não dispensa validações de autorização, alvo e auditoria.
+
+ADMIN_EMPRESA não envia uma nova senha nem endereço arbitrário de recuperação: fornece a identificação do alvo permitido, e o backend determina destinatário, tenant e elegibilidade. A solicitação deve ser auditável e não expor dados sensíveis. SUPER_ADMIN também poderá solicitar recuperação por e-mail.
+
+Nenhum desses comandos altera implicitamente atividade de usuário/empresa, dados/situação de Funcionario ou vínculos RH. Nenhuma senha, hash de senha ou token será registrado em logs/auditoria. As chaves exatas de permissões e a política detalhada de elegibilidade deverão ser explicitadas na etapa correspondente, sem conceder permissões silenciosamente nem relaxar esta matriz.
+
+#### Recuperação pública de senha
+
+O futuro fluxo “Esqueci minha senha” deverá observar cumulativamente:
+
+- token criptograficamente seguro, com finalidade explícita;
+- token bruto entregue somente ao titular pelo canal de recuperação, nunca devolvido ao solicitante administrativo/público na resposta da solicitação;
+- persistência somente do hash do token;
+- validade inicial de **30 minutos**, com expiração validada no backend;
+- uso único, consumo atômico e proteção contra replay, inclusive sob concorrência;
+- ao emitir novo token válido para o mesmo usuário/finalidade, invalidar todos os anteriores ainda não utilizados;
+- resposta pública genérica para evitar enumeração de e-mail e rate limiting;
+- nova senha escolhida pelo titular, sem envio da senha atual por e-mail;
+- conclusão com incremento de `versaoAutorizacao`, invalidando sessões anteriores;
+- auditoria sem segredos e preservação das restrições administrativas/funcionais.
+
+A validade poderá futuramente ser parametrizada por configuração, mas o contrato inicial é de 30 minutos. Solicitar recuperação não equivale a concluir troca de senha. Recuperação concluída não reativa usuário/empresa nem altera situação funcional. O refinamento técnico deve preservar atomicidade entre consumo do token e alteração da identidade/autorização.
+
+#### SMTP e e-mail
+
+Criar futuramente módulo próprio de e-mail no backend NestJS, usando `ConfigService`. Credenciais devem vir somente de ambiente/secret; nunca de código, roadmap ou logs. Templates serão controlados pela aplicação, com remetente e URL pública/base confiável configuráveis.
+
+Nomes conceituais de configurações, sem valores e sem afirmar que já existem: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`, `PUBLIC_APP_URL`. Os nomes definitivos serão consolidados na V3.6.2.
+
+Não construir links sensíveis a partir de Host arbitrário enviado pelo cliente. Não manter locks ou transações críticas de banco abertos durante comunicação SMTP. Falhas de envio não podem corromper identidade/autorização. A estratégia de retry será definida na implementação; avaliar outbox na V3.6.2, sem torná-la obrigatória antes dessa análise.
+
+#### Trial e validade comercial
+
+Separar três dimensões:
+
+| Dimensão | Contrato |
+|---|---|
+| Suspensão administrativa | `Empresa.ativa` preserva a situação administrativa existente |
+| Validade comercial/trial | Representação própria, separada de `Empresa.ativa` |
+| Módulos habilitados | Preservar habilitação por empresa e regras de autorização existentes |
+
+Para novos cadastros públicos, o trial inicia quando o onboarding transacional for concluído com sucesso. A duração será de **30 dias corridos**, com instantes de início e fim persistidos. Armazenamento e comparação temporal em UTC; timezone local apenas para apresentação. Usar intervalo `[inicio, fim)`: se `agora >= fim`, o trial está expirado.
+
+A verificação de e-mail é pré-condição de conclusão/ativação operacional do onboarding. Uma solicitação pendente de verificação não deve ser tratada como onboarding operacionalmente concluído para iniciar/liberar o trial. O desenho de estados pendentes será refinado na V3.6.5, preservando esse marco de conclusão.
+
+O backend é autoridade do bloqueio, sem dependência exclusiva de scheduler/cron. Scheduler poderá enviar notificações, realizar manutenção ou materializar estados derivados; seu atraso ou falha nunca poderá liberar acesso indevido.
+
+#### Empresa expirada e enforcement centralizado
+
+Expiração deve bloquear operações empresariais protegidas, sem apagar dados, inativar usuários individualmente, alterar situação funcional ou destruir perfis/permissões. O isolamento multiempresa permanece obrigatório.
+
+O contrato HTTP deve permitir ao frontend distinguir credencial inválida, usuário inativo, troca obrigatória, suspensão administrativa da empresa e trial/validade comercial expirada. Os códigos e payloads exatos serão refinados na implementação. Essa distinção não deve permitir enumeração no endpoint público de solicitação de recuperação, cuja resposta continua genérica.
+
+A identidade poderá permanecer autenticável no contexto mínimo necessário para informar expiração, recuperar senha e acessar fluxos permitidos de regularização/informação. Isso não concede acesso às operações empresariais bloqueadas. SUPER_ADMIN global conserva a capacidade administrativa quando uma empresa específica expira; separar administração global da operação empresarial.
+
+O desenho do guard/enforcement deve ser centralizado e cobrir rotas empresariais, inclusive as que não usam `EmpresaContextoGuard`. A auditoria comprovou que login e `JwtStrategy` não verificam atualmente `Empresa.ativa`, e que esse guard não cobre todas as rotas. Não tratar a existência do guard atual como bloqueio universal já entregue.
+
+#### Empresas existentes e regularização
+
+Empresas anteriores à introdução do trial não receberão trial retroativamente nem expiração silenciosa. A migration futura deve preservar o acesso atual, distinguindo adequadamente empresas legadas/sem validade comercial limitada dos novos cadastros em trial, sem remover suspensões administrativas existentes.
+
+Na V3.6, somente SUPER_ADMIN poderá regularizar/reativar comercialmente uma empresa. A operação deve ser explícita e autorizada no backend, definir nova condição/validade comercial, registrar ator, motivo e auditoria, preservar dados e considerar invalidação de sessões empresariais anteriores quando necessário. O critério dessa invalidação deverá ser explicitado na V3.6.4 usando o mecanismo existente.
+
+Regularização não depende apenas de `Empresa.ativa=true` e não deve confundir validade comercial com suspensão administrativa. ADMIN_EMPRESA não pode estender o próprio trial.
+
+#### Sessões e segurança de logs/auditoria
+
+Manter `versaoAutorizacao` como mecanismo de revogação global. Reset de senha e recuperação concluída incrementam a versão; mudanças de autorização existentes continuam seguindo suas regras. Não criar infraestrutura paralela de sessão. Refresh tokens, tabela de sessões, logout remoto e sessões/logout por dispositivo ficam fora da V3.6.
+
+Durante a implementação, revisar `HttpExceptionFilter`, `auditoria-sanitizer`, URLs de recuperação, DTOs de senha e metadados de auditoria. Nenhum dos seguintes poderá aparecer em logs/auditoria:
+
+- senha atual, nova senha ou senha inicial;
+- hash de senha;
+- token bruto;
+- hash de token quando desnecessário;
+- credenciais SMTP.
+
+Evitar persistência de tokens sensíveis em `request.url` e query logs. Preferir que o frontend receba o token e o envie ao endpoint de consumo fora da URL, sem registrar seu conteúdo. A auditoria identificou retorno de `request.url` no filtro e sanitização por lista exata de nomes; novos DTOs não podem presumir cobertura automática. A auditoria transacional do reset é obrigatória, independentemente do interceptor geral best-effort.
+
+#### Cadastro público e onboarding transacional
+
+Uma conclusão bem-sucedida deve criar/provisionar coerentemente, em transação:
+
+- Empresa;
+- usuário administrador inicial da empresa (`ADMIN_EMPRESA`);
+- autorização/perfil administrativo inicial;
+- módulos definidos pelo produto;
+- validade comercial/trial.
+
+O backend define os valores. O solicitante público não pode escolher SUPER_ADMIN, permissões arbitrárias, perfil privilegiado arbitrário, empresa preexistente ou duração arbitrária de trial. O provisionamento inicial autorizado é específico da nova empresa; não concede novas permissões silenciosamente a usuários existentes.
+
+Exigir rollback integral se qualquer parte obrigatória falhar e projetar idempotência contra duplicação por reenvio/retry. Os seeds existentes não constituem um fluxo público transacional e não devem ser executados como atalho de onboarding.
+
+**O cadastro não será considerado operacionalmente concluído/ativado antes da verificação do e-mail.** O desenho detalhado de verificação/token poderá ser refinado na V3.6.5, preservando token seguro, hash persistido, expiração, uso único e não enumeração. A validade de 30 minutos fixada para recuperação não define automaticamente a duração do token de verificação.
+
+A V3.6.5 depende da validade comercial e do enforcement da V3.6.4 para ativar onboarding público. A definição concreta dos módulos e do perfil inicial é responsabilidade do produto/backend na etapa correspondente, não do payload público.
+
+#### Landing page, identidade visual e UX pública
+
+A V3.6.6 deverá substituir a metadata `Create Next App` e a descrição padrão, alterar `lang` para `pt-BR`, definir título profissional do SGE e descrição pública coerente com funcionalidades reais. Criar/adotar favicon/ícone próprio e remover resíduos visuais padrão Next/Vercel quando não utilizados.
+
+Melhorar a landing, manter “Acessar sistema”, adicionar CTA “Cadastre-se” e “Esqueci minha senha” na experiência de login. Preservar responsividade e acessibilidade; não prometer funcionalidades ainda não entregues. A identidade visual final será refinada na V3.6.6, sem refatoração global incidental.
+
+#### Escopo negativo da V3.6
+
+Ficam explicitamente fora desta versão:
+
+- refresh tokens, tabela de sessões, sessões por dispositivo, logout remoto e logout por dispositivo;
+- MFA/2FA, SSO e OAuth social;
+- sistema completo de convites substituindo criação administrativa/RH;
+- sistema completo de alteração/verificação de novo endereço de e-mail;
+- cobrança/pagamento automático e gateway de pagamento;
+- Financeiro Avançado e Base Fiscal/Notas Fiscais;
+- refatoração global de autenticação sem necessidade comprovada;
+- alteração ampla de Funcionario x Usuario;
+- plano comercial completo além do necessário para trial/validade inicial.
+
+Não implementar esses itens incidentalmente. Refinamentos técnicos não autorizam ampliar o escopo aprovado.
+
+#### Critérios objetivos de aceite da V3.6.1
+
+- [x] Contrato aprovado registrado neste roadmap.
+- [x] Decisões arquiteturais relevantes acrescentadas ao registro de ADRs, preservando decisões antigas.
+- [x] Subdivisão V3.6.1–V3.6.7 e dependências registradas.
+- [x] Invariantes de tenant, RBAC, RH, troca obrigatória e versão documentadas.
+- [x] Regras de reset manual e solicitação administrativa documentadas.
+- [x] Recuperação segura, validade de 30 minutos e invalidação anterior documentadas.
+- [x] Trial/validade comercial, legado, bloqueio e regularização documentados.
+- [x] Onboarding transacional, idempotência e verificação de e-mail documentados.
+- [x] Segurança de logs/auditoria e escopo negativo documentados.
+- [x] Nenhuma implementação funcional realizada nesta etapa.
+- [x] Nenhuma alteração em produção.
+
+A aceitação é documental e não comprova funcionalidades futuras. Build, lint e testes funcionais não são necessários nesta etapa; a revisão deve conferir apenas os documentos alterados, `git diff --check` e estado Git. Nenhum commit/push está autorizado por esta formalização.
+
+#### Refinamentos para as etapas de implementação
+
+Permanecem para definição técnica nas etapas correspondentes, respeitando integralmente o contrato aprovado: política detalhada de senha e elegibilidade, chaves de permissões, limites de rate limiting, contratos exatos de rotas/erros, persistência dos tokens e validade comercial, retries/avaliação de outbox, estados pendentes e prazo de verificação de e-mail, catálogo inicial de módulos/perfil, e critérios de revogação na regularização. Não presumir novas regras aprovadas a partir dos nomes conceituais.
+
+A homologação integrada deverá cobrir regressão de login/JWT, troca obrigatória, versão, RBAC/tenant, RH, replay e concorrência de tokens, falhas SMTP, rollback/idempotência do onboarding, verificação de e-mail, fronteira temporal do trial, empresas legadas, regularização e jornadas públicas responsivas/acessíveis. Não apresentar testes históricos como execução desses novos cenários.
+
+### Subdivisão oficial da V3.6
+
+Subdivisão aprovada pelo responsável em 2026-09-26. A ordem abaixo substitui a proposta preliminar da auditoria: trial/enforcement precede cadastro público/onboarding.
+
+| Etapa | Status | Entrega e dependência |
+|---|---|---|
+| V3.6.1 — Contrato e Arquitetura | APROVADA E DOCUMENTADA; SEM COMMIT | Precede toda implementação; contrato, invariantes, escopo e critérios de aceite. |
+| V3.6.2 — Recuperação de Senha e SMTP | PENDENTE | Estabelece recuperação segura e infraestrutura de e-mail; depende da V3.6.1. |
+| V3.6.3 — Administração e Reset de Senha | PENDENTE | Reset manual controlado e solicitação por e-mail; reutiliza a infraestrutura segura da V3.6.2. |
+| V3.6.4 — Trial, Expiração e Bloqueio | PENDENTE | Estabelece validade comercial, tratamento do legado, enforcement e regularização administrativa. |
+| V3.6.5 — Cadastro Público e Onboarding | PENDENTE | Provisionamento transacional e verificação de e-mail; depende da V3.6.4 para ativar onboarding público e reutiliza e-mail. |
+| V3.6.6 — Landing Page, Identidade Visual e UX Pública | PENDENTE | Consolida experiência pública, metadata, idioma, ícones e CTAs dos fluxos entregues. |
+| V3.6.7 — Homologação Integrada | PENDENTE | Encerra somente após regressão integrada das entregas e dos fluxos existentes. |
+
+### Reavaliação do progresso de planejamento
+
+A estimativa anterior era aproximadamente **94%**. A formalização da V3.6 torna explícito trabalho adicional relevante em segurança, persistência, comunicação, onboarding, expiração e homologação, enquanto V3.7–V3.12 e consolidações finais continuam pendentes.
+
+Propõe-se aproximadamente **85%**, sujeito à revisão do responsável. É uma estimativa conservadora de planejamento, não métrica de código, horas ou contagem uniforme de versões; não existe orçamento de esforço detalhado que permita precisão matemática. A documentação do contrato não aumenta o percentual por si só. As entregas concluídas e os percentuais históricos permanecem preservados; o ajuste reconhece o aumento do trabalho restante.
+
 ## V4.0 — Evolução Avançada de RH e Automações
 
 STATUS: BACKLOG FUTURO — NÃO INICIAR ANTES DA CONCLUSÃO INTEGRAL DA V3.x
@@ -1436,7 +1651,7 @@ Não realizar deploy em produção automaticamente. Em tarefas exclusivamente do
 7. A auditoria geral via interceptor possui comportamento best-effort, conforme histórico da V2. A auditoria das escritas de perfis é transacional e falha junto com a operação. Não generalizar uma política para todos os módulos.
 8. Manual/Central de Ajuda permanece reservado para o final. Teste e homologação precedem produção.
 9. Nenhuma verificação operacional de produção, banco ou migrations aplicadas foi feita para este documento. Não inferir deploy a partir de merge em develop.
-10. A documentação histórica registra decisões amplas e papéis previstos; o código atual distingue os três papéis principais e perfis globais/empresariais. Este roadmap não altera ADRs nem transforma exemplos de módulos em entregas.
+10. A documentação histórica registra decisões amplas e papéis previstos; o código atual distingue os três papéis principais e perfis globais/empresariais. As decisões históricas permanecem preservadas; a V3.6.1 acrescenta as ADR-026 e ADR-027 aprovadas, sem transformar exemplos de módulos em entregas.
 11. Evidência visual e resultados de fechamento devem conservar sua origem. Não há nova homologação de navegador nesta consolidação.
 
 ## Fontes e handoff técnico
@@ -1455,7 +1670,7 @@ Não realizar deploy em produção automaticamente. Em tarefas exclusivamente do
 | `frontend/src/app/perfis/` e `frontend/src/components/perfis/` | Implementação da V3.3.6 |
 | Histórico Git | Commits e integrações citados neste documento |
 
-Etapa atual: V3.5 — CRM concluída, homologada, versionada e publicada. As etapas V3.5.1 a V3.5.5 estão versionadas e publicadas em `origin/develop`; a V3.5.6 concluiu a homologação integrada e seu fechamento documental foi publicado no commit `ca5e662`. A próxima etapa oficial é V3.6 — Acesso, Identidade e Onboarding SaaS — PENDENTE. Produção permanece intocada.
+Última entrega funcional: V3.5 — CRM concluída, homologada, versionada e publicada; fechamento documental da V3.5.6 no commit `ca5e662`. Etapa atual: V3.6 — Acesso, Identidade e Onboarding SaaS, em planejamento documental. A V3.6.1 tem contrato aprovado e documentado, ainda sem commit. Próxima etapa: V3.6.2 — Recuperação de Senha e SMTP, pendente e não iniciada. Produção permanece intocada.
 
 ## Como atualizar este documento
 
@@ -1490,4 +1705,5 @@ Não copiar valores de password, senha, token, secret, DATABASE_URL ou PAT. Essa
 | 2026-09-20 | V3.5.4 — Oportunidades e Funil | Backend concluído e homologado: funil configurável, oportunidades, máquina de estados, histórico, auditoria, integração explícita com Venda, proteção inversa, responsáveis CRM e módulos ativos por contexto; produção intocada. | `8edfbb71cea4d43aa39176ea721f83e1fdc14c95` — publicado em `origin/develop` | V3.5.4 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5.5 EM ANDAMENTO |
 | 2026-09-25 | V3.5.5 — Frontend e Integração CRM | Fases 2A–2G e RF-1 aprovadas: frontend CRM, integrações com Clientes/Agenda/Vendas, isolamento multiempresa, responsividade, paginação vazia, regressão consolidada e AT-3 PostgreSQL real 10/10 sem resíduos; produção intocada. | `a8d3c4e044e851321ba7ccffc19de6fce95ed5b7` — implementação publicada em `origin/develop` | V3.5.5 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5 EM ANDAMENTO; próxima etapa V3.5.6 PENDENTE |
 | 2026-09-25 | V3.5.6 — Homologação Final do CRM | Homologação integrada aprovada: módulo/RBAC, tenant, funil, oportunidades, ciclo de vida, interações, Agenda, Clientes, Vendas, histórico/auditoria, concorrência, filtros, paginação, cache, troca de tenant, responsividade e regressão técnica final; produção intocada. | `ca5e662` — fechamento documental publicado em `origin/develop` | V3.5.6 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5 CONCLUÍDA E HOMOLOGADA; ~94% |
-| 2026-09-26 | Reorganização controlada do roadmap V3.x | Aprovada nova prioridade V3.6 — Acesso, Identidade e Onboarding SaaS antes do Financeiro Avançado; etapas futuras renumeradas para V3.7–V3.12; Base Fiscal preservada e explicitada como Base Fiscal / Notas Fiscais; referências históricas anteriores permanecem preservadas. | Aguardando commit desta atualização documental | ROADMAP REORGANIZADO; próxima etapa V3.6 PENDENTE; produção intocada |
+| 2026-09-26 | Reorganização controlada do roadmap V3.x | Aprovada nova prioridade V3.6 — Acesso, Identidade e Onboarding SaaS antes do Financeiro Avançado; etapas futuras renumeradas para V3.7–V3.12; Base Fiscal preservada e explicitada como Base Fiscal / Notas Fiscais; referências históricas anteriores permanecem preservadas. | `80fd3c07f3dd82a14d01f8e3a555eaa156a87e3c` — publicado em `origin/develop` | ROADMAP REORGANIZADO; próxima etapa V3.6 PENDENTE; produção intocada |
+| 2026-09-26 | V3.6.1 — Contrato e Arquitetura | Auditoria aprovada pelo responsável e contrato formalizado: identidade, recuperação/SMTP, reset, trial/legado, onboarding verificado, segurança de logs, escopo negativo e subdivisão oficial; ADR-026/027 acrescentadas. Estimativa de 85% proposta para revisão, sem alterar percentuais históricos. | Base `80fd3c07f3dd82a14d01f8e3a555eaa156a87e3c`; contrato sem commit | APROVADA E DOCUMENTADA; nenhuma implementação; V3.6.2 PENDENTE; produção intocada |
