@@ -320,6 +320,7 @@ model Usuario {
   vendaHistoricos          VendaHistorico[]
   caixaHistoricos          CaixaHistorico[]
   perfis                   UsuarioPerfil[]
+  passwordResetTokens      PasswordResetToken[]
 
   crmOportunidadesResponsavel CrmOportunidade[]          @relation("CrmOportunidadeResponsavel")
   crmInteracoesResponsavel    ClienteInteracao[]         @relation("ClienteInteracaoResponsavel")
@@ -328,7 +329,32 @@ model Usuario {
   @@unique([empresaId, id])
 }
 
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      Usuario  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+model RateLimit {
+  id          String   @id @default(uuid())
+  clientIp    String
+  endpoint    String
+  count       Int      @default(0)
+  windowStart DateTime
+  windowEnd   DateTime
+
+  @@unique([clientIp, endpoint, windowStart], map: "uq_rate_limit_window")
+  @@index([clientIp, endpoint])
+}
+
 model ModuloSistema {
+
   id        String  @id @default(uuid())
   nome      String  @unique
   chave     String  @unique

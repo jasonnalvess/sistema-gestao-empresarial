@@ -1,4 +1,5 @@
 import { TrocaSenhaService } from './troca-senha.service';
+import { RecoveryService } from './recovery.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -9,6 +10,9 @@ import { UsuariosModule } from '../usuarios/usuarios.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { MailService } from '../common/services/mail.service';
+import { RateLimitService } from '../common/services/rate-limit.service';
+import { IpUtil } from '../common/utils/ip.util';
 
 @Module({
   imports: [
@@ -29,6 +33,14 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, TrocaSenhaService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    TrocaSenhaService,
+    RecoveryService,
+    MailService,
+    RateLimitService,
+    IpUtil,
+  ],
 })
 export class AuthModule {}
