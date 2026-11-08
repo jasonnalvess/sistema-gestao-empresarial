@@ -1,23 +1,43 @@
--- Migration: Add unique constraint to RateLimit
--- Version: V3.6.2-A_RateLimit_Unique
--- Description: Adiciona constraint UNIQUE para suportar ON CONFLICT no RateLimit
+-- Migration: Recuperação de senha e rate limiting (V3.6.2)
+-- Cria as tabelas PasswordResetToken e RateLimit previstas em prisma/schema.prisma.
+-- DDL derivado de `prisma migrate diff`; não há deduplicação a executar porque
+-- nenhuma das duas tabelas existe em qualquer ambiente.
 
--- 1. Identificar e tratar duplicidades existentes para evitar falha na criação da constraint
--- Nota: Em ambiente de teste, a recomendação é limpar a tabela ou remover duplicatas manuais.
--- Como esta migration é automatizada, utilizamos a abordagem de remover duplicatas mantendo o registro mais recente.
+-- CreateTable
+CREATE TABLE "PasswordResetToken" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "usedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-WITH cte AS (
-    SELECT ctid,
-           ROW_NUMBER() OVER (
-               PARTITION BY "clientIp", "endpoint", "windowStart"
-               ORDER BY "createdAt" DESC
-           ) as row_num
-    FROM "RateLimit"
-)
-DELETE FROM "RateLimit"
-WHERE ctid IN (SELECT ctid FROM cte WHERE row_num > 1);
+    CONSTRAINT "PasswordResetToken_pkey" PRIMARY KEY ("id")
+);
 
--- 2. Criar a constraint UNIQUE
-ALTER TABLE "RateLimit"
-ADD CONSTRAINT "uq_rate_limit_window"
-UNIQUE ("clientIp", "endpoint", "windowStart");
+-- CreateTable
+CREATE TABLE "RateLimit" (
+    "id" TEXT NOT NULL,
+    "clientIp" TEXT NOT NULL,
+    "endpoint" TEXT NOT NULL,
+    "count" INTEGER NOT NULL DEFAULT 0,
+    "windowStart" TIMESTAMP(3) NOT NULL,
+    "windowEnd" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "RateLimit_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PasswordResetToken_userId_key" ON "PasswordResetToken"("userId");
+
+-- CreateIndex
+CREATE INDEX "PasswordResetToken_expiresAt_idx" ON "PasswordResetToken"("expiresAt");
+
+-- CreateIndex
+CREATE INDEX "RateLimit_clientIp_endpoint_idx" ON "RateLimit"("clientIp", "endpoint");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "uq_rate_limit_window" ON "RateLimit"("clientIp", "endpoint", "windowStart");
+
+-- AddForeignKey
+ALTER TABLE "PasswordResetToken" ADD CONSTRAINT "PasswordResetToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "Usuario"("id") ON DELETE CASCADE ON UPDATE CASCADE;

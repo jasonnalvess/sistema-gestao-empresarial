@@ -330,15 +330,23 @@ model Usuario {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  user      Usuario  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String
-  expiresAt DateTime
+  id     String  @id @default(uuid())
+  userId String  @unique
+  user   Usuario @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String?   @unique
+  expiresAt DateTime?
   usedAt    DateTime?
+
+  pendingTokenHash String?
+  pendingExpiresAt DateTime?
+  pendingRequestId String?
+  pendingCreatedAt DateTime?
+
   createdAt DateTime @default(now())
 
   @@index([expiresAt])
+  @@index([pendingExpiresAt])
 }
 
 model RateLimit {
