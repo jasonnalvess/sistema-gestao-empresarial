@@ -1,21 +1,11 @@
 import { api } from "./api";
 
-export type StatusCaixa =
-  | "ABERTO"
-  | "FECHADO"
-  | "INATIVO";
+export type StatusCaixa = "ABERTO" | "FECHADO" | "INATIVO";
 
-export type TipoMovimentacaoCaixa =
-  | "ENTRADA"
-  | "SAIDA";
+export type TipoMovimentacaoCaixa = "ENTRADA" | "SAIDA";
 
 export type OrigemMovimentacaoCaixa =
-  | "MANUAL"
-  | "CONTA_PAGAR"
-  | "CONTA_RECEBER"
-  | "VENDA"
-  | "AJUSTE"
-  | "OUTRA";
+  "MANUAL" | "CONTA_PAGAR" | "CONTA_RECEBER" | "VENDA" | "AJUSTE" | "OUTRA";
 
 export type Caixa = {
   id: string;
@@ -38,9 +28,19 @@ export type Caixa = {
 
   aberturas?: AberturaCaixa[];
   movimentacoes?: MovimentacaoCaixa[];
+  historico?: CaixaHistorico[];
+};
+
+export type CaixaHistorico = {
+  id: string;
+  descricao: string;
+  createdAt: string;
+  usuario?: { id: string; nome: string; email: string } | null;
 };
 
 export type AberturaCaixa = {
+  caixaId?: string;
+  empresaId?: string;
   id: string;
   dataAbertura: string;
   dataFechamento?: string | null;
@@ -181,7 +181,7 @@ export type ResumoCaixas = {
   };
 };
 
-export async function listarCaixas(params?: {
+export type FiltrosCaixas = {
   search?: string;
   status?: StatusCaixa;
   ativo?: boolean;
@@ -189,13 +189,12 @@ export async function listarCaixas(params?: {
   limit?: number;
   sortBy?: string;
   order?: "asc" | "desc";
-}) {
-  const { data } = await api.get<CaixasResponse>(
-    "/caixas",
-    {
-      params,
-    }
-  );
+};
+
+export async function listarCaixas(params?: FiltrosCaixas) {
+  const { data } = await api.get<CaixasResponse>("/caixas", {
+    params,
+  });
 
   return data;
 }
@@ -218,61 +217,58 @@ export async function buscarCaixa(id: string) {
   return data.data;
 }
 
-export async function criarCaixa(body: {
+export type CriarCaixaPayload = {
   nome: string;
   codigo: string;
   descricao?: string;
-}) {
-  const { data } = await api.post(
-    "/caixas",
-    body
-  );
+};
+
+export type AtualizarCaixaPayload = Partial<CriarCaixaPayload> & {
+  ativo?: boolean;
+};
+
+export type AbrirCaixaPayload = { saldoInicial: number; observacao?: string };
+export type FecharCaixaPayload = {
+  saldoInformado: number;
+  observacao?: string;
+};
+export type CriarMovimentacaoCaixaPayload = {
+  tipo: TipoMovimentacaoCaixa;
+  origem: "MANUAL";
+  descricao: string;
+  valor: number;
+  documento?: string;
+  observacao?: string;
+  dataMovimentacao?: string;
+};
+
+type RespostaApi<T> = { success: boolean; data: T };
+
+export async function criarCaixa(body: CriarCaixaPayload) {
+  const { data } = await api.post<RespostaApi<Caixa>>("/caixas", body);
 
   return data;
 }
 
-export async function atualizarCaixa(
-  id: string,
-  body: {
-    nome?: string;
-    codigo?: string;
-    descricao?: string;
-    ativo?: boolean;
-  }
-) {
-  const { data } = await api.patch(
-    `/caixas/${id}`,
-    body
-  );
+export async function atualizarCaixa(id: string, body: AtualizarCaixaPayload) {
+  const { data } = await api.patch<RespostaApi<Caixa>>(`/caixas/${id}`, body);
 
   return data;
 }
 
-export async function abrirCaixa(
-  id: string,
-  body: {
-    saldoInicial: number;
-    observacao?: string;
-  }
-) {
-  const { data } = await api.post(
+export async function abrirCaixa(id: string, body: AbrirCaixaPayload) {
+  const { data } = await api.post<RespostaApi<Caixa>>(
     `/caixas/${id}/abrir`,
-    body
+    body,
   );
 
   return data;
 }
 
-export async function fecharCaixa(
-  id: string,
-  body: {
-    saldoInformado: number;
-    observacao?: string;
-  }
-) {
-  const { data } = await api.post(
+export async function fecharCaixa(id: string, body: FecharCaixaPayload) {
+  const { data } = await api.post<RespostaApi<Caixa>>(
     `/caixas/${id}/fechar`,
-    body
+    body,
   );
 
   return data;
@@ -280,58 +276,53 @@ export async function fecharCaixa(
 
 export async function criarMovimentacaoCaixa(
   caixaId: string,
-  body: {
-    tipo: TipoMovimentacaoCaixa;
-    origem?: OrigemMovimentacaoCaixa;
-    descricao: string;
-    valor: number;
-    documento?: string;
-    observacao?: string;
-    dataMovimentacao?: string;
-  }
+  body: CriarMovimentacaoCaixaPayload,
 ) {
-  const { data } = await api.post(
+  const { data } = await api.post<RespostaApi<MovimentacaoCaixa>>(
     `/caixas/${caixaId}/movimentacoes`,
-    body
+    body,
   );
 
   return data;
 }
 
+export type FiltrosMovimentacoesCaixa = {
+  search?: string;
+  caixaId?: string;
+  aberturaCaixaId?: string;
+  tipo?: TipoMovimentacaoCaixa;
+  origem?: OrigemMovimentacaoCaixa;
+  dataInicio?: string;
+  dataFim?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  order?: "asc" | "desc";
+};
+
 export async function listarMovimentacoesCaixa(
-  params?: {
-    search?: string;
-    caixaId?: string;
-    aberturaCaixaId?: string;
-    tipo?: TipoMovimentacaoCaixa;
-    origem?: OrigemMovimentacaoCaixa;
-    dataInicio?: string;
-    dataFim?: string;
-    page?: number;
-    limit?: number;
-    sortBy?: string;
-    order?: "asc" | "desc";
-  }
+  params?: FiltrosMovimentacoesCaixa,
 ) {
-  const { data } =
-    await api.get<MovimentacoesCaixaResponse>(
-      "/caixas/movimentacoes/listar",
-      {
-        params,
-      }
-    );
+  const { data } = await api.get<MovimentacoesCaixaResponse>(
+    "/caixas/movimentacoes/listar",
+    {
+      params,
+    },
+  );
 
   return data;
 }
 
-export async function buscarResumoCaixas(params?: {
+export type FiltrosResumoCaixas = {
   search?: string;
   caixaId?: string;
   tipo?: TipoMovimentacaoCaixa;
   origem?: OrigemMovimentacaoCaixa;
   dataInicio?: string;
   dataFim?: string;
-}) {
+};
+
+export async function buscarResumoCaixas(params?: FiltrosResumoCaixas) {
   const { data } = await api.get<{
     success: boolean;
     data: ResumoCaixas;

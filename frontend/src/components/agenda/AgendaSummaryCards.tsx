@@ -14,7 +14,7 @@ export function AgendaSummaryCards({ eventos }: Props) {
   const cancelados = eventos.filter((e) => e.status === "CANCELADO").length;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <StatsCard title="Total" value={total} icon={<CalendarDays size={22} />} />
       <StatsCard title="Agendados" value={agendados} icon={<CalendarCheck size={22} />} />
       <StatsCard title="Em andamento" value={emAndamento} icon={<Clock size={22} />} />

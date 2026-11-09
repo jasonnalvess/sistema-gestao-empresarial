@@ -13,6 +13,16 @@ import {
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_DEPOSITOS_VISUALIZAR,
+  PERMISSAO_MOVIMENTACOES_VISUALIZAR,
+  PERMISSAO_PRODUTOS_VISUALIZAR,
+} from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
@@ -40,61 +50,60 @@ import {
 import { NovaMovimentacaoModal } from "@/components/produtos/NovaMovimentacaoModal";
 import { NovaTransferenciaEstoqueModal } from "@/components/produtos/NovaTransferenciaEstoqueModal";
 
-function obterTipoMovimentacao(
-  tipoMovimentacao: TipoMovimentacaoEstoque
-) {
+function obterTipoMovimentacao(tipoMovimentacao: TipoMovimentacaoEstoque) {
   switch (tipoMovimentacao) {
     case "ENTRADA":
       return {
         label: "Entrada",
-        classe:
-          "bg-green-100 text-green-700",
+        classe: "bg-green-100 text-green-700",
         icone: <ArrowUp size={14} />,
       };
 
     case "SAIDA":
       return {
         label: "Saída",
-        classe:
-          "bg-red-100 text-red-700",
+        classe: "bg-red-100 text-red-700",
         icone: <ArrowDown size={14} />,
       };
 
     case "AJUSTE":
       return {
         label: "Ajuste",
-        classe:
-          "bg-amber-100 text-amber-700",
+        classe: "bg-amber-100 text-amber-700",
         icone: <RefreshCw size={14} />,
       };
 
     case "INVENTARIO":
       return {
         label: "Inventário",
-        classe:
-          "bg-blue-100 text-blue-700",
+        classe: "bg-blue-100 text-blue-700",
         icone: <ClipboardCheck size={14} />,
       };
 
     case "TRANSFERENCIA_ENTRADA":
       return {
         label: "Transferência — entrada",
-        classe:
-          "bg-cyan-100 text-cyan-700",
+        classe: "bg-cyan-100 text-cyan-700",
         icone: <ArrowDownToLine size={14} />,
       };
 
     case "TRANSFERENCIA_SAIDA":
       return {
         label: "Transferência — saída",
-        classe:
-          "bg-purple-100 text-purple-700",
+        classe: "bg-purple-100 text-purple-700",
         icone: <ArrowRightLeft size={14} />,
       };
   }
 }
 
 export default function MovimentacoesPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_MOVIMENTACOES_VISUALIZAR);
+  const podeVisualizarProdutos = temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR);
+  const podeVisualizarDepositos = temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [page, setPage] = useState(1);
@@ -103,7 +112,10 @@ export default function MovimentacoesPage() {
   const [tipo, setTipo] = useState("");
 
   const { data: produtosResponse } = useQuery({
-    queryKey: ["produtos-select-filtro-movimentacoes"],
+    queryKey: estoqueQueryKeys.produtosSelect(
+      empresaEfetivaId ?? "",
+      "filtro-movimentacoes",
+    ),
     queryFn: () =>
       listarProdutos({
         page: 1,
@@ -111,10 +123,19 @@ export default function MovimentacoesPage() {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled:
+      podeVisualizar &&
+      podeVisualizarProdutos &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-filtro-movimentacoes"],
+    queryKey: estoqueQueryKeys.depositosSelect(
+      empresaEfetivaId ?? "",
+      "filtro-movimentacoes",
+    ),
     queryFn: () =>
       listarDepositos({
         page: 1,
@@ -122,11 +143,17 @@ export default function MovimentacoesPage() {
         sortBy: "nome",
         order: "asc",
       }),
+    enabled:
+      podeVisualizar &&
+      podeVisualizarDepositos &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
-      "movimentacoes",
+      ...estoqueQueryKeys.movimentacoes(empresaEfetivaId ?? ""),
       searchAplicado,
       produtoId,
       depositoId,
@@ -138,14 +165,17 @@ export default function MovimentacoesPage() {
         search: searchAplicado || undefined,
         produtoId: produtoId || undefined,
         depositoId: depositoId || undefined,
-        tipo: tipo
-          ? (tipo as TipoMovimentacaoEstoque)
-          : undefined,
+        tipo: tipo ? (tipo as TipoMovimentacaoEstoque) : undefined,
         page,
         limit: 10,
         sortBy: "createdAt",
         order: "desc",
       }),
+    enabled:
+      podeVisualizar &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   function pesquisar() {
@@ -156,14 +186,33 @@ export default function MovimentacoesPage() {
   const movimentacoes = data?.data ?? [];
   const totalPages = data?.meta.totalPages ?? 1;
 
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  if (!podeVisualizar)
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  if (!possuiEmpresaEfetiva)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Movimentações de Estoque"
           description="Controle entradas, saídas, ajustes, inventários e transferências."
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 lg:flex lg:w-auto lg:flex-wrap [&>*]:w-full md:[&>*]:w-full lg:[&>*]:w-auto">
               <NovaMovimentacaoModal />
               <NovaTransferenciaEstoqueModal />
             </div>
@@ -180,14 +229,15 @@ export default function MovimentacoesPage() {
             />
           </CrudToolbar>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <select
               value={produtoId}
               onChange={(e) => {
                 setProdutoId(e.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              aria-label="Filtrar movimentações por tipo"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos os produtos</option>
 
@@ -204,7 +254,8 @@ export default function MovimentacoesPage() {
                 setDepositoId(e.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              aria-label="Filtrar movimentações por produto"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos os depósitos</option>
 
@@ -221,7 +272,8 @@ export default function MovimentacoesPage() {
                 setTipo(e.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              aria-label="Filtrar movimentações por depósito"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
             >
               <option value="">Todos os tipos</option>
               <option value="ENTRADA">Entrada</option>
@@ -231,9 +283,7 @@ export default function MovimentacoesPage() {
               <option value="TRANSFERENCIA_ENTRADA">
                 Transferência — entrada
               </option>
-              <option value="TRANSFERENCIA_SAIDA">
-                Transferência — saída
-              </option>
+              <option value="TRANSFERENCIA_SAIDA">Transferência — saída</option>
             </select>
           </div>
 
@@ -247,7 +297,7 @@ export default function MovimentacoesPage() {
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -337,7 +387,7 @@ export default function MovimentacoesPage() {
                       );
                     })}
 
-                    {movimentacoes.length === 0 && (
+                    {!error && movimentacoes.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9}>
                           <CrudEmpty message="Nenhuma movimentação encontrada." />

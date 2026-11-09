@@ -34,4 +34,4 @@ async function bootstrap() {
   console.log(`Sistema Gestão SaaS iniciado na porta ${port}`);
 }
 
-bootstrap();
+void bootstrap();

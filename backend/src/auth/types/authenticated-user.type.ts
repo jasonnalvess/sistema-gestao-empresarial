@@ -3,4 +3,8 @@ export type AuthenticatedUser = {
   email: string;
   tipo: string;
   empresaId: string | null;
+  versaoAutorizacao?: number;
+  trocaSenhaObrigatoria?: boolean;
+  perfis?: string[];
+  permissoes?: string[];
 };

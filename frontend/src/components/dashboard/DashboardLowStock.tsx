@@ -11,10 +11,10 @@ export function DashboardLowStock({ itens }: Props) {
   );
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-center gap-2">
-        <AlertTriangle size={20} className="text-orange-500" />
-        <h2 className="text-lg font-semibold text-slate-900">
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <div className="flex min-w-0 items-start gap-2">
+        <AlertTriangle className="mt-0.5 shrink-0 text-orange-500" aria-hidden="true" />
+        <h2 className="min-w-0 break-words text-lg font-semibold text-slate-900">
           Produtos com estoque baixo
         </h2>
       </div>
@@ -23,10 +23,10 @@ export function DashboardLowStock({ itens }: Props) {
         {itensBaixos.map((item) => (
           <div
             key={item.id}
-            className="flex items-center justify-between rounded-xl bg-orange-50 p-4"
+            className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-orange-50 p-3 sm:p-4"
           >
-            <div>
-              <p className="font-medium text-slate-900">
+            <div className="min-w-0">
+              <p className="break-words font-medium text-slate-900">
                 {item.produto?.nome ?? "Produto"}
               </p>
               <p className="text-sm text-slate-500">
@@ -34,7 +34,7 @@ export function DashboardLowStock({ itens }: Props) {
               </p>
             </div>
 
-            <p className="text-lg font-bold text-orange-700">
+            <p className="shrink-0 text-lg font-bold text-orange-700">
               {Number(item.quantidadeAtual)}
             </p>
           </div>

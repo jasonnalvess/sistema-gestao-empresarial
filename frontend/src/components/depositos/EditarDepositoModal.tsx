@@ -10,10 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
 
-import {
-  atualizarDeposito,
-  Deposito,
-} from "@/services/depositos.service";
+import { atualizarDeposito, Deposito } from "@/services/depositos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_DEPOSITOS_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   deposito: Deposito;
@@ -21,6 +23,9 @@ type Props = {
 
 export function EditarDepositoModal({ deposito }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_DEPOSITOS_EDITAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -31,6 +36,7 @@ export function EditarDepositoModal({ deposito }: Props) {
   const [endereco, setEndereco] = useState(deposito.endereco ?? "");
 
   async function salvar() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     if (!nome.trim() || !codigo.trim()) {
       toast.error("Nome e código são obrigatórios.");
       return;
@@ -50,16 +56,16 @@ export function EditarDepositoModal({ deposito }: Props) {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["depositos"],
+        queryKey: estoqueQueryKeys.depositos(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao atualizar depósito"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar depósito"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -67,28 +73,21 @@ export function EditarDepositoModal({ deposito }: Props) {
       onOpenChange={setAberto}
       title="Editar depósito"
       trigger={
-        <Button variant="outline" size="sm">
-          <Pencil size={14} className="mr-2" />
+        <Button className="shrink-0" variant="outline" size="sm">
+          <Pencil aria-hidden="true" />
           Editar
         </Button>
       }
     >
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <div>
-          <label className="text-sm font-medium text-slate-700">
-            Nome *
-          </label>
+          <label className="text-sm font-medium text-slate-700">Nome *</label>
 
-          <Input
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-          />
+          <Input value={nome} onChange={(e) => setNome(e.target.value)} />
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700">
-            Código *
-          </label>
+          <label className="text-sm font-medium text-slate-700">Código *</label>
 
           <Input
             value={codigo}
@@ -118,7 +117,7 @@ export function EditarDepositoModal({ deposito }: Props) {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

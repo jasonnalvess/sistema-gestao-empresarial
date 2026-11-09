@@ -38,3 +38,6 @@ uploads/
 storage/
 *.save
 *.save.*
+
+# Backups locais — nunca versionar
+/backups/

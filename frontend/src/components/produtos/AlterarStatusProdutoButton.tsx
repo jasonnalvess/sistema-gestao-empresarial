@@ -22,6 +22,11 @@ import {
   ativarProduto,
   desativarProduto,
 } from "@/services/produtos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_PRODUTOS_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   produto: Produto;
@@ -29,8 +34,12 @@ type Props = {
 
 export function AlterarStatusProdutoButton({ produto }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_PRODUTOS_EDITAR);
 
   async function alterarStatus() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     try {
       if (produto.ativo) {
         await desativarProduto(produto.id);
@@ -41,20 +50,23 @@ export function AlterarStatusProdutoButton({ produto }: Props) {
       }
 
       queryClient.invalidateQueries({
-        queryKey: ["produtos"],
+        queryKey: estoqueQueryKeys.produtos(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao alterar status do produto"
-      );
+      queryClient.invalidateQueries({
+        queryKey: estoqueQueryKeys.produtosDetalhes(empresaEfetivaId),
+      });
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao alterar status do produto"));
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant={produto.ativo ? "destructive" : "outline"} size="sm">
-          <Power size={14} className="mr-2" />
+          <Power aria-hidden="true" />
           {produto.ativo ? "Desativar" : "Ativar"}
         </Button>
       </AlertDialogTrigger>

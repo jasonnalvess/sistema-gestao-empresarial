@@ -2,11 +2,12 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Prisma, TipoMovimentacaoEstoque } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EstoqueService } from './estoque.service';
+import { isP2002Estoque } from './estoque-transacional';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 
 describe('EstoqueService - rastreabilidade de saldo', () => {
@@ -18,6 +19,25 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
   };
   const produto = { id: 'p1', empresaId: 'e1', ativo: true };
   const deposito = { id: 'd1', empresaId: 'e1', ativo: true };
+  type CriarMovimentacaoArgs = {
+    data: {
+      tipo: TipoMovimentacaoEstoque;
+      quantidade: Prisma.Decimal;
+      saldoAnterior: Prisma.Decimal;
+      saldoPosterior: Prisma.Decimal;
+      usuarioId: string;
+      documentoReferencia?: string;
+      observacao?: string;
+    };
+  };
+  type AtualizarEstoqueArgs = {
+    data: { quantidadeAtual?: unknown };
+  };
+  type ListarEstoqueArgs = {
+    where: Prisma.EstoqueProdutoWhereInput;
+    orderBy: Prisma.EstoqueProdutoOrderByWithRelationInput;
+  };
+
   const estoque = (quantidade = '2.50') => ({
     id: 's1',
     empresaId: 'e1',
@@ -31,32 +51,59 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
     produto,
     deposito,
   });
-  let tx: any;
-  let prisma: any;
+  let tx: {
+    $executeRaw: jest.Mock;
+    produto: { findFirst: jest.Mock };
+    deposito: { findFirst: jest.Mock };
+    estoqueProduto: {
+      findUnique: jest.Mock;
+      findFirst: jest.Mock;
+      findFirstOrThrow: jest.Mock;
+      create: jest.Mock;
+      updateMany: jest.MockedFunction<
+        (args: AtualizarEstoqueArgs) => Promise<{ count: number }>
+      >;
+    };
+    movimentacaoEstoque: {
+      create: jest.MockedFunction<
+        (args: CriarMovimentacaoArgs) => Promise<{ id: string }>
+      >;
+    };
+  };
+  let prisma: { $transaction: jest.Mock };
   let service: EstoqueService;
 
   beforeEach(() => {
     tx = {
-      $queryRaw: jest.fn().mockResolvedValue([{ pg_advisory_xact_lock: null }]),
-      produto: { findUnique: jest.fn().mockResolvedValue(produto) },
-      deposito: { findUnique: jest.fn().mockResolvedValue(deposito) },
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      produto: { findFirst: jest.fn().mockResolvedValue(produto) },
+      deposito: { findFirst: jest.fn().mockResolvedValue(deposito) },
       estoqueProduto: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        findFirstOrThrow: jest.fn().mockResolvedValue(estoque()),
         create: jest.fn().mockResolvedValue(estoque()),
-        update: jest.fn().mockResolvedValue(estoque()),
+        updateMany: jest
+          .fn<Promise<{ count: number }>, [AtualizarEstoqueArgs]>()
+          .mockResolvedValue({ count: 1 }),
       },
       movimentacaoEstoque: {
-        create: jest.fn().mockResolvedValue({ id: 'm1' }),
+        create: jest
+          .fn<Promise<{ id: string }>, [CriarMovimentacaoArgs]>()
+          .mockResolvedValue({ id: 'm1' }),
       },
     };
-    prisma = { $transaction: jest.fn((callback: any) => callback(tx)) };
-    service = new EstoqueService(prisma as PrismaService);
+    prisma = {
+      $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
+        callback(tx),
+      ),
+    };
+    service = new EstoqueService(prisma as unknown as PrismaService);
   });
 
   const prepararAtualizacao = (saldo = '2.50') => {
-    tx.estoqueProduto.findUnique
+    tx.estoqueProduto.findFirst
       .mockResolvedValueOnce({
-        empresaId: 'e1',
         produtoId: 'p1',
         depositoId: 'd1',
       })
@@ -66,6 +113,7 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
   it('criação com saldo zero não gera movimentação', async () => {
     tx.estoqueProduto.findUnique.mockResolvedValue(null);
     await service.criar(
+      'e1',
       { produtoId: 'p1', depositoId: 'd1', quantidadeAtual: 0 },
       usuario,
     );
@@ -76,6 +124,7 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
   it('criação positiva gera entrada com saldos exatos, usuário e vínculo', async () => {
     tx.estoqueProduto.findUnique.mockResolvedValue(null);
     await service.criar(
+      'e1',
       { produtoId: 'p1', depositoId: 'd1', quantidadeAtual: 3.75 },
       usuario,
     );
@@ -94,11 +143,12 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
   it('criação usa um único tx e bloqueia antes de consultar/criar saldo', async () => {
     tx.estoqueProduto.findUnique.mockResolvedValue(null);
     await service.criar(
+      'e1',
       { produtoId: 'p1', depositoId: 'd1', quantidadeAtual: 1 },
       usuario,
     );
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
       tx.estoqueProduto.findUnique.mock.invocationCallOrder[0],
     );
     expect(
@@ -109,6 +159,7 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
   it('motivo informado na criação é persistido', async () => {
     tx.estoqueProduto.findUnique.mockResolvedValue(null);
     await service.criar(
+      'e1',
       {
         produtoId: 'p1',
         depositoId: 'd1',
@@ -128,6 +179,7 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
     tx.movimentacaoEstoque.create.mockRejectedValue(erro);
     await expect(
       service.criar(
+        'e1',
         { produtoId: 'p1', depositoId: 'd1', quantidadeAtual: 1 },
         usuario,
       ),
@@ -137,6 +189,7 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
   it('criação rejeita quantidade negativa antes de abrir transação', async () => {
     await expect(
       service.criar(
+        'e1',
         { produtoId: 'p1', depositoId: 'd1', quantidadeAtual: -1 },
         usuario,
       ),
@@ -145,30 +198,33 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
   });
 
   it('tenant inválido aborta criação antes do saldo', async () => {
-    tx.produto.findUnique.mockResolvedValue({ ...produto, empresaId: 'outra' });
+    tx.produto.findFirst.mockResolvedValue(null);
     await expect(
       service.criar(
+        'e1',
         { produtoId: 'p1', depositoId: 'd1', quantidadeAtual: 1 },
         usuario,
       ),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(tx.produto.findFirst).toHaveBeenCalledWith({
+      where: { id: 'p1', empresaId: 'e1' },
+    });
     expect(tx.estoqueProduto.findUnique).not.toHaveBeenCalled();
   });
 
   it('atualização apenas cadastral não gera movimentação', async () => {
     prepararAtualizacao();
-    await service.atualizar('s1', { estoqueMinimo: 1 }, usuario);
-    expect(tx.estoqueProduto.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ quantidadeAtual: undefined }),
-      }),
-    );
+    await service.atualizar('e1', 's1', { estoqueMinimo: 1 }, usuario);
+    expect(
+      tx.estoqueProduto.updateMany.mock.calls[0][0].data.quantidadeAtual,
+    ).toBeUndefined();
     expect(tx.movimentacaoEstoque.create).not.toHaveBeenCalled();
   });
 
   it('aumento gera AJUSTE positivo com diferença Decimal', async () => {
     prepararAtualizacao('2.50');
     await service.atualizar(
+      'e1',
       's1',
       { quantidadeAtual: 4.75, motivoAjuste: 'Contagem manual' },
       usuario,
@@ -184,7 +240,7 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
 
   it('redução gera AJUSTE com diferença positiva e saldos corretos', async () => {
     prepararAtualizacao('4.75');
-    await service.atualizar('s1', { quantidadeAtual: 1.25 }, usuario);
+    await service.atualizar('e1', 's1', { quantidadeAtual: 1.25 }, usuario);
     const movimento = tx.movimentacaoEstoque.create.mock.calls[0][0].data;
     expect(movimento.quantidade.eq('3.50')).toBe(true);
     expect(movimento.saldoAnterior.eq('4.75')).toBe(true);
@@ -196,24 +252,24 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
 
   it('saldo igual é idempotente e não gera movimentação', async () => {
     prepararAtualizacao('2.50');
-    await service.atualizar('s1', { quantidadeAtual: 2.5 }, usuario);
+    await service.atualizar('e1', 's1', { quantidadeAtual: 2.5 }, usuario);
     expect(
-      tx.estoqueProduto.update.mock.calls[0][0].data.quantidadeAtual,
+      tx.estoqueProduto.updateMany.mock.calls[0][0].data.quantidadeAtual,
     ).toBeUndefined();
     expect(tx.movimentacaoEstoque.create).not.toHaveBeenCalled();
   });
 
   it('advisory lock antecede a releitura completa na atualização', async () => {
     prepararAtualizacao();
-    await service.atualizar('s1', { quantidadeAtual: 3 }, usuario);
-    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-      tx.estoqueProduto.findUnique.mock.invocationCallOrder[1],
+    await service.atualizar('e1', 's1', { quantidadeAtual: 3 }, usuario);
+    expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.estoqueProduto.findFirst.mock.invocationCallOrder[1],
     );
   });
 
   it('atualização negativa é rejeitada sem efeitos', async () => {
     await expect(
-      service.atualizar('s1', { quantidadeAtual: -0.01 }, usuario),
+      service.atualizar('e1', 's1', { quantidadeAtual: -0.01 }, usuario),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
@@ -223,7 +279,7 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
     const erro = new Error('falha tardia');
     tx.movimentacaoEstoque.create.mockRejectedValue(erro);
     await expect(
-      service.atualizar('s1', { quantidadeAtual: 3 }, usuario),
+      service.atualizar('e1', 's1', { quantidadeAtual: 3 }, usuario),
     ).rejects.toBe(erro);
   });
 
@@ -235,9 +291,11 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
         target: 'EstoqueProduto_empresaId_produtoId_depositoId_key',
       },
     });
-    prisma.$transaction.mockRejectedValue(erro);
+    tx.estoqueProduto.findUnique.mockResolvedValue(null);
+    tx.estoqueProduto.create.mockRejectedValue(erro);
     await expect(
       service.criar(
+        'e1',
         { produtoId: 'p1', depositoId: 'd1', quantidadeAtual: 1 },
         usuario,
       ),
@@ -250,12 +308,96 @@ describe('EstoqueService - rastreabilidade de saldo', () => {
       clientVersion: 'test',
       meta: { target: 'OutraConstraint_key' },
     });
-    prisma.$transaction.mockRejectedValue(erro);
+    tx.estoqueProduto.findUnique.mockResolvedValue(null);
+    tx.estoqueProduto.create.mockRejectedValue(erro);
     await expect(
       service.criar(
+        'e1',
         { produtoId: 'p1', depositoId: 'd1', quantidadeAtual: 1 },
         usuario,
       ),
     ).rejects.toBe(erro);
+  });
+
+  it('lista sempre com o mesmo where tenant-aware e fallback updatedAt', async () => {
+    const findMany = jest
+      .fn<Promise<unknown[]>, [ListarEstoqueArgs]>()
+      .mockResolvedValue([]);
+    const count = jest.fn().mockResolvedValue(0);
+    const prismaListagem = {
+      estoqueProduto: { findMany, count },
+      $transaction: jest.fn((operacoes: Array<Promise<unknown>>) =>
+        Promise.all(operacoes),
+      ),
+    };
+    const servico = new EstoqueService(
+      prismaListagem as unknown as PrismaService,
+    );
+    await servico.listar('e1', {
+      produtoId: 'p1',
+      depositoId: 'd1',
+      search: 'Produto',
+      sortBy: 'campo-invalido',
+    });
+    const where = findMany.mock.calls[0][0].where;
+    expect(where).toEqual({
+      empresaId: 'e1',
+      produtoId: 'p1',
+      depositoId: 'd1',
+      produto: {
+        OR: [
+          { nome: { contains: 'Produto', mode: 'insensitive' } },
+          { codigo: { contains: 'Produto', mode: 'insensitive' } },
+        ],
+      },
+    });
+    expect(count).toHaveBeenCalledWith({ where });
+    expect(findMany.mock.calls[0][0].orderBy).toEqual({ updatedAt: 'desc' });
+  });
+
+  it('busca detalhe por id + empresaId e não distingue tenant externo', async () => {
+    const findFirst = jest.fn().mockResolvedValue(null);
+    const servico = new EstoqueService({
+      estoqueProduto: { findFirst },
+    } as unknown as PrismaService);
+    await expect(servico.buscarPorId('e1', 's-externo')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: 's-externo', empresaId: 'e1' },
+      include: { produto: true, deposito: true },
+    });
+  });
+
+  it('falha do advisory lock interrompe o fluxo antes do saldo', async () => {
+    const erro = new Error('lock indisponível');
+    tx.$executeRaw.mockRejectedValue(erro);
+    await expect(
+      service.criar(
+        'e1',
+        { produtoId: 'p1', depositoId: 'd1', quantidadeAtual: 1 },
+        usuario,
+      ),
+    ).rejects.toBe(erro);
+    expect(tx.estoqueProduto.findUnique).not.toHaveBeenCalled();
+    expect(tx.movimentacaoEstoque.create).not.toHaveBeenCalled();
+  });
+
+  it('P2002 exige exatamente os três campos, em qualquer ordem', () => {
+    const prismaError = (target: unknown) =>
+      new Prisma.PrismaClientKnownRequestError('duplicado', {
+        code: 'P2002',
+        clientVersion: 'test',
+        meta: { target },
+      });
+    expect(
+      isP2002Estoque(prismaError(['depositoId', 'empresaId', 'produtoId'])),
+    ).toBe(true);
+    expect(
+      isP2002Estoque(
+        prismaError(['empresaId', 'produtoId', 'depositoId', 'extra']),
+      ),
+    ).toBe(false);
+    expect(isP2002Estoque(prismaError('prefixo_da_constraint'))).toBe(false);
   });
 });

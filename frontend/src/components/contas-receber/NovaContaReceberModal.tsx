@@ -9,12 +9,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_CLIENTES_VISUALIZAR,
+  PERMISSAO_CONTAS_RECEBER_CRIAR,
+} from "@/lib/auth";
 
 import { listarClientes } from "@/services/clientes.service";
-import { criarContaReceber } from "@/services/contas-receber.service";
+import {
+  contasReceberQueryKeys,
+  criarContaReceber,
+  obterMensagemErroContasReceber,
+} from "@/services/contas-receber.service";
 
 export function NovaContaReceberModal() {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriarConta = temPermissao(PERMISSAO_CONTAS_RECEBER_CRIAR);
+  const podeVisualizarClientes = temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -54,7 +68,7 @@ export function NovaContaReceberModal() {
     useState("");
 
   const { data: clientesResponse } = useQuery({
-    queryKey: ["clientes-select-nova-conta-receber"],
+    queryKey: ["clientes-select-nova-conta-receber", empresaEfetivaId],
 
     queryFn: () =>
       listarClientes({
@@ -62,6 +76,12 @@ export function NovaContaReceberModal() {
         page: 1,
         limit: 100,
       }),
+    enabled:
+      aberto &&
+      podeCriarConta &&
+      podeVisualizarClientes &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const valorAberto =
@@ -93,6 +113,10 @@ export function NovaContaReceberModal() {
   }
 
   async function salvar() {
+    if (!podeCriarConta || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     if (descricao.trim().length < 2) {
       toast.error(
         "Informe a descrição da conta."
@@ -183,17 +207,21 @@ export function NovaContaReceberModal() {
       setAberto(false);
 
       await queryClient.invalidateQueries({
-        queryKey: ["contas-receber"],
+        queryKey: contasReceberQueryKeys.listas(empresaEfetivaId),
       });
-    } catch (error: any) {
+      await queryClient.invalidateQueries({
+        queryKey: contasReceberQueryKeys.resumo(empresaEfetivaId),
+      });
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao criar conta a receber"
+        obterMensagemErroContasReceber(error, "Erro ao criar conta a receber"),
       );
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriarConta || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -226,7 +254,7 @@ export function NovaContaReceberModal() {
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Documento
@@ -279,7 +307,7 @@ export function NovaContaReceberModal() {
             Datas
           </h3>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <CampoData
               label="Emissão"
               value={dataEmissao}
@@ -305,7 +333,7 @@ export function NovaContaReceberModal() {
             Parcelamento
           </h3>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <CampoNumero
               label="Parcela atual"
               value={parcelaAtual}
@@ -329,7 +357,7 @@ export function NovaContaReceberModal() {
             Valores
           </h3>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <CampoNumero
               label="Valor original *"
               value={valorOriginal}
@@ -381,7 +409,7 @@ export function NovaContaReceberModal() {
           />
         </section>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

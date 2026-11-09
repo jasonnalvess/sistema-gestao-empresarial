@@ -15,6 +15,16 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_VENDAS_APROVAR,
+  PERMISSAO_VENDAS_CANCELAR,
+  PERMISSAO_VENDAS_EDITAR,
+  PERMISSAO_VENDAS_FATURAR,
+  PERMISSAO_VENDAS_HISTORICO_ADICIONAR,
+} from "@/lib/auth";
+import { vendasQueryKeys } from "@/lib/vendas-query-keys";
 
 import { EditarVendaModal } from "./EditarVendaModal";
 import { FaturarVendaModal } from "./FaturarVendaModal";
@@ -32,61 +42,59 @@ type VendaAcoesProps = {
   status: StatusVenda;
 };
 
-export function VendaAcoes({
-  vendaId,
-  status,
-}: VendaAcoesProps) {
+export function VendaAcoes({ vendaId, status }: VendaAcoesProps) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
 
   const [menuAberto, setMenuAberto] = useState(false);
   const [editarAberto, setEditarAberto] = useState(false);
   const [faturarAberto, setFaturarAberto] = useState(false);
-  const [cancelarAberto, setCancelarAberto] =
-    useState(false);
-  const [historicoAberto, setHistoricoAberto] =
-    useState(false);
+  const [cancelarAberto, setCancelarAberto] = useState(false);
+  const [historicoAberto, setHistoricoAberto] = useState(false);
 
   const [processando, setProcessando] = useState(false);
 
-  const podeEditar = status === "RASCUNHO";
-  const podeEnviarAprovacao = status === "RASCUNHO";
-  const podeAprovar = status === "PENDENTE";
-  const podeFaturar = status === "APROVADA";
+  const podeEditar =
+    temPermissao(PERMISSAO_VENDAS_EDITAR) && status === "RASCUNHO";
+  const podeEnviarAprovacao =
+    temPermissao(PERMISSAO_VENDAS_EDITAR) && status === "RASCUNHO";
+  const podeAprovar =
+    temPermissao(PERMISSAO_VENDAS_APROVAR) && status === "PENDENTE";
+  const podeFaturar =
+    temPermissao(PERMISSAO_VENDAS_FATURAR) && status === "APROVADA";
 
-  const podeCancelar = ![
-    "CANCELADA",
-    "CONCLUIDA",
-  ].includes(status);
+  const podeCancelar =
+    temPermissao(PERMISSAO_VENDAS_CANCELAR) &&
+    !["CANCELADA", "CONCLUIDA"].includes(status);
+
+  const podeAdicionarHistorico = temPermissao(
+    PERMISSAO_VENDAS_HISTORICO_ADICIONAR,
+  );
 
   async function atualizarConsultas() {
+    if (!empresaEfetivaId) return;
     await Promise.all([
       queryClient.invalidateQueries({
-        queryKey: ["vendas"],
+        queryKey: vendasQueryKeys.listas(empresaEfetivaId),
       }),
 
       queryClient.invalidateQueries({
-        queryKey: ["venda", vendaId],
+        queryKey: vendasQueryKeys.detalhe(empresaEfetivaId, vendaId),
       }),
 
       queryClient.invalidateQueries({
-        queryKey: ["dashboard-vendas"],
+        queryKey: vendasQueryKeys.dashboards(empresaEfetivaId),
       }),
 
       queryClient.invalidateQueries({
-        queryKey: ["historico-venda", vendaId],
+        queryKey: vendasQueryKeys.historico(empresaEfetivaId, vendaId),
       }),
     ]);
   }
 
-  function obterMensagemErro(
-    error: unknown,
-    mensagemPadrao: string
-  ) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "response" in error
-    ) {
+  function obterMensagemErro(error: unknown, mensagemPadrao: string) {
+    if (typeof error === "object" && error !== null && "response" in error) {
       const response = (
         error as {
           response?: {
@@ -112,23 +120,19 @@ export function VendaAcoes({
   }
 
   async function enviarAprovacao() {
+    if (!podeEnviarAprovacao || !empresaEfetivaId || carregando) return;
     try {
       setProcessando(true);
       setMenuAberto(false);
 
       await enviarParaAprovacao(vendaId);
 
-      toast.success(
-        "Venda enviada para aprovação com sucesso."
-      );
+      toast.success("Venda enviada para aprovação com sucesso.");
 
       await atualizarConsultas();
     } catch (error) {
       toast.error(
-        obterMensagemErro(
-          error,
-          "Erro ao enviar venda para aprovação."
-        )
+        obterMensagemErro(error, "Erro ao enviar venda para aprovação."),
       );
     } finally {
       setProcessando(false);
@@ -136,6 +140,7 @@ export function VendaAcoes({
   }
 
   async function aprovar() {
+    if (!podeAprovar || !empresaEfetivaId || carregando) return;
     try {
       setProcessando(true);
       setMenuAberto(false);
@@ -146,33 +151,32 @@ export function VendaAcoes({
 
       await atualizarConsultas();
     } catch (error) {
-      toast.error(
-        obterMensagemErro(
-          error,
-          "Erro ao aprovar venda."
-        )
-      );
+      toast.error(obterMensagemErro(error, "Erro ao aprovar venda."));
     } finally {
       setProcessando(false);
     }
   }
 
   function abrirEdicao() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     setMenuAberto(false);
     setEditarAberto(true);
   }
 
   function abrirFaturamento() {
+    if (!podeFaturar || !empresaEfetivaId || carregando) return;
     setMenuAberto(false);
     setFaturarAberto(true);
   }
 
   function abrirCancelamento() {
+    if (!podeCancelar || !empresaEfetivaId || carregando) return;
     setMenuAberto(false);
     setCancelarAberto(true);
   }
 
   function abrirHistorico() {
+    if (!empresaEfetivaId || carregando) return;
     setMenuAberto(false);
     setHistoricoAberto(true);
   }
@@ -185,9 +189,7 @@ export function VendaAcoes({
           variant="outline"
           size="sm"
           disabled={processando}
-          onClick={() =>
-            setMenuAberto((estadoAtual) => !estadoAtual)
-          }
+          onClick={() => setMenuAberto((estadoAtual) => !estadoAtual)}
           aria-label="Abrir ações da venda"
         >
           <MoreHorizontal size={16} />
@@ -309,6 +311,7 @@ export function VendaAcoes({
       />
 
       <HistoricoVendaModal
+        podeAdicionar={podeAdicionarHistorico}
         vendaId={vendaId}
         open={historicoAberto}
         onOpenChange={setHistoricoAberto}
