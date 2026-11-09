@@ -8,6 +8,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Usuario } from "@/lib/auth";
 import { api } from "@/services/api";
+import { Button } from "@/components/ui/button";
 
 type LoginResponse = {
   data: {
@@ -124,6 +125,10 @@ export default function LoginPage() {
     }
   }
 
+  function irParaEsqueciSenha() {
+    router.replace("/esqueci-senha");
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8 sm:px-6">
       <section className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg sm:p-8">
@@ -233,6 +238,15 @@ export default function LoginPage() {
           >
             {carregando ? "Entrando..." : "Entrar"}
           </button>
+
+          <Button
+            type="button"
+            onClick={irParaEsqueciSenha}
+            variant="outline"
+            className="w-full mt-4"
+          >
+            Esqueci minha senha
+          </Button>
         </form>
       </section>
     </main>
