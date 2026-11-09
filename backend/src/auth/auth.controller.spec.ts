@@ -2,6 +2,8 @@ import { TrocaSenhaService } from './troca-senha.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { RecoveryService } from './recovery.service';
+import { RateLimitService } from '../common/services/rate-limit.service';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -15,6 +17,19 @@ describe('AuthController', () => {
           provide: AuthService,
           useValue: {
             login: jest.fn(),
+          },
+        },
+        {
+          provide: RecoveryService,
+          useValue: {
+            solicitarRecuperacao: jest.fn(),
+            redefinirSenha: jest.fn(),
+          },
+        },
+        {
+          provide: RateLimitService,
+          useValue: {
+            checkLimit: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],

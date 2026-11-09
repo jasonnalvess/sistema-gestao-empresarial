@@ -7,6 +7,7 @@ import {
   Controller,
   Get,
   Post,
+  Req,
   UseGuards,
   BadRequestException,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RecoveryService } from './recovery.service';
 import { RateLimitService } from '../common/services/rate-limit.service';
 import type { AuthenticatedUser } from './types/authenticated-user.type';
+import type { Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -33,9 +35,12 @@ export class AuthController {
   }
 
   @Post('esqueci-senha')
-  async esqueciSenha(@Body() body: EsqueciSenhaDto, req: any) {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    this.rateLimitService.checkLimit(req, 'auth/esqueci-senha');
+  async esqueciSenha(@Body() body: EsqueciSenhaDto, @Req() req: Request) {
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const ip =
+      (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor) ||
+      req.socket.remoteAddress;
+    await this.rateLimitService.checkLimit(req, 'auth/esqueci-senha');
     await this.recoveryService.solicitarRecuperacao(body.email, ip);
     return {
       message:
@@ -44,11 +49,14 @@ export class AuthController {
   }
 
   @Post('redefinir-senha')
-  async redefinirSenha(@Body() body: RedefinirSenhaDto, req: any) {
+  async redefinirSenha(@Body() body: RedefinirSenhaDto, @Req() req: Request) {
     if (body.novaSenha !== body.confirmarSenha) {
       throw new BadRequestException('As senhas não coincidem.');
     }
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const ip =
+      (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor) ||
+      req.socket.remoteAddress;
     await this.recoveryService.redefinirSenha(body.token, body.novaSenha, ip);
     return {
       message: 'Senha redefinida com sucesso. Você já pode realizar o login.',

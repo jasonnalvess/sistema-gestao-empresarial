@@ -7,10 +7,11 @@ import { JwtModule } from '@nestjs/jwt';
 import type { JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { UsuariosModule } from '../usuarios/usuarios.module';
+import { AuditoriaModule } from '../auditoria/auditoria.module';
+import { MailModule } from '../common/services/mail.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { MailService } from '../common/services/mail.service';
 import { RateLimitService } from '../common/services/rate-limit.service';
 import { IpUtil } from '../common/utils/ip.util';
 
@@ -19,6 +20,8 @@ import { IpUtil } from '../common/utils/ip.util';
     PrismaModule,
     ConfigModule,
     UsuariosModule,
+    AuditoriaModule,
+    MailModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -38,7 +41,6 @@ import { IpUtil } from '../common/utils/ip.util';
     JwtStrategy,
     TrocaSenhaService,
     RecoveryService,
-    MailService,
     RateLimitService,
     IpUtil,
   ],

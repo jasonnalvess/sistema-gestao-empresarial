@@ -1,6 +1,5 @@
 import {
   Injectable,
-  BadRequestException,
   ForbiddenException,
   InternalServerErrorException,
   Logger,
@@ -8,6 +7,10 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { IpUtil } from '../utils/ip.util';
 import { Request } from 'express';
+
+interface RateLimitCountRow {
+  count: number;
+}
 
 @Injectable()
 export class RateLimitService {
@@ -41,28 +44,22 @@ export class RateLimitService {
       windowStart.getTime() + windowMinutes * 60 * 1000,
     );
 
-    // Implementação atômica via SQL Raw para evitar Race Condition
-    // Utilizamos INSERT ... ON CONFLICT para garantir que o incremento seja atômico no banco.
-    // Nota: Requer constraint UNIQUE em (clientIp, endpoint, windowStart).
     try {
-      const result = await this.prisma.$executeRaw`
+      // Uma única instrução parametrizada. O incremento e a leitura do valor
+      // resultante pertencem à mesma instrução (RETURNING), eliminando a
+      // janela de corrida de um SELECT separado.
+      const rows = await this.prisma.$queryRaw<RateLimitCountRow[]>`
         INSERT INTO "RateLimit" ("id", "clientIp", "endpoint", "count", "windowStart", "windowEnd")
-        VALUES (gen_random_uuid(), ${ip}, ${endpoint}, 1, ${windowStart}, ${windowEnd})
+        VALUES (gen_random_uuid()::text, ${ip}, ${endpoint}, 1, ${windowStart}, ${windowEnd})
         ON CONFLICT ("clientIp", "endpoint", "windowStart")
         DO UPDATE SET "count" = "RateLimit"."count" + 1
         RETURNING "count";
       `;
 
-      // Como $executeRaw retorna o número de linhas afetadas,
-      // precisamos de $queryRaw para obter o valor final do count.
-      const counts = await this.prisma.$queryRaw<any[]>`
-        SELECT "count" FROM "RateLimit"
-        WHERE "clientIp" = ${ip} AND "endpoint" = ${endpoint} AND "windowStart" = ${windowStart}
-      `;
+      // Retorno vazio nunca autoriza: falha fechada.
+      const currentCount = rows.length > 0 ? rows[0].count : null;
 
-      const currentCount = (counts && counts[0])?.count;
-
-      if (currentCount && currentCount > limit) {
+      if (currentCount === null || currentCount > limit) {
         throw new ForbiddenException(
           'Limite de solicitações excedido. Tente novamente em alguns minutos.',
         );
@@ -71,7 +68,8 @@ export class RateLimitService {
       if (error instanceof ForbiddenException) throw error;
 
       // Se houver erro de banco, não permitimos o bypass silencioso.
-      this.logger.error(`Erro no RateLimit: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Erro no RateLimit: ${message}`);
       throw new InternalServerErrorException(
         'Erro interno ao processar limite de requisições.',
       );
