@@ -5,7 +5,10 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { MailModule } from '../common/services/mail.module';
 import { MailService } from '../common/services/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RateLimitService } from '../common/services/rate-limit.service';
+import { IpUtil } from '../common/utils/ip.util';
 import { AuthModule } from './auth.module';
+import { RecoveryModule } from './recovery.module';
 import { RecoveryService } from './recovery.service';
 
 const configuracao = {
@@ -58,20 +61,44 @@ describe('AuthModule — composição de dependências', () => {
     expect(dependencias.mailService).toBe(mail);
   });
 
-  it('importa AuditoriaModule e MailModule sem duplicar MailService', () => {
+  it('importa RecoveryModule sem duplicar MailService nem providers', () => {
     const imports = Reflect.getMetadata('imports', AuthModule) as unknown as
       | unknown[]
       | undefined;
     const providers = Reflect.getMetadata('providers', AuthModule) as
       | unknown[]
       | undefined;
+    const importsRecovery = Reflect.getMetadata(
+      'imports',
+      RecoveryModule,
+    ) as unknown as unknown[] | undefined;
+    const providersRecovery = Reflect.getMetadata(
+      'providers',
+      RecoveryModule,
+    ) as unknown as unknown[] | undefined;
+    const exportsRecovery = Reflect.getMetadata(
+      'exports',
+      RecoveryModule,
+    ) as unknown as unknown[] | undefined;
     const exportsMailModule = Reflect.getMetadata('exports', MailModule) as
       | unknown[]
       | undefined;
 
-    expect(imports).toContain(AuditoriaModule);
-    expect(imports).toContain(MailModule);
+    expect(imports).toContain(RecoveryModule);
+    expect(imports).not.toContain(AuditoriaModule);
+    expect(imports).not.toContain(MailModule);
+    expect(importsRecovery).toContain(AuditoriaModule);
+    expect(importsRecovery).toContain(MailModule);
     expect(providers).not.toContain(MailService);
+    expect(providers).not.toContain(RecoveryService);
+    expect(providers).not.toContain(RateLimitService);
+    expect(providers).not.toContain(IpUtil);
+    expect(providersRecovery).toContain(RecoveryService);
+    expect(providersRecovery).toContain(RateLimitService);
+    expect(providersRecovery).toContain(IpUtil);
+    expect(exportsRecovery).toContain(RecoveryService);
+    expect(exportsRecovery).toContain(RateLimitService);
+    expect(exportsRecovery).toContain(IpUtil);
     expect(exportsMailModule).toContain(MailService);
   });
 });

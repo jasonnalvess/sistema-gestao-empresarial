@@ -24,7 +24,10 @@ export class MailService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  async sendEmail(options: nodemailer.SendMailOptions): Promise<void> {
+  async sendEmail(
+    options: nodemailer.SendMailOptions,
+    contexto = 'recuperação',
+  ): Promise<void> {
     const transporter = this.obterTransporter();
 
     try {
@@ -32,10 +35,10 @@ export class MailService {
     } catch (error) {
       const codigo = this.obterCodigoErro(error);
       this.logger.error(
-        `Erro ao enviar e-mail de recuperação${codigo ? ` (${codigo})` : ''}.`,
+        `Erro ao enviar e-mail de ${contexto}${codigo ? ` (${codigo})` : ''}.`,
       );
       throw new InternalServerErrorException(
-        'Falha ao enviar e-mail de recuperação',
+        `Falha ao enviar e-mail de ${contexto}`,
       );
     }
   }
@@ -98,6 +101,91 @@ export class MailService {
     };
 
     await this.sendEmail(options);
+  }
+
+  /**
+   * E-mail de verificação do cadastro público (V3.6.5, Fase A).
+   * O token bruto chega por parâmetro e nunca é logado nem persistido aqui;
+   * o link usa o mesmo PUBLIC_APP_URL da recuperação de senha.
+   */
+  async enviarEmailVerificacaoCadastro(dados: {
+    destinatario: string;
+    nomeResponsavel: string;
+    nomeEmpresa: string;
+    token: string;
+  }): Promise<void> {
+    const publicAppUrl = this.obterUrlPublica();
+    const remetente = this.obterRemetente();
+    const destinatario = dados.destinatario?.trim();
+
+    if (!destinatario) {
+      throw new InternalServerErrorException('Destinatário de e-mail ausente.');
+    }
+
+    if (!dados.token) {
+      throw new InternalServerErrorException(
+        'Token de verificação de cadastro ausente.',
+      );
+    }
+
+    const link = `${publicAppUrl}/cadastro/verificar?token=${encodeURIComponent(dados.token)}`;
+    const assunto = 'Confirmação de cadastro — SGE';
+    const nomeResponsavel = this.escaparHtml(
+      dados.nomeResponsavel?.trim() || 'cliente',
+    );
+    const nomeEmpresa = this.escaparHtml(
+      dados.nomeEmpresa?.trim() || 'sua empresa',
+    );
+
+    const options: SendMailOptions = {
+      to: destinatario,
+      from: remetente,
+      subject: assunto,
+      text: [
+        `Olá, ${nomeResponsavel}.`,
+        '',
+        `Recebemos uma solicitação de cadastro da empresa ${nomeEmpresa} no SGE.`,
+        '',
+        `Para confirmar o e-mail e continuar o cadastro, acesse: ${link}`,
+        '',
+        'Este link é válido por 24 horas e pode ser utilizado apenas uma vez.',
+        'Se você não fez esta solicitação, ignore este e-mail. Nenhuma conta será criada.',
+        '',
+        'Este é um e-mail automático, por favor não responda.',
+      ].join('\n'),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+          <h2 style="color: #333;">Olá, ${nomeResponsavel}.</h2>
+          <p>Recebemos uma solicitação de cadastro da empresa <strong>${nomeEmpresa}</strong> no SGE.</p>
+          <p>Para confirmar o e-mail e continuar o cadastro, clique no link abaixo:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${link}"
+               style="background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+               Confirmar e-mail e continuar
+            </a>
+          </div>
+          <p>Este link é válido por <strong>24 horas</strong> e pode ser utilizado apenas uma vez.</p>
+          <p style="color: #666; font-size: 0.9em; margin-top: 30px;">
+            Se você não fez esta solicitação, por favor ignore este e-mail. Nenhuma conta será criada.
+          </p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p style="color: #999; font-size: 0.8em; text-align: center;">
+            Este é um e-mail automático, por favor não responda.
+          </p>
+        </div>
+      `,
+    };
+
+    await this.sendEmail(options, 'verificação de cadastro');
+  }
+
+  private escaparHtml(valor: string): string {
+    return valor
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   private obterTransporter(): nodemailer.Transporter {

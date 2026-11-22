@@ -451,6 +451,82 @@ Revisar filtro HTTP, sanitizador, DTOs e URLs para impedir senhas, hashes de sen
 
 Preservar compatibilidade e isolamento, impedir tomada administrativa indevida de contas e reutilizar a revogação existente. Não criar infraestrutura paralela de sessão. Refresh tokens, tabela de sessões, sessões por dispositivo e logout remoto/por dispositivo ficam fora da V3.6.
 
+## Complemento — geração e entrega de credencial temporária no reset manual
+
+**Data de aprovação:** 10/11/2026.
+
+Este complemento integra a ADR-026 sem alterar seu texto histórico. Registra o mecanismo aprovado para geração e entrega da senha temporária no reset manual de conta existente.
+
+### Autorização
+
+- O reset manual é exclusivo de SUPER_ADMIN ativo.
+- É proibido executar reset da própria conta.
+- O administrador não escolhe a senha do usuário.
+- A operação permanece separada da recuperação de senha por e-mail da V3.6.2.
+
+### Geração e armazenamento
+
+- O backend gera uma senha temporária criptograficamente aleatória, obedecendo à política de senha vigente.
+- Somente o hash seguro é persistido.
+- A senha em texto puro não é gravada em banco, logs ou auditoria.
+
+### Exposição e transporte
+
+- A senha temporária é exibida uma única vez na resposta ao SUPER_ADMIN autenticado.
+- A transmissão ocorre exclusivamente por HTTPS.
+- A resposta utiliza `Cache-Control: no-store`.
+- A senha não pode ser persistida no frontend nem aparecer em logs, auditoria, cookies ou armazenamento local.
+- O SUPER_ADMIN entrega a senha ao usuário por canal seguro externo.
+- Não enviar a senha temporária por e-mail.
+
+### Primeiro acesso e revogação
+
+- No primeiro acesso, `trocaSenhaObrigatoria=true` força o usuário a definir sua senha definitiva.
+- Incrementar `versaoAutorizacao`.
+- Invalidar os tokens de recuperação aplicáveis.
+
+### Atomicidade e auditoria
+
+- Atualização da senha, flags, versão, invalidação dos tokens e auditoria devem ocorrer na mesma transação.
+- Falha na entrega da resposta não permite recuperar a senha original.
+- Uma nova operação deverá gerar outra credencial e registrar nova auditoria.
+
+## Complemento — concorrência otimista no reset manual
+
+**Data de aprovação:** 10/11/2026. **Escopo:** V3.6.3, `POST /usuarios/:id/redefinir-senha-manual`.
+
+Este complemento integra a ADR-026 sem alterar seu texto histórico.
+
+### Decisão
+
+A solicitação passa a exigir a versão de autorização do usuário-alvo (`versaoAutorizacao`), validada dentro da transação após o lock do alvo e antes de qualquer escrita. A ordem de locks `ator → alvo`, o isolamento Serializable e o retry já existentes são preservados.
+
+Divergência entre a versão enviada e a versão persistida — menor ou maior — retorna HTTP 409 com código `RESET_CONCORRENTE` e mensagem que solicita recarregar os dados e confirmar novamente. O corpo do 409 não contém versão atual, senha temporária nem detalhes sensíveis.
+
+O sucesso devolve a nova `versaoAutorizacao` obtida do retorno do próprio `update`, junto da credencial temporária de exposição única. A versão do alvo é exposta somente na consulta de detalhe autorizada, nunca na listagem.
+
+### Motivo
+
+Impedir que um reset baseado em versão obsoleta invalide silenciosamente uma credencial temporária já entregue ao administrador. A conferência sob lock elimina a janela de corrida.
+
+### Limites
+
+- Não substitui idempotency key: operações sequenciais confirmadas continuam gerando nova credencial e nova auditoria.
+- A versão também muda por outros eventos de segurança (recuperação, troca de senha, perfis, desativação, mudança de tipo). O 409 significa que o alvo mudou desde a consulta, não necessariamente que houve outro reset.
+- Esgotamento de retry, deadlock ou indisponibilidade do banco não são mapeados para `RESET_CONCORRENTE`; somente a divergência efetivamente comprovada da versão gera esse código. O esgotamento de retry por `P2034` ou `P2010` com SQLSTATE `40001`/`40P01` retorna HTTP 503, e erros Prisma não relacionados são propagados sem conversão.
+- Autorização SUPER_ADMIN, proibição de auto-reset, isolamento multiempresa, atomicidade, invalidação de tokens e auditoria transacional permanecem inalterados.
+- Geração e hash da senha continuam fora da transação; o hash é descartado sem uso em caso de 409.
+
+### Impacto de contrato
+
+- Corpo obrigatório com `versaoAutorizacao` inteiro entre 0 e 2147483647, sem conversão implícita de string ou decimal; ausência ou valor inválido retorna 400.
+- Novo campo `versaoAutorizacao` na resposta de sucesso e novo status 409.
+- Consumidores devem recarregar e reconfirmar, sem retry automático.
+
+### Testes obrigatórios
+
+DTO (ausência, nulo, string, decimal, negativo, acima de int32 e campo extra); serviço (versão igual, menor e maior); 409 sem escrita, exclusão de token, auditoria ou senha na resposta; precedência de 401, 403, 404 e 409; retorno da nova versão; controller e E2E com envelope e `no-store`; retry não classificado como 409; concorrência real em PostgreSQL com exatamente um sucesso, pendente de provisionamento de banco isolado.
+
 ---
 
 # ADR-027 — Validade Comercial e Onboarding SaaS
@@ -478,6 +554,87 @@ Somente SUPER_ADMIN regulariza/reativa comercialmente na V3.6, em operação exp
 ## Motivo e limites
 
 Garantir bloqueio previsível sem misturar acesso administrativo, comercial e funcional. A V3.6.4 estabelece trial/enforcement antes da ativação do onboarding público na V3.6.5. Cobrança automática, gateway e plano comercial completo além da validade inicial ficam fora da V3.6. Nenhuma alteração de código, schema, migration, banco ou produção é realizada pela V3.6.1.
+
+---
+
+# ADR-028 — Política de Ambientes
+
+## Aprovação e escopo
+
+Aprovada pelo responsável em 2026-11-14. Complementa a ADR-019 (Ambientes) sem revogá-la: a ADR-019 continua válida e passa a ser detalhada por esta decisão. Aplica-se ao repositório TESTE e a todas as etapas futuras do roadmap.
+
+## Decisão
+
+O SGE passa a ter três ambientes formais.
+
+### TESTE — ambiente principal
+
+Diretório: `/opt/sistema-gestao/teste`.
+
+Banco: `sistema_gestao_teste`.
+
+Responsabilidades:
+
+- Desenvolvimento.
+- Testes automatizados que não exigem banco isolado.
+- Testes funcionais manuais.
+- Homologação de cada sprint e módulo.
+- Homologação integrada final da versão.
+
+A homologação funcional oficial do SGE acontece em TESTE. Não é necessária uma segunda instalação permanente para homologar cada etapa.
+
+### INTEGRAÇÃO — ambiente técnico
+
+Banco: `sistema_gestao_integracao`.
+
+Responsabilidades:
+
+- Testes automatizados que exigem PostgreSQL real.
+- Testes de integração e fixtures isoladas.
+
+Não utilizar para homologação manual.
+
+Não compartilhar dados de homologação funcional com fixtures automatizadas.
+
+Preservar o isolamento de credenciais e permissões entre os bancos.
+
+### PRODUÇÃO — ambiente futuro
+
+Diretório: `/opt/sistema-gestao/producao`.
+
+Banco: `sistema_gestao_prod`.
+
+Responsabilidades:
+
+- Operação definitiva após conclusão do roadmap e autorização expressa.
+- Não considerar o banco existente como produção implantada (auditado em 2026-11-14: schema vazio).
+- Não implantar funcionalidades automaticamente após homologação em TESTE.
+
+### Estrutura `/opt/sistema-gestao/homologacao` — descontinuação
+
+- A estrutura será descontinuada como ambiente permanente de homologação.
+- Nenhum diretório, arquivo, build, symlink, configuração ou dado foi removido na data desta decisão.
+- A desativação depende de inventário de preservação aprovado e de autorização expressa em etapa posterior.
+
+## Motivo e limites
+
+Estabelece fonte confiável de controle de versões e ambientes, baseada na auditoria READ ONLY de 2026-11-14 (TESTE ativo; estrutura de homologação montada e parada; produção não implantada).
+
+Esta decisão não autoriza, por si, nenhuma exclusão, migration, sincronização ou deploy.
+
+## Classificação obrigatória de etapas
+
+Todo relatório de sprint, módulo ou versão deverá apresentar separadamente:
+
+1. Estado do código: implementado ou não.
+2. Estado do banco TESTE: migrations aplicadas e situação estrutural.
+3. Testes automatizados: executados, aprovados ou pendentes.
+4. Homologação funcional: realizada ou pendente, identificando o ambiente.
+5. Produção: implantada ou não implantada.
+
+Não utilizar simplesmente a expressão "concluído" sem esclarecer essas dimensões.
+
+Homologação em TESTE não significa implantação em PRODUÇÃO.
 
 ---
 
@@ -520,3 +677,40 @@ informando:
 - decisão substituta.
 
 Isso preserva o histórico arquitetural do projeto.
+
+# ADR-029 — Consolidação Git única das entregas V3.6
+
+## Aprovação e escopo
+
+Proposta (aguardando aprovação formal) — 2026-11-21, na D17. Complementa a ADR-028 (Política de Ambientes) e
+o processo de encerramento da V3.6, sem revogar decisões anteriores e sem alterar os status
+funcionais homologados em TESTE.
+
+## Decisão
+
+As entregas V3.6.3, V3.6.4, V3.6.6-A, V3.6.6, V3.6.5 e V3.6.7 serão publicadas em **um único
+commit de consolidação** do estado auditado, e não pela reconstrução artificial de commits
+históricos individuais.
+
+O estado consolidado é o conjunto de arquivos não ignorados do working tree em 2026-11-21, cujo
+conteúdo é byte-idêntico ao snapshot `r6_v367` (770/770 arquivos), acrescido de três arquivos
+transversais de ingresso/proxy (`frontend/src/proxy.ts`, `frontend/src/lib/ip-ingresso.mjs`,
+`frontend/test/ip-ingresso.test.mjs`) já compilados no build TESTE.
+
+## Limites
+
+- Artefatos acidentais, backups locais, builds, dependências, credenciais e o stash permanecem
+  fora do commit e preservados no disco.
+- A publicação exige validação prévia e autorização expressa; esta ADR não autoriza commit,
+  push ou deploy.
+- A ordem histórica das versões e das migrations (V3.6.4 antes de V3.6.5) permanece registrada.
+- A correspondência com TESTE é comprovada por rebuild idêntico do backend e pelas fontes
+  embutidas no build do frontend; a integração PostgreSQL e os E2E permanecem gates pendentes.
+- Os snapshots r1–r6, os relatórios D14–D17 e o stash são preservados sem sobrescrita.
+
+## Evidências
+
+`relatorios/relatorio_auditoria_consolidacao_unica_d17.md` e os artefatos da D17 em
+`inventario/` e `evidencias/`.
+
+---

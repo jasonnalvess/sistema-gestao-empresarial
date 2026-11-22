@@ -6,6 +6,25 @@ export const EVENTO_TROCA_SENHA_OBRIGATORIA = "auth:troca-senha-obrigatoria";
 
 const EVENTO_SESSAO_EXPIRADA = "auth:sessao-expirada";
 
+export const EVENTO_BLOQUEIO_COMERCIAL = "auth:bloqueio-comercial";
+
+export const CODIGO_VALIDADE_COMERCIAL_EXPIRADA =
+  "VALIDADE_COMERCIAL_EXPIRADA";
+export const CODIGO_VALIDADE_COMERCIAL_INVALIDA =
+  "VALIDADE_COMERCIAL_INVALIDA";
+export const CODIGO_EMPRESA_INATIVA = "EMPRESA_INATIVA";
+
+export type BloqueioComercial = {
+  codigo: string;
+  mensagem: string;
+};
+
+const CODIGOS_BLOQUEIO_COMERCIAL = new Set<string>([
+  CODIGO_VALIDADE_COMERCIAL_EXPIRADA,
+  CODIGO_VALIDADE_COMERCIAL_INVALIDA,
+  CODIGO_EMPRESA_INATIVA,
+]);
+
 let geracaoSessao = 0;
 const sessoesDasRequisicoes = new WeakMap<
   object,
@@ -106,6 +125,29 @@ api.interceptors.response.use(
     if (status === 403 && possuiToken &&
       error.response?.data?.error === "TROCA_SENHA_OBRIGATORIA") {
       window.dispatchEvent(new Event(EVENTO_TROCA_SENHA_OBRIGATORIA));
+    }
+
+    // Bloqueio comercial (V3.6.4): distingue validade expirada de suspensão
+    // administrativa, preserva a sessão (não é 401) e apenas informa o estado.
+    const codigoComercial = error.response?.data?.error;
+    if (
+      status === 403 &&
+      possuiToken &&
+      typeof codigoComercial === "string" &&
+      CODIGOS_BLOQUEIO_COMERCIAL.has(codigoComercial)
+    ) {
+      const mensagem = error.response?.data?.message;
+      window.dispatchEvent(
+        new CustomEvent<BloqueioComercial>(EVENTO_BLOQUEIO_COMERCIAL, {
+          detail: {
+            codigo: codigoComercial,
+            mensagem:
+              typeof mensagem === "string"
+                ? mensagem
+                : "O acesso empresarial está bloqueado pela situação comercial.",
+          },
+        }),
+      );
     }
     // Senha atual incorreta não representa expiração da sessão.
     const senhaAtualIncorreta = urlRequisicao === "/auth/trocar-senha" &&

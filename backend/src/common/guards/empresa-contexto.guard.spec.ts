@@ -122,9 +122,12 @@ describe('EmpresaContextoGuard', () => {
         },
         tipo === 'SUPER_ADMIN' ? EMPRESA_ID : undefined,
       );
-      await expect(guard.canActivate(executionContext)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(guard.canActivate(executionContext)).rejects.toMatchObject({
+        response: {
+          error: 'EMPRESA_INATIVA',
+          message: 'Empresa inativa não pode utilizar este módulo.',
+        },
+      });
     },
   );
 

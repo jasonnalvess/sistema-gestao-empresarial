@@ -4,23 +4,31 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { IpUtil } from '../common/utils/ip.util';
 import { AtualizarEmpresaDto } from './dto/atualizar-empresa.dto';
 import { CriarEmpresaDto } from './dto/criar-empresa.dto';
+import { RegularizarEmpresaDto } from './dto/regularizar-empresa.dto';
 import { EmpresasService } from './empresas.service';
 
 @Controller('empresas')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class EmpresasController {
-  constructor(private readonly empresasService: EmpresasService) {}
+  constructor(
+    private readonly empresasService: EmpresasService,
+    private readonly ipUtil: IpUtil,
+  ) {}
 
   @Post()
   @Roles('SUPER_ADMIN')
@@ -57,6 +65,22 @@ export class EmpresasController {
   @Roles('SUPER_ADMIN')
   desativar(@Param('id') id: string) {
     return this.empresasService.desativar(id);
+  }
+
+  @Post(':id/regularizar')
+  @Roles('SUPER_ADMIN')
+  regularizar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: RegularizarEmpresaDto,
+    @CurrentUser() usuario: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.empresasService.regularizar(
+      id,
+      body,
+      usuario,
+      this.ipUtil.getTrustedIp(req) ?? undefined,
+    );
   }
 
   @Delete(':id')

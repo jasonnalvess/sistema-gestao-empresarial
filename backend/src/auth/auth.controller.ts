@@ -1,4 +1,5 @@
 import { PermitirTrocaPendente } from './guards/troca-senha-obrigatoria.guard';
+import { PermitirValidadeExpirada } from '../common/validacao-comercial/permitir-validade-expirada.decorator';
 import { TrocarSenhaDto } from './dto/trocar-senha.dto';
 import { EsqueciSenhaDto, RedefinirSenhaDto } from './dto/recovery.dto';
 import { TrocaSenhaService } from './troca-senha.service';
@@ -65,12 +66,14 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @PermitirTrocaPendente()
+  @PermitirValidadeExpirada()
   @Get('me')
   me(@CurrentUser() usuario: AuthenticatedUser) {
     return usuario;
   }
   @UseGuards(JwtAuthGuard)
   @PermitirTrocaPendente()
+  @PermitirValidadeExpirada()
   @Post('trocar-senha')
   trocarSenha(
     @CurrentUser() usuario: AuthenticatedUser,

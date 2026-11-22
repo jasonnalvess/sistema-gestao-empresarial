@@ -10,6 +10,7 @@ import { isUUID } from 'class-validator';
 import type { AuthenticatedRequest } from '../../auth/types/authenticated-request.type';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EMPRESA_ID_HEADER } from '../constants/empresa-contexto.constants';
+import { CODIGO_EMPRESA_INATIVA } from '../validacao-comercial/situacao-comercial';
 import type { EmpresaContextoRequest } from '../types/empresa-contexto-request.type';
 
 @Injectable()
@@ -56,9 +57,10 @@ export class EmpresaContextoGuard implements CanActivate {
     });
     if (!empresa) throw new NotFoundException('Empresa não encontrada.');
     if (!empresa.ativa) {
-      throw new ForbiddenException(
-        'Empresa inativa não pode utilizar este módulo.',
-      );
+      throw new ForbiddenException({
+        error: CODIGO_EMPRESA_INATIVA,
+        message: 'Empresa inativa não pode utilizar este módulo.',
+      });
     }
 
     (request as EmpresaContextoRequest).empresaContexto = {

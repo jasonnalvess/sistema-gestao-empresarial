@@ -6,6 +6,7 @@ export const AUDITORIA_CIRCULAR = '[Circular]';
 const CHAVES_SENSIVEIS = new Set([
   'password',
   'senha',
+  'senhatemporaria',
   'passwordhash',
   'hashsenha',
   'token',

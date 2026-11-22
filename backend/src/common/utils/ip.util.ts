@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
+import { isIP } from 'node:net';
+
+const VALIDATED_IP_HEADER = 'x-sge-validated-ip';
 
 @Injectable()
 export class IpUtil {
@@ -7,30 +10,47 @@ export class IpUtil {
    * Recupera o IP real do cliente considerando a topologia:
    * Internet -> Cloudflare -> Cloudflare Tunnel -> Next.js -> NestJS
    *
-   * O Cloudflare envia o IP real no cabeçalho 'cf-connecting-ip'.
-   * O cabeçalho 'x-forwarded-for' pode conter múltiplos saltos.
+   * A confiança está no ingresso do Next.js, que remove qualquer valor enviado
+   * pelo cliente e define 'x-sge-validated-ip' a partir do 'cf-connecting-ip'
+   * entregue pelo Cloudflare. Headers públicos como 'x-forwarded-for' e
+   * 'cf-connecting-ip' não são lidos diretamente aqui.
    */
   getRealIp(req: Request): string {
     // 1. Identificação via cabeçalho interno de confiança.
-    // De acordo com a topologia: Internet -> Cloudflare -> Tunnel -> Next.js -> NestJS,
-    // o Next.js deve validar o IP e encaminhá-lo em um cabeçalho interno exclusivo.
-    const internalIp = req.headers['x-sge-validated-ip'] as string;
-    if (internalIp && this.isValidIp(internalIp)) {
-      return internalIp;
+    const trustedIp = this.getTrustedIp(req);
+    if (trustedIp) {
+      return trustedIp;
     }
 
-    // 2. Fallback seguro: se não houver cabeçalho interno, usamos o IP do socket.
-    // Isso impede que clientes externos enviem cf-connecting-ip ou x-forwarded-for
-    // para burlar o rate limit, pois esses headers serão ignorados.
-    return req.socket.remoteAddress || '0.0.0.0';
+    // 2. Fallback seguro: sem o cabeçalho interno, usamos o IP do socket.
+    // Esses headers públicos são ignorados para impedir bypass do rate limit.
+    const socketIp = req.socket?.remoteAddress;
+    return typeof socketIp === 'string' && socketIp.length > 0
+      ? socketIp
+      : '0.0.0.0';
+  }
+
+  /**
+   * Retorna somente o IP entregue pelo ingresso confiável, sem fallback de
+   * socket. O cabeçalho só é aceito como string única, sem listas, e com IP
+   * válido; caso contrário retorna null.
+   */
+  getTrustedIp(req: Request): string | null {
+    const header = req.headers?.[VALIDATED_IP_HEADER];
+    if (typeof header !== 'string') {
+      return null;
+    }
+
+    const candidato = header.trim();
+    return this.isValidIp(candidato) ? candidato : null;
   }
 
   private isValidIp(ip: string): boolean {
-    if (!ip) return false;
-    // Regex simplificada para validar IPv4 e IPv6
-    const ipv4Regex =
-      /^(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}$/;
-    const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
-    return ipv4Regex.test(ip) || ipv6Regex.test(ip);
+    if (!ip || ip.includes(',')) {
+      return false;
+    }
+
+    // isIP aceita IPv4, IPv6 completo e IPv6 comprimido.
+    return isIP(ip) !== 0;
   }
 }

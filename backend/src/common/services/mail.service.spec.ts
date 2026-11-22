@@ -230,4 +230,117 @@ describe('MailService', () => {
 
     expect(sendMail).not.toHaveBeenCalled();
   });
+  describe('enviarEmailVerificacaoCadastro', () => {
+    const dados = {
+      destinatario,
+      nomeResponsavel: 'Responsável Teste',
+      nomeEmpresa: 'Empresa Teste',
+      token,
+    };
+
+    it('constrói a mensagem com destinatário, remetente, assunto, URL e token', async () => {
+      await criarServico().enviarEmailVerificacaoCadastro(dados);
+
+      const mensagem = obterMensagemEnviada();
+      const link = `${configuracaoBase.PUBLIC_APP_URL}/cadastro/verificar?token=${encodeURIComponent(token)}`;
+
+      expect(mensagem.to).toBe(destinatario);
+      expect(mensagem.from).toBe(configuracaoBase.EMAIL_FROM);
+      expect(mensagem.subject).toBe('Confirmação de cadastro — SGE');
+      expect(mensagem.text).toContain(link);
+      expect(mensagem.html).toContain(`href="${link}"`);
+      expect(mensagem.text).toContain('24 horas');
+      expect(mensagem.html).toContain('24 horas');
+      expect(mensagem.text).toContain('uma vez');
+    });
+
+    it('normaliza PUBLIC_APP_URL com barra final sem duplicar a barra do link', async () => {
+      await criarServico({
+        ...configuracaoBase,
+        PUBLIC_APP_URL: 'https://app.example.invalid/',
+      }).enviarEmailVerificacaoCadastro(dados);
+
+      const mensagem = obterMensagemEnviada();
+
+      expect(mensagem.html).toContain(
+        'https://app.example.invalid/cadastro/verificar?token=',
+      );
+      expect(mensagem.html).not.toContain('https://app.example.invalid//');
+    });
+
+    it('propaga falha de envio como erro operacional', async () => {
+      sendMail.mockRejectedValue(
+        Object.assign(new Error('falha simulada'), { code: 'EAUTH' }),
+      );
+
+      await expect(
+        criarServico().enviarEmailVerificacaoCadastro(dados),
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
+
+      await expect(
+        criarServico().enviarEmailVerificacaoCadastro(dados),
+      ).rejects.toThrow('Falha ao enviar e-mail de verificação de cadastro');
+    });
+
+    it('não registra token bruto, hash ou senha SMTP nos logs', async () => {
+      sendMail.mockRejectedValueOnce(
+        Object.assign(new Error(`${token} ${hash}`), { code: 'EAUTH' }),
+      );
+
+      await expect(
+        criarServico().enviarEmailVerificacaoCadastro(dados),
+      ).rejects.toThrow();
+
+      const registros = JSON.stringify(logError.mock.calls);
+
+      expect(registros).toContain('EAUTH');
+      expect(registros).not.toContain(token);
+      expect(registros).not.toContain(hash);
+      expect(registros).not.toContain(configuracaoBase.SMTP_PASSWORD);
+    });
+
+    it('rejeita destinatário vazio', async () => {
+      await expect(
+        criarServico().enviarEmailVerificacaoCadastro({
+          ...dados,
+          destinatario: '   ',
+        }),
+      ).rejects.toThrow('Destinatário de e-mail ausente.');
+
+      expect(sendMail).not.toHaveBeenCalled();
+    });
+
+    it('rejeita token vazio sem registrar o valor', async () => {
+      await expect(
+        criarServico().enviarEmailVerificacaoCadastro({
+          ...dados,
+          token: '',
+        }),
+      ).rejects.toThrow('Token de verificação de cadastro ausente.');
+
+      expect(sendMail).not.toHaveBeenCalled();
+    });
+
+    it('rejeita configuração obrigatória ausente', async () => {
+      const configuracao = { ...configuracaoBase };
+      delete configuracao.PUBLIC_APP_URL;
+
+      await expect(
+        criarServico(configuracao).enviarEmailVerificacaoCadastro(dados),
+      ).rejects.toThrow('Configuração de e-mail ausente: PUBLIC_APP_URL.');
+
+      expect(criarTransporte).not.toHaveBeenCalled();
+    });
+
+    it('inclui nome do responsável e da empresa no conteúdo', async () => {
+      await criarServico().enviarEmailVerificacaoCadastro(dados);
+
+      const mensagem = obterMensagemEnviada();
+
+      expect(mensagem.text).toContain(dados.nomeResponsavel);
+      expect(mensagem.html).toContain(dados.nomeResponsavel);
+      expect(mensagem.text).toContain(dados.nomeEmpresa);
+      expect(mensagem.html).toContain(dados.nomeEmpresa);
+    });
+  });
 });

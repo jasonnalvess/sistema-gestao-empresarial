@@ -38,6 +38,7 @@ import { FinanceiroModule } from './financeiro/financeiro.module';
 import { CaixasModule } from './caixas/caixas.module';
 import { VendasModule } from './vendas/vendas.module';
 import { CrmModule } from './crm/crm.module';
+import { CadastroPublicoModule } from './cadastro-publico/cadastro-publico.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { CrmModule } from './crm/crm.module';
     CaixasModule,
     VendasModule,
     CrmModule,
+    CadastroPublicoModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1513,13 +1513,123 @@ Subdivisão aprovada pelo responsável em 2026-09-26. A ordem abaixo substitui a
 
 | Etapa | Status | Entrega e dependência |
 |---|---|---|
-| V3.6.1 — Contrato e Arquitetura | APROVADA E DOCUMENTADA; SEM COMMIT | Precede toda implementação; contrato, invariantes, escopo e critérios de aceite. |
-| V3.6.2 — Recuperação de Senha e SMTP | PENDENTE | Estabelece recuperação segura e infraestrutura de e-mail; depende da V3.6.1. |
-| V3.6.3 — Administração e Reset de Senha | PENDENTE | Reset manual controlado e solicitação por e-mail; reutiliza a infraestrutura segura da V3.6.2. |
-| V3.6.4 — Trial, Expiração e Bloqueio | PENDENTE | Estabelece validade comercial, tratamento do legado, enforcement e regularização administrativa. |
-| V3.6.5 — Cadastro Público e Onboarding | PENDENTE | Provisionamento transacional e verificação de e-mail; depende da V3.6.4 para ativar onboarding público e reutiliza e-mail. |
-| V3.6.6 — Landing Page, Identidade Visual e UX Pública | PENDENTE | Consolida experiência pública, metadata, idioma, ícones e CTAs dos fluxos entregues. |
-| V3.6.7 — Homologação Integrada | PENDENTE | Encerra somente após regressão integrada das entregas e dos fluxos existentes. |
+| V3.6.1 — Contrato e Arquitetura | APROVADA, DOCUMENTADA E PUBLICADA (origin/develop) | Precede toda implementação; contrato, invariantes, escopo e critérios de aceite. |
+| V3.6.2 — Recuperação de Senha e SMTP | HOMOLOGADA, INTEGRADA E PUBLICADA (não implantada em produção) | Estabelece recuperação segura e infraestrutura de e-mail; depende da V3.6.1. |
+| V3.6.3 — Administração e Reset de Senha | CONCLUÍDA E HOMOLOGADA EM TESTE (não implantada em produção) | Reset manual controlado e solicitação por e-mail; reutiliza a infraestrutura segura da V3.6.2. Homologação funcional manual concluída em 15/11/2026, com todos os cenários de acordo com as regras aprovadas. Evidências: implementação backend/frontend, testes unitários (41), controller (aprovados), E2E HTTP (17), integração PostgreSQL real (atomicidade, concorrência, retry, esgotamento, SQL independente), rota mapeada em TESTE desde 05/11/2026. |
+| V3.6.4 — Trial, Expiração e Bloqueio | HOMOLOGADA (não implantada em produção) | Estabelece validade comercial, tratamento do legado, enforcement e regularização administrativa. |
+| V3.6.6-A — Páginas administrativas (`/empresas`, `/modulos`, `/configuracoes`) | CONCLUÍDA E HOMOLOGADA (não implantada em produção) | Completa as rotas administrativas pendentes; depende da V3.6.4 para situação comercial e regularização; subetapa executada antes da V3.6.6. |
+| V3.6.6 — Landing Page, Identidade Visual e UX Pública | CONCLUÍDA E HOMOLOGADA (não implantada em produção) | Consolida experiência pública, metadata, idioma, ícones e CTAs dos fluxos entregues. |
+| V3.6.5 — Cadastro Público e Onboarding | CONCLUÍDA E HOMOLOGADA EM TESTE (não implantada em produção) | Provisionamento transacional e verificação de e-mail; depende da V3.6.4 para ativar onboarding público e reutiliza e-mail. Etapas E1–E8 concluídas: migration `20261114000000_v3_6_5_cadastro_publico` aplicada em TESTE e INTEGRAÇÃO; 14 testes de integração PostgreSQL real aprovados; frontend `/cadastro` e `/cadastro/verificar` implementados. Ressalvas não bloqueantes: SMTP real não exercitado; frontend não validado em navegador; cobertura complementar de retry/rollback pendente; login com credenciais preexistentes não testado diretamente. |
+| V3.6.7 — Homologação Integrada | CONCLUÍDA E HOMOLOGADA EM TESTE (15/11/2026; não implantada em produção) | Regressão integrada e homologação funcional concluídas em TESTE; ressalvas de organização Git registradas para consolidação separada. |
+
+### Reordenamento oficial da V3.6 (aprovado)
+
+A sequência oficial da V3.6 passa a ser: V3.6.1 → V3.6.2 → V3.6.3 → V3.6.4 → V3.6.6-A → V3.6.6 → V3.6.5 → V3.6.7. A V3.6.5 (Cadastro Público e Onboarding) foi executada após a V3.6.6, imediatamente antes da V3.6.7, e está concluída e homologada em TESTE (E1–E8), com migration `20261114000000_v3_6_5_cadastro_publico` aplicada em TESTE e INTEGRAÇÃO. A V3.6.7 (Homologação Integrada Final) foi concluída e homologada em TESTE em 15/11/2026 (não implantada em produção). O escopo, os requisitos e os critérios de homologação das etapas não foram alterados; ressalvas de organização Git foram registradas para tratamento separado.
+
+### V3.6.3 — Administração e Reset de Senha
+
+**STATUS: CONCLUÍDA E HOMOLOGADA EM TESTE (15/11/2026).** Contrato complementar do reset manual registrado em 10/11/2026; implementação local em TESTE realizada e homologada funcionalmente pelo responsável em 15/11/2026 (todos os cenários de acordo com as regras aprovadas). Commit pendente.
+
+O reset manual de senha de conta existente, complementando a ADR-026 e o contrato da V3.6.1, observa:
+
+- operação exclusiva de SUPER_ADMIN ativo;
+- proibição de reset da própria conta;
+- o administrador não escolhe a senha do usuário-alvo;
+- o backend gera senha temporária criptograficamente aleatória, compatível com a política de senha vigente;
+- somente o hash seguro é persistido;
+- a senha temporária é exibida uma única vez na resposta ao administrador autenticado;
+- transporte exclusivamente por HTTPS, com resposta `Cache-Control: no-store`;
+- entrega ao usuário por canal seguro externo, sem envio por e-mail;
+- `trocaSenhaObrigatoria=true` no primeiro acesso;
+- incremento de `versaoAutorizacao`;
+- invalidação dos tokens de recuperação aplicáveis;
+- atualização da senha, flags, versão, invalidação dos tokens e auditoria na mesma transação;
+- concorrência otimista pela versão do alvo:
+  - corpo obrigatório com `versaoAutorizacao` inteiro entre 0 e 2147483647, sem conversão implícita de string ou decimal;
+  - versão conferida dentro da transação, após o lock do alvo e antes de qualquer escrita;
+  - divergência menor ou maior retorna 409 `RESET_CONCORRENTE`, solicitando recarga e nova confirmação, sem versão atual, senha ou detalhes sensíveis;
+  - sucesso devolve a nova `versaoAutorizacao` obtida do próprio update;
+  - `versaoAutorizacao` exposta somente no detalhe autorizado, nunca na listagem;
+  - esgotamento de retry, deadlock ou indisponibilidade não são classificados como `RESET_CONCORRENTE`; o esgotamento por `P2034`/`P2010 (40001/40P01)` retorna 503.
+
+### V3.6.4 — Trial, Expiração e Bloqueio
+
+**STATUS: HOMOLOGADA (não implantada em produção).** Implementação concluída em TESTE; migration `20261111000000_v3_6_4_validade_comercial` aplicada e validada no banco `sistema_gestao_integracao`; em 2026-11-14 aplicada também no banco `sistema_gestao_teste`, em etapa autorizada, como pré-requisito da homologação da V3.6.6-A; 13/13 testes reais PostgreSQL aprovados; testes unitários, suíte geral e verificações estáticas aprovados. Correções de rollback transacional (trigger real no PostgreSQL) e concorrência (retry limitado para P2034/40001/40P01) concluídas. A V3.6.5 foi posteriormente concluída e homologada em TESTE (E1–E8), reutilizando a validade comercial e o enforcement desta etapa.
+
+### V3.6.6-A — Páginas administrativas `/empresas`, `/modulos` e `/configuracoes`
+
+**STATUS: CONCLUÍDA E HOMOLOGADA (não implantada em produção; encerrada em 2026-11-14).** Subetapa executada em TESTE antes da V3.6.6 (landing/identidade), completando as três rotas administrativas que constavam do menu desde a origem sem páginas implementadas. Sem commit/push; produção intocada.
+
+Escopo entregue:
+
+- **Backend (única correção):** tratamento de conflito `P2002` (CNPJ duplicado) em `EmpresasService.criar`/`atualizar`, replicando o padrão `alvoP2002` de vendas/caixas, com `ConflictException('CNPJ já cadastrado para outra empresa')`; `listar`, `buscarPorId`, `ativar`, `desativar`, `excluir` e `regularizar` intocados. Testes unitários de CNPJ duplicado (criar e atualizar), propagação de erros não-P2002 e 404 de empresa inexistente.
+- **`/empresas` (exclusivo SUPER_ADMIN):** listagem global com nome, CNPJ, estado ativo e situação comercial (legada/vigente/não iniciada/expirada/inválida, espelhando a semântica V3.6.4 apenas para exibição); criação; edição de nome/CNPJ; ativação/desativação com confirmação; regularização exclusivamente via `POST /empresas/:id/regularizar` (`diasValidade` 1–3650, `motivo` 3–500). Exclusão de empresas permanece FORA da interface (regra de negócio de exclusão pendente de decisão; comportamento `SetNull` em `Usuario`/`AuditoriaLog` identificado na revisão); sem endpoints alternativos de validade e sem operações de ADMIN_EMPRESA.
+- **`/modulos` (SUPER_ADMIN gerencia; ADMIN_EMPRESA somente leitura):** catálogo global com nome/chave/descrição/ativo e alternância de status apenas SUPER_ADMIN; sem criação de módulos na UI (provisionamento permanece nos seeds oficiais); área de vínculos `EmpresaModulo` da empresa do contexto reutilizando os endpoints existentes de `/empresa-modulos`; ADMIN_EMPRESA lê exclusivamente os vínculos da própria empresa (isolamento validado no service).
+- **CRM (V3.5.2 preservada integralmente):** nenhum vínculo CRM criado automaticamente; sete permissões CRM e sua delegabilidade intocadas; ativação/desativação do vínculo apenas por SUPER_ADMIN, tornando operacional a habilitação individual já prevista; backend permanece autoridade (`ModuloAtivoGuard` + `PermissionsGuard` intocados); CRM não entra nos sete módulos padrão do onboarding.
+- **`/configuracoes` (hub, SUPER_ADMIN e ADMIN_EMPRESA):** "Minha empresa" em leitura (nome, CNPJ, situação, situação comercial, módulos habilitados) para a empresa do contexto (selecionada para SUPER_ADMIN, própria para ADMIN_EMPRESA); atalhos para Usuários, Perfis, Empresas (SUPER_ADMIN), Módulos, Auditoria (conforme permissão real de auditoria) e Trocar senha; nenhuma configuração de SMTP/JWT/CORS/portas/banco/variáveis de ambiente e nenhum parâmetro global `sistema.*`.
+- **Navegação:** mapa estático `permissoes.ts` atualizado (ADMIN_EMPRESA recebe `/modulos` e `/configuracoes`; `/empresas` permanece SUPER_ADMIN) e `Sidebar` com verificação explícita por tipo alinhada ao `@Roles` do backend; proteção de rota no frontend permanece conveniência, sem substituir a autorização do backend.
+- **Validação executada:** suíte unitária backend completa (93 suítes / 1.813 testes aprovados, incluindo os novos testes de CNPJ duplicado; 6 suítes de integração seguem gateadas por ambiente), `lint:check`, `format:check` e `typecheck` do backend, lint e build do frontend com as três rotas registradas, e `git diff --check`. Homologação funcional manual concluída em 2026-11-14 (detalhes abaixo).
+- **Pré-requisito de homologação (2026-11-14):** a migration `20261111000000_v3_6_4_validade_comercial` foi aplicada, em etapa autorizada, também no banco `sistema_gestao_teste` (backup prévio validado; colunas `validadeComercialInicio`/`validadeComercialFim` e constraints CHECK confirmadas; registro em `_prisma_migrations` com `finished_at`; `prisma migrate status` reportando schema atualizado). O backend foi recompilado (`dist` atualizado com `alvoP2002`, `regularizar` e campos de validade) e reiniciado; `npm test` reexecutado sem regressão (93 suítes / 1.813 testes aprovados; 203 testes skipados nas 6 suítes de integração gateadas). A falha observada na primeira tentativa de homologação ("Erro ao carregar dados da empresa" em `/empresas` e seletor de empresa vazio para SUPER_ADMIN) foi diagnosticada como desencontro de ambiente — `dist` anterior à V3.6.4 em execução enquanto o cliente Prisma já esperava as colunas — e eliminada pela aplicação da migration e do build; nenhum ajuste adicional de contrato ou de código foi necessário.
+- **Homologação funcional (2026-11-14):** aprovada para SUPER_ADMIN em `/empresas`, seletor de empresa no cabeçalho, `/configuracoes` e `/modulos`; produção intocada.
+
+**V3.9 — Configurações da Empresa permanece pendente e não foi antecipada.** Nenhuma permissão, módulo, perfil ou regra comercial nova foi criada.
+
+### V3.6.6 — Landing Page, Identidade Visual e UX Pública
+
+**STATUS: CONCLUÍDA E HOMOLOGADA (não implantada em produção; homologada em 2026-11-14).** Implementação exclusivamente frontend em TESTE, sem commit/push; backend, banco e migrações intocados (a etapa não exige migrations); produção intocada.
+
+Escopo entregue:
+
+- **Metadata e idioma:** `title` "SGE — Sistema de Gestão Empresarial" e descrição pública exclusivamente com funcionalidades entregues (multiempresa, módulos, estoque/vendas, financeiro/caixa, agenda, RH, CRM, auditoria); `lang="pt-BR"`; `title.template` avaliado e não adotado (nenhuma página exporta `title`).
+- **Ícones:** `app/favicon.ico` padrão do scaffold removido e substituído por `src/app/icon.svg` (quadrado arredondado blue-600 com glifo de grade branca; rota `/icon.svg` respondendo HTTP 200); os cinco SVGs órfãos do scaffold (`file`, `globe`, `next`, `vercel`, `window`) removidos após verificação de zero referências.
+- **Landing Enterprise Tech:** hero navy `#101B33` com badge institucional, título, CTA "Acessar sistema" → `/login` via `next/link`, CTA secundário "Saiba mais" (âncora interna) e ilustração conceitual da interface do SGE (painel com seletor de empresa, menu de módulos reais e formas abstratas, sem indicadores ou métricas inventados); seis funcionalidades reais em Bento Grid com ícones lucide-react (cards largos em layout horizontal após refinamento aprovado); chamada final em navy com CTA para `/login`; rodapé navy escuro com marca SGE e lista dos módulos implementados.
+- **Login:** badge acessível "Cadastre-se — em breve" (`aria-disabled`, sem link, rota, formulário ou API), preservando integralmente "Esqueci minha senha" → `/esqueci-senha`; nenhuma antecipação da V3.6.5.
+- **Correção de defeito comprovado (tipografia):** `globals.css` continha `--font-sans: var(--font-sans)` (autorreferência cíclica) que invalidava a regra `html { font-family: var(--font-sans) }` e fazia todo o aplicativo renderizar em fonte serifada padrão; corrigido para `var(--font-geist-sans)` com autorização expressa, restaurando a Geist sans-serifa em todo o app conforme a identidade aprovada; arquivos de fonte confirmados íntegros no build (pré-load e HTTP 200). Nenhuma outra alteração de estilo global.
+- **Fluxos preservados:** autenticação, JWT, redirecionamento pós-login, troca obrigatória de senha, recuperação de senha, proteção das páginas internas, middleware/rewrites e caráter público da rota `/` — intocados.
+
+Validação e homologação:
+
+- **Gates estáticos:** ESLint e `tsc --noEmit` do frontend aprovados; `git diff --check` limpo.
+- **Build de produção:** aprovado com parada e reinício controlados do serviço `sistema-gestao-frontend-teste.service` (build final `GzidqsUVMuNZCUbhKPoxe`, 36/36 páginas estáticas, TypeScript ok); serviço reativado (`active`, "Ready in 122ms", journalctl sem erros); HTTP 200 em `/`, `/login`, `/esqueci-senha` e `/icon.svg`; 13/13 chunks estáticos íntegros no disco e servidos; backend (porta 5101) intocado durante toda a etapa. Desvio registrado e mitigado na primeira validação de build (execução com o serviço ativo por indisponibilidade de sudo; recuperado por restart imediato autorizado, sem perda de dados e com verificação de integridade completa).
+- **Homologação visual e responsiva (2026-11-14):** realizada pelo responsável em desktop, tablet e celular via `https://tst.gestaosolidus.com.br/`, com aprovação da apresentação na identidade Enterprise Tech; os refinamentos solicitados em homologação (cards do Bento Grid e rodapé) foram implementados, revalidados (lint, `tsc`, build e verificação de conteúdo servido) e reaprovados.
+
+**Nenhum texto da landing promete funcionalidades futuras; a V3.6.5 foi concluída e homologada em TESTE e a V3.9 não foi antecipada.**
+
+### V3.6.7 — Homologação Integrada
+
+**STATUS: CONCLUÍDA E HOMOLOGADA EM TESTE — 15/11/2026** (não implantada em produção).
+
+Evidências registradas (resumo):
+
+- **Gates automatizados:** G1–G8 aprovados.
+- **Cadastro público, confirmação anônima e onboarding:** aprovados.
+- **Definição de senha e primeiro login do administrador:** aprovados.
+- **Recuperação de senha por e-mail:** aprovada.
+- **Redefinição administrativa de senha:** aprovada.
+- **Logout, proteção de rotas, troca de usuário e expiração de sessão:** aprovados.
+- **Correção da remontagem indevida no `AuthContext`:** implementada, auditada e validada funcionalmente.
+- **Frontend TESTE:** `npm run lint` e `npm run build` aprovados.
+- **Novo build servido em TESTE:** confirmado funcionalmente.
+
+Ressalvas de organização Git (para consolidação separada):
+
+- Working tree com 96 entradas.
+- Nenhum arquivo staged.
+- Um stash preservado.
+- Alterações de diferentes etapas coexistem em arquivos compartilhados.
+- A consolidação Git deverá ser tratada separadamente.
+
+### Publicação Git consolidada (D17 — 2026-11-21)
+
+A publicação Git das entregas V3.6.3, V3.6.4, V3.6.6-A, V3.6.6, V3.6.5 e V3.6.7 será feita em
+**um único commit de consolidação** do estado atual auditado, e não pela reconstrução artificial
+dos commits históricos individuais. O estado auditado é byte-idêntico ao snapshot final `r6_v367`
+(770/770 arquivos), acrescido de três arquivos transversais de ingresso/proxy já compilados no
+build TESTE. Artefatos acidentais, backups locais, builds, dependências e credenciais ficam fora
+do commit e permanecem preservados no disco.
+
+A estratégia, as evidências e as limitações estão registradas na ADR-029 e no relatório da D17.
+Os status funcionais das versões homologadas em TESTE permanecem inalterados.
 
 ### Reavaliação do progresso de planejamento
 
@@ -1670,7 +1780,11 @@ Não realizar deploy em produção automaticamente. Em tarefas exclusivamente do
 | `frontend/src/app/perfis/` e `frontend/src/components/perfis/` | Implementação da V3.3.6 |
 | Histórico Git | Commits e integrações citados neste documento |
 
-Última entrega funcional: V3.5 — CRM concluída, homologada, versionada e publicada; fechamento documental da V3.5.6 no commit `ca5e662`. Etapa atual: V3.6 — Acesso, Identidade e Onboarding SaaS, em planejamento documental. A V3.6.1 tem contrato aprovado e documentado, ainda sem commit. Próxima etapa: V3.6.2 — Recuperação de Senha e SMTP, pendente e não iniciada. Produção permanece intocada.
+Última entrega funcional: V3.6.7 — Homologação Integrada, concluída e homologada em TESTE em
+15/11/2026 e ainda não publicada. As entregas V3.6.3, V3.6.4, V3.6.6-A, V3.6.6 e V3.6.5 também
+estão concluídas e homologadas em TESTE. A publicação Git será consolidada em um único commit
+(ADR-029), após validação e autorização expressa; a integração PostgreSQL e os E2E permanecem
+gates pendentes. Produção permanece intocada.
 
 ## Como atualizar este documento
 
@@ -1707,3 +1821,7 @@ Não copiar valores de password, senha, token, secret, DATABASE_URL ou PAT. Essa
 | 2026-09-25 | V3.5.6 — Homologação Final do CRM | Homologação integrada aprovada: módulo/RBAC, tenant, funil, oportunidades, ciclo de vida, interações, Agenda, Clientes, Vendas, histórico/auditoria, concorrência, filtros, paginação, cache, troca de tenant, responsividade e regressão técnica final; produção intocada. | `ca5e662` — fechamento documental publicado em `origin/develop` | V3.5.6 CONCLUÍDA, HOMOLOGADA, VERSIONADA E PUBLICADA; V3.5 CONCLUÍDA E HOMOLOGADA; ~94% |
 | 2026-09-26 | Reorganização controlada do roadmap V3.x | Aprovada nova prioridade V3.6 — Acesso, Identidade e Onboarding SaaS antes do Financeiro Avançado; etapas futuras renumeradas para V3.7–V3.12; Base Fiscal preservada e explicitada como Base Fiscal / Notas Fiscais; referências históricas anteriores permanecem preservadas. | `80fd3c07f3dd82a14d01f8e3a555eaa156a87e3c` — publicado em `origin/develop` | ROADMAP REORGANIZADO; próxima etapa V3.6 PENDENTE; produção intocada |
 | 2026-09-26 | V3.6.1 — Contrato e Arquitetura | Auditoria aprovada pelo responsável e contrato formalizado: identidade, recuperação/SMTP, reset, trial/legado, onboarding verificado, segurança de logs, escopo negativo e subdivisão oficial; ADR-026/027 acrescentadas. Estimativa de 85% proposta para revisão, sem alterar percentuais históricos. | Base `80fd3c07f3dd82a14d01f8e3a555eaa156a87e3c`; contrato sem commit | APROVADA E DOCUMENTADA; nenhuma implementação; V3.6.2 PENDENTE; produção intocada |
+| 2026-11-13 | V3.6.6-A — Páginas administrativas | Implementação das páginas `/empresas`, `/modulos` e `/configuracoes` com gating por perfil, tratamento de CNPJ duplicado no backend (`P2002`) e testes; exclusão de empresas mantida fora da UI; CRM conforme V3.5.2; V3.9 não antecipada; sem commit/push. | Sem commit (TESTE) | IMPLEMENTADA E VALIDADA POR TESTES; homologação funcional pendente; produção intocada |
+| 2026-11-14 | V3.6.6-A — Homologação e encerramento | Aplicação autorizada da migration V3.6.4 no banco `sistema_gestao_teste` (backup prévio; colunas, constraints e registro validados), recompilação e reinício do backend, gates aprovados (`npm run quality`; `npm test` com 93 suítes/1.813 testes; `npm run build`; `git diff --check`) e homologação funcional SUPER_ADMIN concluída (`/empresas`, seletor de empresa no cabeçalho, `/configuracoes`, `/modulos`). Falha da primeira tentativa diagnosticada como desencontro de ambiente (dist antigo + colunas ausentes no banco TESTE), resolvida sem alteração de contrato. | Sem commit (TESTE) | V3.6.6-A CONCLUÍDA E HOMOLOGADA; produção intocada |
+| 2026-11-14 | V3.6.6 — Landing Page, identidade visual e homologação | Implementação frontend da landing Enterprise Tech (metadata SGE com `lang="pt-BR"`, `icon.svg` próprio substituindo o favicon padrão, remoção dos cinco SVGs órfãos, hero/Bento Grid/CTA final/rodapé, badge "Cadastre-se — em breve" no login), correção autorizada da fonte cíclica em `globals.css` (Geist restaurada), gates de lint/typecheck/`git diff --check` aprovados e build de produção com parada e reinício controlados do frontend TESTE (HTTP 200 em `/`, `/login`, `/esqueci-senha`, `/icon.svg`; 13/13 chunks íntegros); homologação visual e responsiva pelo responsável em desktop, tablet e celular. | Sem commit (TESTE) | V3.6.6 CONCLUÍDA E HOMOLOGADA; produção intocada |
+| 2026-11-21 | D17 — Auditoria e preparação da consolidação única | Auditoria do estado atual (117 entradas classificadas; 114 incluídas e 3 artefatos excluídos), confirmação de que o working tree é byte-idêntico ao `r6_v367` (770/770), equivalência com o build TESTE (backend 841/841; frontend 32/32 fontes mapeadas), gates aprovados (typecheck, quality, 97 suítes/1.929 testes, build backend/frontend, 10/10 ip-ingresso) e proposta da ADR-029. Integração PostgreSQL e E2E pendentes. Nenhum commit/push. | Sem commit (D17) | ESTADO AUDITADO E PRONTO PARA PREPARAÇÃO ISOLADA; produção intocada |
