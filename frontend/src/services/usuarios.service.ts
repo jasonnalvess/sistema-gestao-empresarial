@@ -8,6 +8,7 @@ export type Usuario = {
   tipo: string;
   ativo: boolean;
   empresaId?: string | null;
+  versaoAutorizacao?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -76,16 +77,47 @@ export async function desativarUsuario(id: string) {
 
 export type PerfilAtribuidoUsuario = Perfil;
 
-export async function listarPerfisUsuario(usuarioId: string, signal?: AbortSignal) {
+export async function listarPerfisUsuario(
+  usuarioId: string,
+  signal?: AbortSignal,
+) {
   const { data } = await api.get<RespostaApi<PerfilAtribuidoUsuario[]>>(
-    `/usuarios/${usuarioId}/perfis`, { signal },
+    `/usuarios/${usuarioId}/perfis`,
+    { signal },
   );
   return data.data;
 }
 
-export async function atualizarPerfisUsuario(usuarioId: string, perfisIds: string[]) {
+export async function atualizarPerfisUsuario(
+  usuarioId: string,
+  perfisIds: string[],
+) {
   const { data } = await api.put<RespostaApi<PerfilAtribuidoUsuario[]>>(
-    `/usuarios/${usuarioId}/perfis`, { perfisIds },
+    `/usuarios/${usuarioId}/perfis`,
+    { perfisIds },
   );
   return data.data;
+}
+
+export type ResetSenhaManualResponse = {
+  usuarioId: string;
+  email: string;
+  senhaTemporaria: string;
+  versaoAutorizacao: number;
+};
+
+export async function buscarUsuarioPorId(id: string) {
+  const { data } = await api.get<RespostaApi<Usuario>>(`/usuarios/${id}`);
+  return data;
+}
+
+export async function redefinirSenhaManual(
+  id: string,
+  versaoAutorizacao: number,
+) {
+  const { data } = await api.post<RespostaApi<ResetSenhaManualResponse>>(
+    `/usuarios/${id}/redefinir-senha-manual`,
+    { versaoAutorizacao },
+  );
+  return data;
 }

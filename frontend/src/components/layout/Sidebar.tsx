@@ -108,6 +108,18 @@ function SidebarContent({ recolhida = false, aoNavegar }: SidebarContentProps) {
       return podeVisualizarCrm && crmAtivo === true;
     }
 
+    // Rotas administrativas V3.6.6-A: alinhadas ao @Roles do backend.
+    if (item.href === "/empresas") {
+      return usuario?.tipo === "SUPER_ADMIN";
+    }
+
+    if (item.href === "/modulos" || item.href === "/configuracoes") {
+      return (
+        usuario?.tipo === "SUPER_ADMIN" ||
+        usuario?.tipo === "ADMIN_EMPRESA"
+      );
+    }
+
     const permissao = permissoesPorRota[item.href];
     if (permissao) return temPermissao(permissao);
 

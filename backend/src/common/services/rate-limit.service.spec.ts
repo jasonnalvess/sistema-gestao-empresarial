@@ -111,4 +111,60 @@ describe('RateLimitService', () => {
       service.checkLimit(request, endpoint, 5),
     ).rejects.toBeInstanceOf(InternalServerErrorException);
   });
+
+  describe('bucket por IP validado', () => {
+    function requestComIp(ip: string): Request {
+      return {
+        headers: { 'x-sge-validated-ip': ip },
+        socket: { remoteAddress: '127.0.0.1' },
+      } as unknown as Request;
+    }
+
+    function criarServicoReal(): RateLimitService {
+      return new RateLimitService(
+        { $queryRaw: queryRaw } as unknown as PrismaService,
+        new IpUtil(),
+      );
+    }
+
+    it('usa IPs validados distintos como chaves distintas', async () => {
+      const realService = criarServicoReal();
+      queryRaw.mockResolvedValue([{ count: 1 }]);
+
+      await realService.checkLimit(requestComIp('203.0.113.10'), endpoint);
+      await realService.checkLimit(requestComIp('198.51.100.20'), endpoint);
+
+      const primeiro = queryRaw.mock.calls[0] as RawQueryCall;
+      const segundo = queryRaw.mock.calls[1] as RawQueryCall;
+
+      expect(primeiro.slice(1)[0]).toBe('203.0.113.10');
+      expect(segundo.slice(1)[0]).toBe('198.51.100.20');
+      expect(primeiro.slice(1)[0]).not.toBe(segundo.slice(1)[0]);
+    });
+
+    it('usa o mesmo bucket para chamadas do mesmo IP', async () => {
+      const realService = criarServicoReal();
+      queryRaw.mockResolvedValue([{ count: 1 }]);
+
+      await realService.checkLimit(requestComIp('2001:db8::1'), endpoint);
+      await realService.checkLimit(requestComIp('2001:db8::1'), endpoint);
+
+      const primeiro = queryRaw.mock.calls[0] as RawQueryCall;
+      const segundo = queryRaw.mock.calls[1] as RawQueryCall;
+
+      expect(primeiro.slice(1)[0]).toBe('2001:db8::1');
+      expect(segundo.slice(1)[0]).toBe(primeiro.slice(1)[0]);
+    });
+
+    it('não usa o loopback do proxy quando há IP validado', async () => {
+      const realService = criarServicoReal();
+      queryRaw.mockResolvedValue([{ count: 1 }]);
+
+      await realService.checkLimit(requestComIp('203.0.113.10'), endpoint);
+
+      const chamada = queryRaw.mock.calls[0] as RawQueryCall;
+      expect(chamada.slice(1)[0]).toBe('203.0.113.10');
+      expect(chamada.slice(1)[0]).not.toBe('127.0.0.1');
+    });
+  });
 });

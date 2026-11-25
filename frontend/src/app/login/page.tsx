@@ -248,6 +248,16 @@ export default function LoginPage() {
             Esqueci minha senha
           </Button>
         </form>
+
+        <p className="mt-6 text-center text-sm text-slate-600">
+          Nao tem conta?{" "}
+          <a
+            href="/cadastro"
+            className="font-medium text-blue-600 underline-offset-4 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            Cadastre sua empresa
+          </a>
+        </p>
       </section>
     </main>
   );

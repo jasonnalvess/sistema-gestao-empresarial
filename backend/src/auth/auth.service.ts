@@ -1,8 +1,18 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsuariosService } from '../usuarios/usuarios.service';
 import type { JwtPayload } from './types/jwt-payload.type';
+
+/**
+ * Código estável do bloqueio de login por e-mail não confirmado (V3.6.5, E4).
+ * O frontend distingue o estado por este código, nunca pelo texto da mensagem.
+ */
+export const CODIGO_EMAIL_NAO_VERIFICADO = 'EMAIL_NAO_VERIFICADO';
 
 @Injectable()
 export class AuthService {
@@ -27,6 +37,22 @@ export class AuthService {
 
     if (!senhaValida) {
       throw new UnauthorizedException('E-mail ou senha inválidos');
+    }
+
+    // V3.6.5 / E4 — conta com e-mail não confirmado não recebe token.
+    //
+    // A verificação vem DEPOIS da senha de propósito: nenhum estado da conta é
+    // revelado a quem não provou conhecer a credencial, então a resposta
+    // continua genérica e não abre um vetor de enumeração de e-mails.
+    //
+    // Fail-closed: somente `emailVerificado === true` prossegue. Usuários
+    // legados são compatíveis porque a migration aprovada define
+    // `emailVerificado Boolean @default(true)`.
+    if (!usuario.emailVerificado) {
+      throw new ForbiddenException({
+        error: CODIGO_EMAIL_NAO_VERIFICADO,
+        message: 'Confirme seu e-mail antes de acessar o sistema.',
+      });
     }
 
     const perfis = [

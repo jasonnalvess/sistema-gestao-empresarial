@@ -30,6 +30,7 @@ import { listarUsuarios } from "@/services/usuarios.service";
 import { NovoUsuarioModal } from "@/components/usuarios/NovoUsuarioModal";
 import { EditarUsuarioModal } from "@/components/usuarios/EditarUsuarioModal";
 import { AlterarStatusUsuarioButton } from "@/components/usuarios/AlterarStatusUsuarioButton";
+import { RedefinirSenhaManualButton } from "@/components/usuarios/RedefinirSenhaManualButton";
 
 function formatarTipo(tipo: string) {
   if (tipo === "SUPER_ADMIN") return "Super Admin";
@@ -159,6 +160,7 @@ function UsuariosLista({
                         <TableCell className="text-right">
                           <div className="flex min-w-max justify-end gap-2">
                             <EditarUsuarioModal usuario={usuario} />
+                            <RedefinirSenhaManualButton usuario={usuario} />
                             <AlterarStatusUsuarioButton usuario={usuario} />
                           </div>
                         </TableCell>

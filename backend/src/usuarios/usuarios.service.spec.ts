@@ -503,6 +503,7 @@ describe('UsuariosService', () => {
         versaoAutorizacao: true,
         tipo: true,
         ativo: true,
+        emailVerificado: true,
         empresaId: true,
         perfis: {
           where: {
@@ -539,6 +540,75 @@ describe('UsuariosService', () => {
           },
         },
       },
+    });
+  });
+
+  describe('exposição da versão de autorização', () => {
+    it('inclui versaoAutorizacao no detalhe autorizado', async () => {
+      const registro = {
+        id: 'alvo',
+        nome: 'Alvo',
+        email: 'alvo@example.com',
+        tipo: 'USUARIO_EMPRESA',
+        ativo: true,
+        empresaId: 'empresa-a',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        versaoAutorizacao: 4,
+      };
+      prismaServiceMock.usuario.findUnique.mockResolvedValue(registro);
+
+      await expect(service.buscarPorId('alvo', superAdmin)).resolves.toEqual(
+        registro,
+      );
+      expect(prismaServiceMock.usuario.findUnique).toHaveBeenCalledWith({
+        where: { id: 'alvo' },
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          tipo: true,
+          ativo: true,
+          empresaId: true,
+          createdAt: true,
+          updatedAt: true,
+          versaoAutorizacao: true,
+        },
+      });
+    });
+
+    it('não inclui versaoAutorizacao na listagem', async () => {
+      prismaServiceMock.usuario.findMany.mockResolvedValue([]);
+      prismaServiceMock.usuario.count.mockResolvedValue(0);
+      prismaServiceMock.$transaction.mockImplementation(
+        async (operacoes: unknown) => {
+          if (Array.isArray(operacoes)) {
+            return Promise.all(operacoes);
+          }
+          return (
+            operacoes as (tx: typeof prismaServiceMock) => Promise<unknown>
+          )(prismaServiceMock);
+        },
+      );
+
+      await service.listar(superAdmin, { page: 1, limit: 10 });
+
+      expect(prismaServiceMock.usuario.findMany).toHaveBeenCalledWith({
+        where: {},
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          tipo: true,
+          ativo: true,
+          empresaId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: 0,
+        take: 10,
+      });
     });
   });
 });

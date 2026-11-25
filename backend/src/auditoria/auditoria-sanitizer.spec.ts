@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import {
   AUDITORIA_CIRCULAR,
   AUDITORIA_REDACTED,
+  prepararJsonAuditoria,
   sanitizarDadosAuditoria,
 } from './auditoria-sanitizer';
 
@@ -42,6 +43,66 @@ describe('sanitizarDadosAuditoria', () => {
     });
     expect(entrada.password).toBe('1');
     expect(entrada.aninhado[0].token).toBe('14');
+  });
+
+  it('sanitiza a senha temporária em todas as grafias e estruturas', () => {
+    const segredos = [
+      'Temp#1',
+      'Temp#2',
+      'Temp#3',
+      'Temp#4',
+      'Temp#5',
+      'Temp#6',
+      'Temp#7',
+    ];
+    const entrada = {
+      senhaTemporaria: segredos[0],
+      senha_temporaria: segredos[1],
+      'senha-temporaria': segredos[2],
+      SENHA_TEMPORARIA: segredos[3],
+      SenhaTemporaria: segredos[4],
+      usuario: {
+        email: 'alvo@example.invalid',
+        senhaTemporaria: segredos[5],
+      },
+      lista: [{ senha_temporaria: segredos[6], campoSeguro: 'preservado' }],
+    };
+
+    const resultado = sanitizarDadosAuditoria(entrada);
+
+    expect(resultado).toEqual({
+      senhaTemporaria: AUDITORIA_REDACTED,
+      senha_temporaria: AUDITORIA_REDACTED,
+      'senha-temporaria': AUDITORIA_REDACTED,
+      SENHA_TEMPORARIA: AUDITORIA_REDACTED,
+      SenhaTemporaria: AUDITORIA_REDACTED,
+      usuario: {
+        email: 'alvo@example.invalid',
+        senhaTemporaria: AUDITORIA_REDACTED,
+      },
+      lista: [
+        { senha_temporaria: AUDITORIA_REDACTED, campoSeguro: 'preservado' },
+      ],
+    });
+
+    const serializado = JSON.stringify(resultado);
+    for (const segredo of segredos) {
+      expect(serializado).not.toContain(segredo);
+    }
+  });
+
+  it('remove a senha temporária do JSON de auditoria', () => {
+    const segredo = 'SenhaTemp#987654321';
+    const resultado = prepararJsonAuditoria({
+      senhaTemporaria: segredo,
+      aninhado: { senha_temporaria: `${segredo}-aninhado` },
+    });
+
+    expect(resultado).toEqual({
+      senhaTemporaria: AUDITORIA_REDACTED,
+      aninhado: { senha_temporaria: AUDITORIA_REDACTED },
+    });
+    expect(JSON.stringify(resultado)).not.toContain(segredo);
   });
 
   it('preserva primitivos, null, undefined, Date e Decimal', () => {

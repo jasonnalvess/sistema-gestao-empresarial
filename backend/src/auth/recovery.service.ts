@@ -38,6 +38,16 @@ interface LinhaConsumo {
   usedAt: Date | null;
 }
 
+interface DadosAuditoriaPromocao {
+  acao: string;
+  entidade: string;
+  entidadeId?: string;
+  dadosNovos?: Prisma.InputJsonValue;
+  empresaId?: string;
+  usuarioId?: string;
+  ip?: string;
+}
+
 @Injectable()
 export class RecoveryService {
   private readonly logger = new Logger(RecoveryService.name);
@@ -126,6 +136,119 @@ export class RecoveryService {
       this.logger.error(
         `Falha ao auditar a solicitação de recuperação de senha. codigo=${this.codigoErro(erro)}`,
       );
+    }
+  }
+
+  /**
+   * Solicitação administrativa de redefinição de senha.
+   * O ator é sempre revalidado no backend e o destinatário é o e-mail
+   * persistido do usuário-alvo, nunca um endereço enviado pelo cliente.
+   */
+  async solicitarRedefinicaoAdministrativa(
+    usuarioId: string,
+    atorId: string,
+    ip?: string,
+  ): Promise<void> {
+    const ator = await this.prisma.usuario.findUnique({
+      where: { id: atorId },
+    });
+
+    // Retornamos void para evitar enumeração de usuários.
+    if (!ator || !ator.ativo) {
+      return;
+    }
+
+    if (ator.tipo !== 'SUPER_ADMIN' && ator.tipo !== 'ADMIN_EMPRESA') {
+      return;
+    }
+
+    if (ator.tipo === 'ADMIN_EMPRESA' && !ator.empresaId) {
+      return;
+    }
+
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+    });
+
+    if (!usuario || !usuario.ativo) {
+      return;
+    }
+
+    const emailNormalizado = usuario.email.toLowerCase().trim();
+
+    if (!emailNormalizado) {
+      return;
+    }
+
+    if (ator.tipo === 'ADMIN_EMPRESA') {
+      if (!usuario.empresaId || usuario.empresaId !== ator.empresaId) {
+        return;
+      }
+
+      if (usuario.tipo === 'SUPER_ADMIN') {
+        return;
+      }
+    }
+
+    const agora = new Date();
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const requestId = randomUUID();
+    const pendingCreatedAt = agora;
+    const pendingExpiresAt = new Date(agora.getTime() + VALIDADE_PENDENCIA_MS);
+
+    await this.reservarPendencia(usuario.id, {
+      tokenHash,
+      pendingCreatedAt,
+      pendingExpiresAt,
+      requestId,
+    });
+
+    // O envio ocorre fora de qualquer transação PostgreSQL e fora do retry.
+    try {
+      await this.mailService.sendPasswordResetEmail(emailNormalizado, rawToken);
+    } catch (erro) {
+      this.logger.error(
+        `Falha ao enviar a solicitação administrativa de recuperação de senha. codigo=${this.codigoErro(erro)}`,
+      );
+      await this.cancelarPendencia(usuario.id, requestId).catch(
+        (erroCancelamento) => {
+          this.logger.error(
+            `Falha ao cancelar a solicitação administrativa de recuperação de senha. codigo=${this.codigoErro(erroCancelamento)}`,
+          );
+        },
+      );
+      return;
+    }
+
+    const promovido = await this.promoverPendencia(usuario.id, requestId, {
+      acao: 'SOLICITACAO_RECUPERACAO_SENHA_ADMIN',
+      entidade: 'Usuario',
+      entidadeId: usuario.id,
+      dadosNovos: prepararJsonAuditoria({
+        solicitacao: 'administrativa',
+        perfilSolicitante: ator.tipo,
+        perfilAlvo: usuario.tipo,
+      }),
+      empresaId: usuario.empresaId ?? undefined,
+      usuarioId: ator.id,
+      ip: ip,
+    }).catch((erro) => {
+      this.logger.error(
+        `Falha ao promover a solicitação administrativa de recuperação de senha. codigo=${this.codigoErro(erro)}`,
+      );
+      return null;
+    });
+
+    if (promovido === null) {
+      return;
+    }
+
+    if (!promovido) {
+      this.logger.warn(
+        'Solicitação administrativa de recuperação de senha não promovida: condição perdida.',
+      );
+      return;
     }
   }
 
@@ -257,10 +380,15 @@ export class RecoveryService {
   /**
    * Etapa 3A — promove a pendência somente se ela ainda for a solicitação
    * vigente e não estiver expirada. Retorna false quando perdeu a condição.
+   *
+   * Quando 'auditoria' é informada, a gravação ocorre na mesma transação da
+   * promoção. Uma falha na auditoria reverte a promoção e preserva o token
+   * ativo anterior. O envio SMTP permanece fora da transação.
    */
   private async promoverPendencia(
     usuarioId: string,
     requestId: string,
+    auditoria?: DadosAuditoriaPromocao,
   ): Promise<boolean> {
     return this.executarComRetry(() =>
       this.prisma.$transaction(async (tx) => {
@@ -311,7 +439,15 @@ export class RecoveryService {
           },
         });
 
-        return resultado.count === 1;
+        if (resultado.count !== 1) {
+          return false;
+        }
+
+        if (auditoria) {
+          await tx.auditoriaLog.create({ data: auditoria });
+        }
+
+        return true;
       }),
     );
   }

@@ -8,6 +8,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -18,6 +19,7 @@ import { PaginacaoDto } from '../common/dto/paginacao.dto';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
 import { obterEmpresaId } from '../common/utils/obter-empresa-id';
+import { gerarSenhaTemporaria } from '../common/utils/senha-temporaria.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 type TipoUsuario = 'SUPER_ADMIN' | 'ADMIN_EMPRESA' | 'USUARIO_EMPRESA';
@@ -34,6 +36,13 @@ type AtualizarUsuarioDados = {
   nome?: string;
   email?: string;
   tipo?: TipoUsuario;
+};
+
+type ResultadoResetSenhaManual = {
+  usuarioId: string;
+  email: string;
+  senhaTemporaria: string;
+  versaoAutorizacao: number;
 };
 
 const perfilAtribuidoSelect = {
@@ -60,6 +69,18 @@ export class UsuariosService {
     empresaId: true,
     createdAt: true,
     updatedAt: true,
+  } satisfies Prisma.UsuarioSelect;
+
+  private readonly selectDetalhe = {
+    id: true,
+    nome: true,
+    email: true,
+    tipo: true,
+    ativo: true,
+    empresaId: true,
+    createdAt: true,
+    updatedAt: true,
+    versaoAutorizacao: true,
   } satisfies Prisma.UsuarioSelect;
 
   async criar(dados: CriarUsuarioDados, usuarioLogado: AuthenticatedUser) {
@@ -407,7 +428,7 @@ export class UsuariosService {
   async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id },
-      select: this.selectSeguro,
+      select: this.selectDetalhe,
     });
 
     if (!usuario) {
@@ -533,6 +554,143 @@ export class UsuariosService {
 
   desativar(id: string, usuarioLogado: AuthenticatedUser) {
     return this.alterarAcesso(id, usuarioLogado, false);
+  }
+
+  /**
+   * Reset manual de senha, exclusivo de SUPER_ADMIN ativo.
+   * A senha temporária é gerada no backend e devolvida apenas nesta resposta;
+   * o banco recebe somente o hash. A transação cobre senha, flags, versão de
+   * autorização, invalidação dos tokens de recuperação e auditoria. A versão
+   * esperada do alvo é conferida sob lock antes de qualquer escrita, evitando
+   * sobrescrever silenciosamente uma credencial já entregue.
+   */
+  async resetarSenhaAdministrativaManual(
+    id: string,
+    ator: AuthenticatedUser,
+    versaoEsperada: number,
+    ip?: string,
+  ): Promise<ResultadoResetSenhaManual> {
+    if (ator.tipo !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Operação exclusiva de Super Admin.');
+    }
+
+    if (ator.id === id) {
+      throw new ForbiddenException(
+        'Não é permitido redefinir a própria senha.',
+      );
+    }
+
+    const senhaTemporaria = gerarSenhaTemporaria();
+    const senhaHash = await bcrypt.hash(senhaTemporaria, 12);
+
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            // Mesma ordem dos fluxos administrativos: ator -> alvo.
+            await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${ator.id} FOR UPDATE`;
+            const atual = await tx.usuario.findUnique({
+              where: { id: ator.id },
+              select: {
+                ativo: true,
+                tipo: true,
+                empresaId: true,
+                versaoAutorizacao: true,
+              },
+            });
+            if (
+              !atual ||
+              !atual.ativo ||
+              atual.tipo !== 'SUPER_ADMIN' ||
+              atual.empresaId !== null ||
+              !Number.isSafeInteger(ator.versaoAutorizacao) ||
+              atual.versaoAutorizacao !== ator.versaoAutorizacao
+            )
+              throw new UnauthorizedException(
+                'Sessão inválida. Faça login novamente.',
+              );
+            await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${id} FOR UPDATE`;
+            const alvo = await tx.usuario.findUnique({
+              where: { id },
+              select: {
+                id: true,
+                email: true,
+                ativo: true,
+                empresaId: true,
+                versaoAutorizacao: true,
+              },
+            });
+            if (!alvo) throw new NotFoundException('Usuário não encontrado.');
+            if (!alvo.ativo)
+              throw new ForbiddenException(
+                'Usuário inativo não pode ter a senha redefinida.',
+              );
+            if (alvo.versaoAutorizacao !== versaoEsperada)
+              throw new ConflictException({
+                error: 'RESET_CONCORRENTE',
+                message:
+                  'O usuário foi alterado por outra operação. Recarregue os dados e confirme novamente.',
+              });
+            const atualizado = await tx.usuario.update({
+              where: { id },
+              data: {
+                senha: senhaHash,
+                trocaSenhaObrigatoria: true,
+                versaoAutorizacao: { increment: 1 },
+              },
+              select: { id: true, versaoAutorizacao: true },
+            });
+            // Remove todo o estado de recuperação do alvo (token ativo,
+            // pendência e registro já consumido) na mesma transação. A
+            // constraint PasswordResetToken_used_requires_active_check impede
+            // revogar com tokenHash nulo e usedAt preenchido; a exclusão
+            // invalida os tokens anteriores e libera o upsert da próxima
+            // solicitação (userId é único).
+            await tx.passwordResetToken.deleteMany({
+              where: { userId: id },
+            });
+            await tx.auditoriaLog.create({
+              data: {
+                acao: 'RESET_SENHA_MANUAL',
+                entidade: 'Usuario',
+                entidadeId: alvo.id,
+                dadosNovos: prepararJsonAuditoria({
+                  operacao: 'RESET_MANUAL',
+                  trocaSenhaObrigatoria: true,
+                  senhaTemporariaGerada: true,
+                }),
+                empresaId: alvo.empresaId ?? undefined,
+                usuarioId: ator.id,
+                ip,
+              },
+            });
+            return {
+              usuarioId: alvo.id,
+              email: alvo.email,
+              senhaTemporaria,
+              versaoAutorizacao: atualizado.versaoAutorizacao,
+            };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          (error.code === 'P2034' ||
+            (error.code === 'P2010' &&
+              ['40001', '40P01'].includes(String(error.meta?.code))))
+        ) {
+          if (tentativa < 2) continue;
+          throw new ServiceUnavailableException(
+            'Serviço temporariamente indisponível por concorrência. Tente novamente.',
+          );
+        }
+        throw error;
+      }
+    }
+    throw new ServiceUnavailableException(
+      'Serviço temporariamente indisponível por concorrência. Tente novamente.',
+    );
   }
 
   private async alterarAcesso(
@@ -731,6 +889,7 @@ export class UsuariosService {
         versaoAutorizacao: true,
         tipo: true,
         ativo: true,
+        emailVerificado: true,
         empresaId: true,
         perfis: {
           where: {
