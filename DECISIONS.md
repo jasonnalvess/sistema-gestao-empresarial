@@ -682,7 +682,7 @@ Isso preserva o histórico arquitetural do projeto.
 
 ## Aprovação e escopo
 
-Proposta (aguardando aprovação formal) — 2026-11-21, na D17. Complementa a ADR-028 (Política de Ambientes) e
+**APROVADA** — 22/11/2026. Aprovação formal concedida pelo responsável pelo projeto SGE, mediante autorização expressa registrada na D30. Escopo: conteúdo técnico atual da ADR-029, sem alterações. Complementa a ADR-028 (Política de Ambientes) e
 o processo de encerramento da V3.6, sem revogar decisões anteriores e sem alterar os status
 funcionais homologados em TESTE.
 
