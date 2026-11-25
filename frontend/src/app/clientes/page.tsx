@@ -4,7 +4,17 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorMessage } from "@/components/common/ErrorMessage";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import {
+  PERMISSAO_CLIENTES_CRIAR,
+  PERMISSAO_CLIENTES_EDITAR,
+  PERMISSAO_CLIENTES_VISUALIZAR,
+} from "@/lib/auth";
 
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudToolbar } from "@/components/crud/CrudToolbar";
@@ -32,6 +42,13 @@ import { AlterarStatusClienteButton } from "@/components/clientes/AlterarStatusC
 import { ClientesSummaryCards } from "@/components/clientes/ClientesSummaryCards";
 
 export default function ClientesPage() {
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarClientes = temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
+  const podeCriarCliente = temPermissao(PERMISSAO_CLIENTES_CRIAR);
+  const podeEditarCliente = temPermissao(PERMISSAO_CLIENTES_EDITAR);
   const [search, setSearch] = useState("");
   const [searchAplicado, setSearchAplicado] = useState("");
   const [tipoFiltro, setTipoFiltro] = useState("");
@@ -39,7 +56,14 @@ export default function ClientesPage() {
   const [page, setPage] = useState(1);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["clientes", searchAplicado, tipoFiltro, ativoFiltro, page],
+    queryKey: [
+      "clientes",
+      empresaEfetivaId,
+      searchAplicado,
+      tipoFiltro,
+      ativoFiltro,
+      page,
+    ],
     queryFn: () =>
       listarClientes({
         search: searchAplicado,
@@ -48,6 +72,7 @@ export default function ClientesPage() {
         page,
         limit: 10,
       }),
+    enabled: podeVisualizarClientes && possuiEmpresaEfetiva && !carregando,
   });
 
   function pesquisar() {
@@ -58,13 +83,35 @@ export default function ClientesPage() {
   const clientes = data?.data ?? [];
   const totalPages = data?.meta?.totalPages ?? 1;
 
+  if (!podeVisualizarClientes) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+
+  if (!possuiEmpresaEfetiva)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Clientes"
           description="Gerencie clientes, contatos e informações comerciais."
-          actions={<NovoClienteModal />}
+          actions={podeCriarCliente ? <NovoClienteModal /> : undefined}
         />
 
         <ClientesSummaryCards clientes={clientes} />
@@ -79,16 +126,22 @@ export default function ClientesPage() {
             />
           </CrudToolbar>
 
-          <div className="mb-4 grid gap-3 md:grid-cols-3">
-            <div>
-              <label className="text-sm font-medium text-slate-700">Tipo</label>
+          <div className="mb-4 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="min-w-0">
+              <label
+                htmlFor="clientes-tipo"
+                className="text-sm font-medium text-slate-700"
+              >
+                Tipo
+              </label>
               <select
+                id="clientes-tipo"
                 value={tipoFiltro}
                 onChange={(e) => {
                   setPage(1);
                   setTipoFiltro(e.target.value);
                 }}
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="mt-1 h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
               >
                 <option value="">Todos</option>
                 <option value="PF">Pessoa Física</option>
@@ -96,15 +149,21 @@ export default function ClientesPage() {
               </select>
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-slate-700">Status</label>
+            <div className="min-w-0">
+              <label
+                htmlFor="clientes-status"
+                className="text-sm font-medium text-slate-700"
+              >
+                Status
+              </label>
               <select
+                id="clientes-status"
                 value={ativoFiltro}
                 onChange={(e) => {
                   setPage(1);
                   setAtivoFiltro(e.target.value);
                 }}
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="mt-1 h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
               >
                 <option value="">Todos</option>
                 <option value="true">Ativos</option>
@@ -114,16 +173,17 @@ export default function ClientesPage() {
           </div>
 
           {error && (
-            <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              Erro ao carregar clientes.
-            </div>
+            <ErrorMessage
+              className="mt-4"
+              message="Erro ao carregar clientes."
+            />
           )}
 
           {isLoading ? (
             <CrudLoading />
           ) : (
             <>
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-5 min-w-0 max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -167,20 +227,30 @@ export default function ClientesPage() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex min-w-max justify-end gap-2">
                             <DetailsButton href={`/clientes/${cliente.id}`} />
                             <NewAtendimentoButton clienteId={cliente.id} />
-                            <EditarClienteModal cliente={cliente} />
-                            <AlterarStatusClienteButton cliente={cliente} />
+                            {podeEditarCliente && (
+                              <>
+                                <EditarClienteModal cliente={cliente} />
+                                <AlterarStatusClienteButton cliente={cliente} />
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
                     ))}
 
-                    {clientes.length === 0 && (
+                    {!error && clientes.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={7}>
-                          <CrudEmpty message="Nenhum cliente encontrado." />
+                          <CrudEmpty
+                            message={
+                              searchAplicado || tipoFiltro || ativoFiltro
+                                ? "Nenhum cliente encontrado para os filtros aplicados."
+                                : "Nenhum cliente encontrado."
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     )}

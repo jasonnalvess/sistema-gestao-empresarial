@@ -32,14 +32,16 @@ export type OrdemServico = {
   } | null;
 };
 
-export async function listarOrdensServico(params?: {
+export type FiltrosOrdensServico = {
   search?: string;
   status?: "ABERTA" | "EM_ANDAMENTO" | "CONCLUIDA" | "CANCELADA";
   prioridade?: "BAIXA" | "NORMAL" | "ALTA" | "URGENTE";
   clienteId?: string;
   page?: number;
   limit?: number;
-}) {
+};
+
+export async function listarOrdensServico(params?: FiltrosOrdensServico) {
   const { data } = await api.get<{
     success: boolean;
     data: OrdemServico[];
@@ -116,11 +118,11 @@ export async function listarOrdemServicoHistorico(ordemServicoId: string) {
 
 export async function adicionarOrdemServicoHistorico(
   ordemServicoId: string,
-  descricao: string
+  descricao: string,
 ) {
   const { data } = await api.post(
     `/ordens-servico/${ordemServicoId}/historico`,
-    { descricao }
+    { descricao },
   );
 
   return data;
@@ -133,7 +135,7 @@ export type AlterarStatusOrdemServicoInput = {
 
 export async function alterarStatusOrdemServico(
   id: string,
-  dados: AlterarStatusOrdemServicoInput
+  dados: AlterarStatusOrdemServicoInput,
 ) {
   const { data } = await api.patch(`/ordens-servico/${id}/status`, dados);
   return data;

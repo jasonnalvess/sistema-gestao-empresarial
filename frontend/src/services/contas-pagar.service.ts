@@ -1,16 +1,10 @@
+import axios from "axios";
 import { api } from "./api";
 
 export type StatusContaPagar =
-  | "PENDENTE"
-  | "PARCIALMENTE_PAGA"
-  | "PAGA"
-  | "VENCIDA"
-  | "CANCELADA";
+  "PENDENTE" | "PARCIALMENTE_PAGA" | "PAGA" | "VENCIDA" | "CANCELADA";
 
-export type OrigemContaPagar =
-  | "MANUAL"
-  | "PEDIDO_COMPRA"
-  | "OUTRA";
+export type OrigemContaPagar = "MANUAL" | "PEDIDO_COMPRA" | "OUTRA";
 
 export type FormaPagamento =
   | "DINHEIRO"
@@ -129,6 +123,71 @@ export type ContaPagarDetalhada = ContaPagar & {
   historicos: ContaPagarHistorico[];
 };
 
+export type CriarContaPagarPayload = {
+  descricao: string;
+  documento?: string;
+  observacao?: string;
+  origem?: OrigemContaPagar;
+  dataEmissao?: string;
+  dataCompetencia?: string;
+  dataVencimento: string;
+  parcelaAtual?: number;
+  totalParcelas?: number;
+  valorOriginal: number;
+  valorDesconto?: number;
+  valorJuros?: number;
+  valorMulta?: number;
+  fornecedorId?: string;
+  pedidoCompraId?: string;
+};
+export type AtualizarContaPagarPayload = Partial<CriarContaPagarPayload>;
+export type RegistrarPagamentoContaPagarPayload = {
+  valor: number;
+  desconto?: number;
+  juros?: number;
+  multa?: number;
+  formaPagamento: FormaPagamento;
+  dataPagamento?: string;
+  caixaId?: string;
+  documento?: string;
+  observacao?: string;
+};
+export type GerarContaPedidoCompraPayload = {
+  dataVencimento: string;
+  dataCompetencia?: string;
+  documento?: string;
+  observacao?: string;
+};
+
+export function obterMensagemErroContasPagar(
+  erro: unknown,
+  mensagemPadrao: string,
+): string {
+  if (axios.isAxiosError<{ message?: string }>(erro)) {
+    return erro.response?.data?.message ?? mensagemPadrao;
+  }
+  return mensagemPadrao;
+}
+
+export const contasPagarQueryKeys = {
+  listas: (empresaId: string) => ["contas-pagar", empresaId] as const,
+  detalhe: (empresaId: string, contaId: string) =>
+    ["conta-pagar", empresaId, contaId] as const,
+  historico: (empresaId: string, contaId: string) =>
+    ["conta-pagar-historico", empresaId, contaId] as const,
+  resumo: (empresaId: string) =>
+    ["financeiro-resumo-contas-pagar", empresaId] as const,
+};
+
+export type ResumoContasPagar = {
+  pagar: {
+    valorOriginal: number;
+    valorPago: number;
+    valorAberto: number;
+    valorVencido: number;
+  };
+};
+
 export type ContasPagarResponse = {
   success: boolean;
   data: ContaPagar[];
@@ -153,14 +212,23 @@ export async function listarContasPagar(params?: {
   sortBy?: string;
   order?: "asc" | "desc";
 }) {
-  const { data } = await api.get<ContasPagarResponse>(
-    "/contas-pagar",
-    {
-      params,
-    }
-  );
+  const { data } = await api.get<ContasPagarResponse>("/contas-pagar", {
+    params,
+  });
 
   return data;
+}
+
+export async function buscarResumoContasPagar(params?: {
+  vencimentoInicio?: string;
+  vencimentoFim?: string;
+}) {
+  const { data } = await api.get<{
+    success: boolean;
+    data: ResumoContasPagar;
+  }>("/contas-pagar/resumo", { params });
+
+  return data.data;
 }
 
 export async function buscarContaPagar(id: string) {
@@ -172,54 +240,43 @@ export async function buscarContaPagar(id: string) {
   return data.data;
 }
 
-export async function criarContaPagar(body: any) {
-  const { data } = await api.post(
-    "/contas-pagar",
-    body
-  );
+export async function criarContaPagar(body: CriarContaPagarPayload) {
+  const { data } = await api.post("/contas-pagar", body);
 
   return data;
 }
 
 export async function atualizarContaPagar(
   id: string,
-  body: any
+  body: AtualizarContaPagarPayload,
 ) {
-  const { data } = await api.patch(
-    `/contas-pagar/${id}`,
-    body
-  );
+  const { data } = await api.patch(`/contas-pagar/${id}`, body);
 
   return data;
 }
 
 export async function registrarPagamentoContaPagar(
   id: string,
-  body: any
+  body: RegistrarPagamentoContaPagarPayload,
 ) {
-  const { data } = await api.post(
-    `/contas-pagar/${id}/pagamentos`,
-    body
-  );
+  const { data } = await api.post(`/contas-pagar/${id}/pagamentos`, body);
 
   return data;
 }
 
 export async function cancelarContaPagar(id: string) {
-  const { data } = await api.patch(
-    `/contas-pagar/${id}/cancelar`
-  );
+  const { data } = await api.patch(`/contas-pagar/${id}/cancelar`);
 
   return data;
 }
 
 export async function gerarContaPorPedido(
   pedidoCompraId: string,
-  body: any
+  body: GerarContaPedidoCompraPayload,
 ) {
   const { data } = await api.post(
     `/contas-pagar/pedido-compra/${pedidoCompraId}`,
-    body
+    body,
   );
 
   return data;

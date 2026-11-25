@@ -12,6 +12,11 @@ import {
   adicionarProdutoHistorico,
   listarProdutoHistorico,
 } from "@/services/produtos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_PRODUTOS_EDITAR, PERMISSAO_PRODUTOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   produtoId: string;
@@ -19,16 +24,22 @@ type Props = {
 
 export function ProdutoHistoricoCard({ produtoId }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeVisualizar = temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR);
+  const podeEditar = temPermissao(PERMISSAO_PRODUTOS_EDITAR);
 
   const [descricao, setDescricao] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   const { data: historicos = [], isLoading } = useQuery({
-    queryKey: ["produto-historico", produtoId],
+    queryKey: estoqueQueryKeys.produtoHistorico(empresaEfetivaId ?? "", produtoId),
     queryFn: () => listarProdutoHistorico(produtoId),
+    enabled: podeVisualizar && Boolean(empresaEfetivaId) && Boolean(produtoId) && !carregando,
   });
 
   async function salvarHistorico() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     try {
       setSalvando(true);
 
@@ -38,20 +49,18 @@ export function ProdutoHistoricoCard({ produtoId }: Props) {
       setDescricao("");
 
       queryClient.invalidateQueries({
-        queryKey: ["produto-historico", produtoId],
+        queryKey: estoqueQueryKeys.produtoHistorico(empresaEfetivaId, produtoId),
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Erro ao adicionar anotação"
-      );
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao adicionar anotação"));
     } finally {
       setSalvando(false);
     }
   }
 
   return (
-    <div className="space-y-5">
-      <div>
+    <div className="min-w-0 space-y-5">
+      {podeEditar && <div>
         <label className="text-sm font-medium text-slate-700">
           Nova anotação
         </label>
@@ -62,16 +71,16 @@ export function ProdutoHistoricoCard({ produtoId }: Props) {
           placeholder="Ex: Produto revisado, embalagem alterada, observação comercial..."
         />
 
-        <div className="mt-3 flex justify-end">
+        <div className="mt-3 flex justify-stretch sm:justify-end">
           <Button
             onClick={salvarHistorico}
             disabled={salvando || descricao.trim().length < 2}
           >
-            <MessageSquarePlus size={16} className="mr-2" />
+            <MessageSquarePlus aria-hidden="true" />
             {salvando ? "Salvando..." : "Adicionar anotação"}
           </Button>
         </div>
-      </div>
+      </div>}
 
       <div className="border-t pt-4">
         {isLoading ? (
@@ -89,7 +98,7 @@ export function ProdutoHistoricoCard({ produtoId }: Props) {
                 key={historico.id}
                 className="rounded-lg border border-slate-200 bg-slate-50 p-3"
               >
-                <p className="whitespace-pre-line text-sm text-slate-700">
+                <p className="break-words whitespace-pre-line text-sm text-slate-700">
                   {historico.descricao}
                 </p>
 

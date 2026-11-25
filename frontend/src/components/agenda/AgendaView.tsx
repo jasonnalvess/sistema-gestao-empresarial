@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AgendaEvento } from "@/services/agenda.service";
 import { AgendaMonthView } from "./AgendaMonthView";
@@ -47,7 +47,9 @@ function passaPeriodo(dataEvento: Date, periodo: string) {
   }
 
   if (periodo === "SEMANA") {
-    return dataEvento >= inicioDaSemana(hoje) && dataEvento <= fimDaSemana(hoje);
+    return (
+      dataEvento >= inicioDaSemana(hoje) && dataEvento <= fimDaSemana(hoje)
+    );
   }
 
   if (periodo === "MES") {
@@ -72,42 +74,48 @@ export function AgendaView({ eventos }: Props) {
     setBusca("");
   }
 
-  const eventosFiltrados = eventos.filter((evento) => {
-    const passaStatus =
-      statusFiltro === "TODOS" || evento.status === statusFiltro;
-
+  const eventosFiltrados = useMemo(() => {
     const textoBusca = busca.toLowerCase();
 
-    const passaBusca =
-      !textoBusca ||
-      evento.titulo.toLowerCase().includes(textoBusca) ||
-      evento.descricao?.toLowerCase().includes(textoBusca) ||
-      evento.clienteNome?.toLowerCase().includes(textoBusca) ||
-      evento.clienteContato?.toLowerCase().includes(textoBusca);
+    return eventos.filter((evento) => {
+      const passaStatus =
+        statusFiltro === "TODOS" || evento.status === statusFiltro;
+      const passaBusca =
+        !textoBusca ||
+        evento.titulo.toLowerCase().includes(textoBusca) ||
+        evento.descricao?.toLowerCase().includes(textoBusca) ||
+        evento.clienteNome?.toLowerCase().includes(textoBusca) ||
+        evento.clienteContato?.toLowerCase().includes(textoBusca);
+      const passaFiltroPeriodo = passaPeriodo(
+        new Date(evento.dataInicio),
+        periodoFiltro,
+      );
 
-    const passaFiltroPeriodo = passaPeriodo(
-      new Date(evento.dataInicio),
-      periodoFiltro
-    );
-
-    return passaStatus && passaBusca && passaFiltroPeriodo;
-  });
+      return passaStatus && passaBusca && passaFiltroPeriodo;
+    });
+  }, [busca, eventos, periodoFiltro, statusFiltro]);
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <AgendaQuickActions
         onPeriodoChange={setPeriodoFiltro}
         onStatusChange={setStatusFiltro}
         onTabChange={setAbaAtiva}
       />
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3">
         <div>
-          <p className="text-sm font-medium text-slate-700">Filtrar por status</p>
+          <label
+            htmlFor="agenda-status"
+            className="text-sm font-medium text-slate-700"
+          >
+            Filtrar por status
+          </label>
           <select
+            id="agenda-status"
             value={statusFiltro}
             onChange={(e) => setStatusFiltro(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+            className="mt-1 h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
           >
             <option value="TODOS">Todos</option>
             <option value="AGENDADO">Agendado</option>
@@ -118,11 +126,17 @@ export function AgendaView({ eventos }: Props) {
         </div>
 
         <div>
-          <p className="text-sm font-medium text-slate-700">Filtrar por período</p>
+          <label
+            htmlFor="agenda-periodo"
+            className="text-sm font-medium text-slate-700"
+          >
+            Filtrar por período
+          </label>
           <select
+            id="agenda-periodo"
             value={periodoFiltro}
             onChange={(e) => setPeriodoFiltro(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+            className="mt-1 h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
           >
             <option value="TODOS">Todos</option>
             <option value="HOJE">Hoje</option>
@@ -132,17 +146,23 @@ export function AgendaView({ eventos }: Props) {
         </div>
 
         <div>
-          <p className="text-sm font-medium text-slate-700">Buscar atendimento</p>
+          <label
+            htmlFor="agenda-busca"
+            className="text-sm font-medium text-slate-700"
+          >
+            Buscar atendimento
+          </label>
           <input
+            id="agenda-busca"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Cliente, contato, título ou descrição..."
-            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+            className="mt-1 h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base md:text-sm"
           />
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex flex-col sm:flex-row sm:justify-end">
         <button
           onClick={limparFiltros}
           className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -151,8 +171,12 @@ export function AgendaView({ eventos }: Props) {
         </button>
       </div>
 
-      <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="space-y-4">
-        <TabsList>
+      <Tabs
+        value={abaAtiva}
+        onValueChange={setAbaAtiva}
+        className="min-w-0 space-y-4"
+      >
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
           <TabsTrigger value="mes">Mês</TabsTrigger>
           <TabsTrigger value="semana">Semana</TabsTrigger>
           <TabsTrigger value="dia">Dia</TabsTrigger>

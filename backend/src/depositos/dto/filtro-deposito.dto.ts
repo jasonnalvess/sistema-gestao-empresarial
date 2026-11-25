@@ -5,7 +5,7 @@ import { QueryBaseDto } from '../../common/dto/query-base.dto';
 
 export class FiltroDepositoDto extends QueryBaseDto {
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }): unknown => {
     if (value === true || value === 'true') {
       return true;
     }

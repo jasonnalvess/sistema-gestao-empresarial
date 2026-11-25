@@ -1,5 +1,8 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { PerfisUsuarioEditor } from "./PerfisUsuarioEditor";
+import { obterMensagemErro } from "@/lib/api-error";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -17,6 +20,7 @@ type Props = {
 
 export function EditarUsuarioModal({ usuario }: Props) {
   const queryClient = useQueryClient();
+  const { usuario: usuarioLogado } = useAuth();
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -43,8 +47,8 @@ export function EditarUsuarioModal({ usuario }: Props) {
       queryClient.invalidateQueries({
         queryKey: ["usuarios"],
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao atualizar usuário");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar usuário"));
     } finally {
       setSalvando(false);
     }
@@ -53,8 +57,11 @@ export function EditarUsuarioModal({ usuario }: Props) {
   return (
     <FormDialog
       open={aberto}
-      onOpenChange={setAberto}
+      onOpenChange={(open) => {
+        if (!salvando) setAberto(open);
+      }}
       title="Editar usuário"
+      contentClassName="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-xl overflow-y-auto"
       trigger={
         <Button variant="outline" size="sm">
           <Pencil size={14} className="mr-2" />
@@ -62,7 +69,11 @@ export function EditarUsuarioModal({ usuario }: Props) {
         </Button>
       }
     >
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
+        <p className="text-sm text-slate-600">
+          Tipo de usuário define o nível estrutural da conta. Perfis definem os
+          módulos e ações permitidos.
+        </p>
         <div>
           <label className="text-sm font-medium text-slate-700">Nome</label>
           <Input value={nome} onChange={(e) => setNome(e.target.value)} />
@@ -78,7 +89,9 @@ export function EditarUsuarioModal({ usuario }: Props) {
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700">Perfil</label>
+          <label className="text-sm font-medium text-slate-700">
+            Tipo de usuário
+          </label>
 
           <select
             value={tipo}
@@ -87,18 +100,20 @@ export function EditarUsuarioModal({ usuario }: Props) {
                 e.target.value as
                   | "SUPER_ADMIN"
                   | "ADMIN_EMPRESA"
-                  | "USUARIO_EMPRESA"
+                  | "USUARIO_EMPRESA",
               )
             }
             className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
           >
             <option value="USUARIO_EMPRESA">Usuário Empresa</option>
             <option value="ADMIN_EMPRESA">Admin Empresa</option>
-            <option value="SUPER_ADMIN">Super Admin</option>
+            {usuarioLogado?.tipo === "SUPER_ADMIN" && (
+              <option value="SUPER_ADMIN">Super Admin</option>
+            )}
           </select>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 bg-white pt-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}
@@ -108,9 +123,12 @@ export function EditarUsuarioModal({ usuario }: Props) {
           </Button>
 
           <Button onClick={salvar} disabled={salvando}>
-            {salvando ? "Salvando..." : "Salvar alterações"}
+            {salvando ? "Salvando..." : "Salvar dados da conta"}
           </Button>
         </div>
+        {aberto && tipo !== "SUPER_ADMIN" && (
+          <PerfisUsuarioEditor usuario={usuario} disabled={salvando} />
+        )}
       </div>
     </FormDialog>
   );

@@ -1,34 +1,77 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, Clock, MapPin, User } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CrudCard } from "@/components/crud/CrudCard";
-import { CrudEmpty } from "@/components/crud/CrudEmpty";
 import { CrudLoading } from "@/components/crud/CrudLoading";
 import { listarAgenda } from "@/services/agenda.service";
 import { NovoEventoModal } from "@/components/agenda/NovoEventoModal";
 import { AgendaView } from "@/components/agenda/AgendaView";
 import { AgendaSummaryCards } from "@/components/agenda/AgendaSummaryCards";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { agendaQueryKeys } from "@/lib/agenda-query-keys";
+import {
+  PERMISSAO_AGENDA_CRIAR,
+  PERMISSAO_AGENDA_VISUALIZAR,
+} from "@/lib/auth";
 
 export default function AgendaPage() {
-  const { data: eventos = [], isLoading, error } = useQuery({
-    queryKey: ["agenda"],
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresa = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_AGENDA_VISUALIZAR);
+  const podeCriar = temPermissao(PERMISSAO_AGENDA_CRIAR);
+  const {
+    data: eventos,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: agendaQueryKeys.lista(empresaEfetivaId ?? ""),
     queryFn: listarAgenda,
+    enabled:
+      !carregando &&
+      possuiEmpresa &&
+      podeVisualizar &&
+      Boolean(empresaEfetivaId),
   });
+
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  if (!podeVisualizar)
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  if (!possuiEmpresa)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title="Agenda"
           description="Gerencie atendimentos, compromissos e acompanhamentos da empresa."
-          actions={<NovoEventoModal />}
+          actions={podeCriar ? <NovoEventoModal /> : undefined}
         />
 
-        <AgendaSummaryCards eventos={eventos} />
+        {(!error || eventos !== undefined) && (
+          <AgendaSummaryCards eventos={eventos ?? []} />
+        )}
 
         <CrudCard>
           {error && (
@@ -39,11 +82,9 @@ export default function AgendaPage() {
 
           {isLoading ? (
             <CrudLoading />
-          ) : eventos.length === 0 ? (
-            <CrudEmpty message="Nenhum evento encontrado na agenda." />
-          ) : (
-            <AgendaView eventos={eventos} />
-          )}
+          ) : !error || eventos !== undefined ? (
+            <AgendaView eventos={eventos ?? []} />
+          ) : null}
         </CrudCard>
       </div>
     </AppLayout>

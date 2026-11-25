@@ -1,17 +1,10 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import {
-  Barcode,
-  Box,
-  DollarSign,
-  Package,
-  Ruler,
-  Tags,
-  Weight,
-} from "lucide-react";
+import { Box, DollarSign, Package, Tags } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -23,16 +16,55 @@ import { Button } from "@/components/ui/button";
 
 import { buscarProdutoPorId } from "@/services/produtos.service";
 import { ProdutoHistoricoCard } from "@/components/produtos/ProdutoHistoricoCard";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_PRODUTOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 export default function ProdutoDetalhesPage() {
   const params = useParams();
   const produtoId = params.id as string;
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizar = temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR);
 
-  const { data: produto, isLoading, error } = useQuery({
-    queryKey: ["produto", produtoId],
+  const {
+    data: produto,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: estoqueQueryKeys.produto(empresaEfetivaId ?? "", produtoId),
     queryFn: () => buscarProdutoPorId(produtoId),
-    enabled: !!produtoId,
+    enabled:
+      podeVisualizar &&
+      possuiEmpresaEfetiva &&
+      Boolean(empresaEfetivaId) &&
+      Boolean(produtoId) &&
+      !carregando,
   });
+
+  if (!podeVisualizar)
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  if (carregando)
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  if (!possuiEmpresaEfetiva)
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
 
   if (isLoading) {
     return (
@@ -45,14 +77,20 @@ export default function ProdutoDetalhesPage() {
   if (error || !produto) {
     return (
       <AppLayout>
-        <CrudEmpty message="Produto não encontrado." />
+        <CrudEmpty
+          message={
+            error && !(isAxiosError(error) && error.response?.status === 404)
+              ? "Erro ao carregar produto."
+              : "Produto não encontrado."
+          }
+        />
       </AppLayout>
     );
   }
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title={produto.nome}
           description="Ficha completa do produto."
@@ -63,7 +101,7 @@ export default function ProdutoDetalhesPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <CrudCard>
             <Package className="mb-2 text-blue-600" size={22} />
             <p className="text-sm text-slate-500">Status</p>
@@ -84,9 +122,8 @@ export default function ProdutoDetalhesPage() {
             <p className="font-semibold text-slate-900">
               {(
                 produto.estoques?.reduce(
-                  (total, estoque) =>
-                    total + Number(estoque.quantidadeAtual),
-                  0
+                  (total, estoque) => total + Number(estoque.quantidadeAtual),
+                  0,
                 ) ?? 0
               ).toFixed(2)}
             </p>
@@ -106,7 +143,7 @@ export default function ProdutoDetalhesPage() {
             Identificação
           </h2>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <p className="text-sm text-slate-500">Código interno</p>
               <p className="font-medium text-slate-900">
@@ -123,18 +160,14 @@ export default function ProdutoDetalhesPage() {
 
             <div>
               <p className="text-sm text-slate-500">NCM</p>
-              <p className="font-medium text-slate-900">
-                {produto.ncm || "-"}
-              </p>
+              <p className="font-medium text-slate-900">{produto.ncm || "-"}</p>
             </div>
           </div>
 
           {produto.descricao && (
             <div className="mt-4">
               <p className="text-sm text-slate-500">Descrição</p>
-              <p className="font-medium text-slate-900">
-                {produto.descricao}
-              </p>
+              <p className="font-medium text-slate-900">{produto.descricao}</p>
             </div>
           )}
         </CrudCard>
@@ -144,7 +177,7 @@ export default function ProdutoDetalhesPage() {
             Classificação
           </h2>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <p className="text-sm text-slate-500">Categoria</p>
               <p className="font-medium text-slate-900">
@@ -175,7 +208,7 @@ export default function ProdutoDetalhesPage() {
             Preços e estoque
           </h2>
 
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="text-sm text-slate-500">Preço de custo</p>
               <p className="font-medium text-slate-900">
@@ -213,7 +246,7 @@ export default function ProdutoDetalhesPage() {
             Peso e dimensões
           </h2>
 
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="text-sm text-slate-500">Peso</p>
               <p className="font-medium text-slate-900">

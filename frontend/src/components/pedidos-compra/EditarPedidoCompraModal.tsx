@@ -9,6 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_FORNECEDORES_VISUALIZAR,
+  PERMISSAO_PEDIDOS_COMPRA_EDITAR,
+} from "@/lib/auth";
+import { PERMISSAO_DEPOSITOS_VISUALIZAR, PERMISSAO_PRODUTOS_VISUALIZAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
 
 import { listarFornecedores } from "@/services/fornecedores.service";
 import { listarDepositos } from "@/services/depositos.service";
@@ -17,6 +25,8 @@ import { listarProdutos } from "@/services/produtos.service";
 import {
   atualizarPedidoCompra,
   PedidoCompraDetalhado,
+  pedidosCompraQueryKeys,
+  obterMensagemErroPedidoCompra,
 } from "@/services/pedidos-compra.service";
 
 type Props = {
@@ -33,53 +43,43 @@ type ItemFormulario = {
 
 function gerarIdTemporario() {
   return (
-    Date.now().toString() +
-    "-" +
-    Math.random().toString(36).substring(2, 9)
+    Date.now().toString() + "-" + Math.random().toString(36).substring(2, 9)
   );
 }
 
-export function EditarPedidoCompraModal({
-  pedido,
-}: Props) {
+export function EditarPedidoCompraModal({ pedido }: Props) {
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditarPedido = temPermissao(PERMISSAO_PEDIDOS_COMPRA_EDITAR);
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR,
+  );
+  const podeVisualizarDepositos = temPermissao(PERMISSAO_DEPOSITOS_VISUALIZAR);
+  const podeVisualizarProdutos = temPermissao(PERMISSAO_PRODUTOS_VISUALIZAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  const [fornecedorId, setFornecedorId] = useState(
-    pedido.fornecedor?.id ?? ""
+  const [fornecedorId, setFornecedorId] = useState(pedido.fornecedor?.id ?? "");
+
+  const [depositoId, setDepositoId] = useState(pedido.deposito?.id ?? "");
+
+  const [dataPrevistaEntrega, setDataPrevistaEntrega] = useState(
+    pedido.dataPrevistaEntrega ? pedido.dataPrevistaEntrega.slice(0, 10) : "",
   );
 
-  const [depositoId, setDepositoId] = useState(
-    pedido.deposito?.id ?? ""
+  const [observacao, setObservacao] = useState(pedido.observacao ?? "");
+
+  const [observacaoInterna, setObservacaoInterna] = useState(
+    pedido.observacaoInterna ?? "",
   );
 
-  const [dataPrevistaEntrega, setDataPrevistaEntrega] =
-    useState(
-      pedido.dataPrevistaEntrega
-        ? pedido.dataPrevistaEntrega.slice(0, 10)
-        : ""
-    );
+  const [valorDesconto, setValorDesconto] = useState(pedido.valorDesconto);
 
-  const [observacao, setObservacao] = useState(
-    pedido.observacao ?? ""
-  );
+  const [valorFrete, setValorFrete] = useState(pedido.valorFrete);
 
-  const [observacaoInterna, setObservacaoInterna] =
-    useState(pedido.observacaoInterna ?? "");
-
-  const [valorDesconto, setValorDesconto] = useState(
-    pedido.valorDesconto
-  );
-
-  const [valorFrete, setValorFrete] = useState(
-    pedido.valorFrete
-  );
-
-  const [valorOutros, setValorOutros] = useState(
-    pedido.valorOutros
-  );
+  const [valorOutros, setValorOutros] = useState(pedido.valorOutros);
 
   const [itens, setItens] = useState<ItemFormulario[]>(
     pedido.itens.map((item) => ({
@@ -88,11 +88,11 @@ export function EditarPedidoCompraModal({
       quantidadeSolicitada: item.quantidadeSolicitada,
       valorUnitario: item.valorUnitario,
       valorDesconto: item.valorDesconto,
-    }))
+    })),
   );
 
   const { data: fornecedoresResponse } = useQuery({
-    queryKey: ["fornecedores-select-editar-pedido"],
+    queryKey: ["fornecedores-select-editar-pedido", empresaEfetivaId],
     queryFn: () =>
       listarFornecedores({
         ativo: true,
@@ -101,10 +101,16 @@ export function EditarPedidoCompraModal({
         sortBy: "razaoSocial",
         order: "asc",
       }),
+    enabled:
+      aberto &&
+      podeEditarPedido &&
+      podeVisualizarFornecedores &&
+      Boolean(empresaEfetivaId) &&
+      !carregando,
   });
 
   const { data: depositosResponse } = useQuery({
-    queryKey: ["depositos-select-editar-pedido"],
+    queryKey: estoqueQueryKeys.depositosSelect(empresaEfetivaId ?? "", "editar-pedido"),
     queryFn: () =>
       listarDepositos({
         ativo: true,
@@ -113,10 +119,12 @@ export function EditarPedidoCompraModal({
         sortBy: "nome",
         order: "asc",
       }),
+    enabled:
+      aberto && podeEditarPedido && podeVisualizarDepositos && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const { data: produtosResponse } = useQuery({
-    queryKey: ["produtos-select-editar-pedido"],
+    queryKey: estoqueQueryKeys.produtosSelect(empresaEfetivaId ?? "", "editar-pedido"),
     queryFn: () =>
       listarProdutos({
         ativo: true,
@@ -125,29 +133,20 @@ export function EditarPedidoCompraModal({
         sortBy: "nome",
         order: "asc",
       }),
+    enabled:
+      aberto && podeEditarPedido && podeVisualizarProdutos && Boolean(empresaEfetivaId) && !carregando,
   });
 
   const totais = useMemo(() => {
     const valorProdutos = itens.reduce((total, item) => {
-      const quantidade = Number(
-        item.quantidadeSolicitada || 0
-      );
+      const quantidade = Number(item.quantidadeSolicitada || 0);
 
-      const valorUnitarioNumero = Number(
-        item.valorUnitario || 0
-      );
+      const valorUnitarioNumero = Number(item.valorUnitario || 0);
 
-      const descontoItem = Number(
-        item.valorDesconto || 0
-      );
+      const descontoItem = Number(item.valorDesconto || 0);
 
       return (
-        total +
-        Math.max(
-          quantidade * valorUnitarioNumero -
-            descontoItem,
-          0
-        )
+        total + Math.max(quantidade * valorUnitarioNumero - descontoItem, 0)
       );
     }, 0);
 
@@ -161,12 +160,7 @@ export function EditarPedidoCompraModal({
       valorProdutos,
       valorTotal,
     };
-  }, [
-    itens,
-    valorDesconto,
-    valorFrete,
-    valorOutros,
-  ]);
+  }, [itens, valorDesconto, valorFrete, valorOutros]);
 
   function adicionarItem() {
     setItens((estadoAtual) => [
@@ -183,27 +177,19 @@ export function EditarPedidoCompraModal({
 
   function removerItem(idTemporario: string) {
     if (itens.length === 1) {
-      toast.error(
-        "O pedido precisa possuir pelo menos um item."
-      );
+      toast.error("O pedido precisa possuir pelo menos um item.");
       return;
     }
 
     setItens((estadoAtual) =>
-      estadoAtual.filter(
-        (item) =>
-          item.idTemporario !== idTemporario
-      )
+      estadoAtual.filter((item) => item.idTemporario !== idTemporario),
     );
   }
 
   function atualizarItem(
     idTemporario: string,
-    campo: keyof Omit<
-      ItemFormulario,
-      "idTemporario"
-    >,
-    valor: string
+    campo: keyof Omit<ItemFormulario, "idTemporario">,
+    valor: string,
   ) {
     setItens((estadoAtual) =>
       estadoAtual.map((item) =>
@@ -212,16 +198,18 @@ export function EditarPedidoCompraModal({
               ...item,
               [campo]: valor,
             }
-          : item
-      )
+          : item,
+      ),
     );
   }
 
   async function salvar() {
+    if (!podeEditarPedido || !empresaEfetivaId || carregando) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
     if (!fornecedorId || !depositoId) {
-      toast.error(
-        "Selecione fornecedor e depósito."
-      );
+      toast.error("Selecione fornecedor e depósito.");
       return;
     }
 
@@ -229,27 +217,18 @@ export function EditarPedidoCompraModal({
       (item) =>
         !item.produtoId ||
         Number(item.quantidadeSolicitada) <= 0 ||
-        Number(item.valorUnitario) < 0
+        Number(item.valorUnitario) < 0,
     );
 
     if (itemInvalido) {
-      toast.error(
-        "Revise os dados dos itens."
-      );
+      toast.error("Revise os dados dos itens.");
       return;
     }
 
-    const produtoIds = itens.map(
-      (item) => item.produtoId
-    );
+    const produtoIds = itens.map((item) => item.produtoId);
 
-    if (
-      new Set(produtoIds).size !==
-      produtoIds.length
-    ) {
-      toast.error(
-        "O mesmo produto não pode aparecer mais de uma vez."
-      );
+    if (new Set(produtoIds).size !== produtoIds.length) {
+      toast.error("O mesmo produto não pode aparecer mais de uma vez.");
       return;
     }
 
@@ -260,18 +239,13 @@ export function EditarPedidoCompraModal({
         fornecedorId,
         depositoId,
 
-        dataPrevistaEntrega:
-          dataPrevistaEntrega || undefined,
+        dataPrevistaEntrega: dataPrevistaEntrega || undefined,
 
-        observacao:
-          observacao.trim() || undefined,
+        observacao: observacao.trim() || undefined,
 
-        observacaoInterna:
-          observacaoInterna.trim() || undefined,
+        observacaoInterna: observacaoInterna.trim() || undefined,
 
-        valorDesconto: Number(
-          valorDesconto || 0
-        ),
+        valorDesconto: Number(valorDesconto || 0),
 
         valorFrete: Number(valorFrete || 0),
 
@@ -279,51 +253,39 @@ export function EditarPedidoCompraModal({
 
         itens: itens.map((item) => ({
           produtoId: item.produtoId,
-          quantidadeSolicitada: Number(
-            item.quantidadeSolicitada
-          ),
-          valorUnitario: Number(
-            item.valorUnitario
-          ),
-          valorDesconto: Number(
-            item.valorDesconto || 0
-          ),
+          quantidadeSolicitada: Number(item.quantidadeSolicitada),
+          valorUnitario: Number(item.valorUnitario),
+          valorDesconto: Number(item.valorDesconto || 0),
         })),
       });
 
-      toast.success(
-        "Pedido atualizado com sucesso!"
-      );
+      toast.success("Pedido atualizado com sucesso!");
 
       setAberto(false);
 
       await queryClient.invalidateQueries({
-        queryKey: [
-          "pedido-compra",
-          pedido.id,
-        ],
+        queryKey: pedidosCompraQueryKeys.detalhe(empresaEfetivaId, pedido.id),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ["pedidos-compra"],
+        queryKey: pedidosCompraQueryKeys.listas(empresaEfetivaId),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error.response?.data?.message ||
-          "Erro ao atualizar pedido"
+        obterMensagemErroPedidoCompra(error, "Erro ao atualizar pedido"),
       );
     } finally {
       setSalvando(false);
     }
   }
 
+  if (!podeEditarPedido || !empresaEfetivaId || carregando) return null;
+
   return (
     <FormDialog
       open={aberto}
       onOpenChange={setAberto}
-      title={`Editar pedido #${String(
-        pedido.numero
-      ).padStart(5, "0")}`}
+      title={`Editar pedido #${String(pedido.numero).padStart(5, "0")}`}
       trigger={
         <Button variant="outline">
           <Pencil size={16} className="mr-2" />
@@ -332,131 +294,81 @@ export function EditarPedidoCompraModal({
       }
     >
       <div className="max-h-[78vh] space-y-6 overflow-y-auto pr-2">
-        <section className="grid gap-4 md:grid-cols-2">
+          <section className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="text-sm font-medium">
-              Fornecedor
-            </label>
+            <label className="text-sm font-medium">Fornecedor</label>
 
             <select
               value={fornecedorId}
-              onChange={(e) =>
-                setFornecedorId(e.target.value)
-              }
+              onChange={(e) => setFornecedorId(e.target.value)}
               className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
             >
-              <option value="">
-                Selecione
-              </option>
+              <option value="">Selecione</option>
 
-              {fornecedoresResponse?.data.map(
-                (fornecedor) => (
-                  <option
-                    key={fornecedor.id}
-                    value={fornecedor.id}
-                  >
-                    {fornecedor.nomeFantasia ||
-                      fornecedor.razaoSocial}
-                  </option>
-                )
-              )}
+              {fornecedoresResponse?.data.map((fornecedor) => (
+                <option key={fornecedor.id} value={fornecedor.id}>
+                  {fornecedor.nomeFantasia || fornecedor.razaoSocial}
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="text-sm font-medium">
-              Depósito
-            </label>
+            <label className="text-sm font-medium">Depósito</label>
 
             <select
               value={depositoId}
-              onChange={(e) =>
-                setDepositoId(e.target.value)
-              }
+              onChange={(e) => setDepositoId(e.target.value)}
               className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
             >
-              <option value="">
-                Selecione
-              </option>
+              <option value="">Selecione</option>
 
-              {depositosResponse?.data.map(
-                (deposito) => (
-                  <option
-                    key={deposito.id}
-                    value={deposito.id}
-                  >
-                    {deposito.codigo} -{" "}
-                    {deposito.nome}
-                  </option>
-                )
-              )}
+              {depositosResponse?.data.map((deposito) => (
+                <option key={deposito.id} value={deposito.id}>
+                  {deposito.codigo} - {deposito.nome}
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="text-sm font-medium">
-              Previsão de entrega
-            </label>
+            <label className="text-sm font-medium">Previsão de entrega</label>
 
             <Input
               type="date"
               value={dataPrevistaEntrega}
-              onChange={(e) =>
-                setDataPrevistaEntrega(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setDataPrevistaEntrega(e.target.value)}
             />
           </div>
         </section>
 
         <section className="space-y-4 border-t pt-5">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold">
-              Itens
-            </h3>
+            <h3 className="font-semibold">Itens</h3>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={adicionarItem}
-            >
+            <Button variant="outline" size="sm" onClick={adicionarItem}>
               <Plus size={14} className="mr-2" />
               Adicionar
             </Button>
           </div>
 
           {itens.map((item, indice) => (
-            <div
-              key={item.idTemporario}
-              className="rounded-lg border p-4"
-            >
+            <div key={item.idTemporario} className="rounded-lg border p-4">
               <div className="mb-4 flex justify-between">
-                <span className="font-medium">
-                  Item {indice + 1}
-                </span>
+                <span className="font-medium">Item {indice + 1}</span>
 
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() =>
-                    removerItem(
-                      item.idTemporario
-                    )
-                  }
+                  onClick={() => removerItem(item.idTemporario)}
                 >
-                  <Trash2
-                    size={15}
-                    className="text-red-600"
-                  />
+                  <Trash2 size={15} className="text-red-600" />
                 </Button>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="md:col-span-2">
-                  <label className="text-sm font-medium">
-                    Produto
-                  </label>
+                  <label className="text-sm font-medium">Produto</label>
 
                   <select
                     value={item.produtoId}
@@ -464,40 +376,31 @@ export function EditarPedidoCompraModal({
                       atualizarItem(
                         item.idTemporario,
                         "produtoId",
-                        e.target.value
+                        e.target.value,
                       )
                     }
                     className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
                   >
-                    <option value="">
-                      Selecione
-                    </option>
+                    <option value="">Selecione</option>
 
-                    {produtosResponse?.data.map(
-                      (produto) => (
-                        <option
-                          key={produto.id}
-                          value={produto.id}
-                        >
-                          {produto.codigo
-                            ? `${produto.codigo} - ${produto.nome}`
-                            : produto.nome}
-                        </option>
-                      )
-                    )}
+                    {produtosResponse?.data.map((produto) => (
+                      <option key={produto.id} value={produto.id}>
+                        {produto.codigo
+                          ? `${produto.codigo} - ${produto.nome}`
+                          : produto.nome}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <CampoNumero
                   label="Quantidade"
-                  value={
-                    item.quantidadeSolicitada
-                  }
+                  value={item.quantidadeSolicitada}
                   onChange={(valor) =>
                     atualizarItem(
                       item.idTemporario,
                       "quantidadeSolicitada",
-                      valor
+                      valor,
                     )
                   }
                 />
@@ -506,11 +409,7 @@ export function EditarPedidoCompraModal({
                   label="Valor unitário"
                   value={item.valorUnitario}
                   onChange={(valor) =>
-                    atualizarItem(
-                      item.idTemporario,
-                      "valorUnitario",
-                      valor
-                    )
+                    atualizarItem(item.idTemporario, "valorUnitario", valor)
                   }
                 />
 
@@ -518,11 +417,7 @@ export function EditarPedidoCompraModal({
                   label="Desconto"
                   value={item.valorDesconto}
                   onChange={(valor) =>
-                    atualizarItem(
-                      item.idTemporario,
-                      "valorDesconto",
-                      valor
-                    )
+                    atualizarItem(item.idTemporario, "valorDesconto", valor)
                   }
                 />
               </div>
@@ -530,7 +425,7 @@ export function EditarPedidoCompraModal({
           ))}
         </section>
 
-        <section className="grid gap-4 border-t pt-5 md:grid-cols-3">
+          <section className="grid min-w-0 grid-cols-1 gap-4 border-t pt-5 md:grid-cols-3">
           <CampoNumero
             label="Desconto geral"
             value={valorDesconto}
@@ -553,52 +448,36 @@ export function EditarPedidoCompraModal({
         <section className="rounded-lg bg-slate-50 p-4">
           <div className="flex justify-between">
             <span>Produtos</span>
-            <strong>
-              {formatarMoeda(
-                totais.valorProdutos
-              )}
-            </strong>
+            <strong>{formatarMoeda(totais.valorProdutos)}</strong>
           </div>
 
           <div className="mt-3 flex justify-between text-lg">
             <span>Total</span>
-            <strong>
-              {formatarMoeda(totais.valorTotal)}
-            </strong>
+            <strong>{formatarMoeda(totais.valorTotal)}</strong>
           </div>
         </section>
 
         <section className="space-y-4 border-t pt-5">
           <div>
-            <label className="text-sm font-medium">
-              Observação
-            </label>
+            <label className="text-sm font-medium">Observação</label>
 
             <Textarea
               value={observacao}
-              onChange={(e) =>
-                setObservacao(e.target.value)
-              }
+              onChange={(e) => setObservacao(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="text-sm font-medium">
-              Observação interna
-            </label>
+            <label className="text-sm font-medium">Observação interna</label>
 
             <Textarea
               value={observacaoInterna}
-              onChange={(e) =>
-                setObservacaoInterna(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setObservacaoInterna(e.target.value)}
             />
           </div>
         </section>
 
-        <div className="flex justify-end gap-3 border-t pt-5">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-white pt-5 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}
@@ -607,13 +486,8 @@ export function EditarPedidoCompraModal({
             Cancelar
           </Button>
 
-          <Button
-            onClick={salvar}
-            disabled={salvando}
-          >
-            {salvando
-              ? "Salvando..."
-              : "Salvar alterações"}
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? "Salvando..." : "Salvar alterações"}
           </Button>
         </div>
       </div>
@@ -632,18 +506,14 @@ function CampoNumero({
 }) {
   return (
     <div>
-      <label className="text-sm font-medium">
-        {label}
-      </label>
+      <label className="text-sm font-medium">{label}</label>
 
       <Input
         type="number"
         min="0"
         step="0.01"
         value={value}
-        onChange={(e) =>
-          onChange(e.target.value)
-        }
+        onChange={(e) => onChange(e.target.value)}
       />
     </div>
   );

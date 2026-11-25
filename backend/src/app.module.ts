@@ -1,3 +1,8 @@
+import { FuncionariosModule } from './funcionarios/funcionarios.module';
+import { DepartamentosModule } from './departamentos/departamentos.module';
+import { CargosModule } from './cargos/cargos.module';
+import { PerfisModule } from './perfis/perfis.module';
+import { PermissoesModule } from './permissoes/permissoes.module';
 import { Module } from '@nestjs/common';
 import { RespostaInterceptor } from './common/interceptors/resposta.interceptor';
 import { ConfigModule } from '@nestjs/config';
@@ -32,6 +37,7 @@ import { ContasReceberModule } from './contas-receber/contas-receber.module';
 import { FinanceiroModule } from './financeiro/financeiro.module';
 import { CaixasModule } from './caixas/caixas.module';
 import { VendasModule } from './vendas/vendas.module';
+import { CrmModule } from './crm/crm.module';
 
 @Module({
   imports: [
@@ -40,6 +46,11 @@ import { VendasModule } from './vendas/vendas.module';
       isGlobal: true,
     }),
     PrismaModule,
+    FuncionariosModule,
+    DepartamentosModule,
+    CargosModule,
+    PerfisModule,
+    PermissoesModule,
     EmpresasModule,
     UsuariosModule,
     AuthModule,
@@ -65,6 +76,7 @@ import { VendasModule } from './vendas/vendas.module';
     FinanceiroModule,
     CaixasModule,
     VendasModule,
+    CrmModule,
   ],
   controllers: [AppController],
   providers: [

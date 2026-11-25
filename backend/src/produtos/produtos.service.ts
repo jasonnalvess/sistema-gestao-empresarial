@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,7 +10,6 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
-import { obterEmpresaId } from '../common/utils/obter-empresa-id';
 
 import { CriarProdutoDto } from './dto/criar-produto.dto';
 import { AtualizarProdutoDto } from './dto/atualizar-produto.dto';
@@ -33,6 +31,34 @@ type ProdutoCompleto = Prisma.ProdutoGetPayload<{
   include: typeof PRODUTO_INCLUDE;
 }>;
 
+const CAMPOS_ORDENACAO = {
+  nome: 'nome',
+  codigo: 'codigo',
+  codigoBarras: 'codigoBarras',
+  precoVenda: 'precoVenda',
+  precoCusto: 'precoCusto',
+  ativo: 'ativo',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+} as const satisfies Record<
+  string,
+  keyof Prisma.ProdutoOrderByWithRelationInput
+>;
+
+function ehCampoOrdenacao(
+  campo: string,
+): campo is keyof typeof CAMPOS_ORDENACAO {
+  return campo in CAMPOS_ORDENACAO;
+}
+
+type ClienteProduto = Pick<
+  Prisma.TransactionClient,
+  | 'produto'
+  | 'produtoHistorico'
+  | 'categoriaProduto'
+  | 'marcaProduto'
+  | 'unidadeMedida'
+>;
 @Injectable()
 export class ProdutosService {
   constructor(private readonly prisma: PrismaService) {}
@@ -44,48 +70,63 @@ export class ProdutosService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      const target = Array.isArray(error.meta?.target)
-        ? error.meta.target.map(String)
-        : [];
+      const target = error.meta?.target;
+      const campos =
+        Array.isArray(target) && target.length === 2
+          ? target.map(String)
+          : null;
+      const nome = campos
+        ? campos.includes('empresaId') && campos.includes('nome')
+        : target === 'Produto_empresaId_nome_key';
+      const codigo = campos
+        ? campos.includes('empresaId') && campos.includes('codigo')
+        : target === 'Produto_empresaId_codigo_key';
+      const codigoBarras = campos
+        ? campos.includes('empresaId') && campos.includes('codigoBarras')
+        : target === 'Produto_empresaId_codigoBarras_key';
 
-      if (target.includes('codigoBarras')) {
+      if (nome) {
         throw new ConflictException(
-          'Já existe um produto com este código de barras nesta empresa',
+          'Já existe um produto com este nome nesta empresa.',
         );
       }
-
-      if (target.includes('codigo')) {
+      if (codigo) {
         throw new ConflictException(
-          'Já existe um produto com este código interno nesta empresa',
+          'Já existe um produto com este código nesta empresa.',
         );
       }
-
-      if (target.includes('nome')) {
+      if (codigoBarras) {
         throw new ConflictException(
-          'Já existe um produto com este nome nesta empresa',
+          'Já existe um produto com este código de barras nesta empresa.',
         );
       }
-
-      throw new ConflictException('Já existe um produto com esses dados');
     }
-
     throw error;
+  }
+  private valorTexto(valor: unknown): string {
+    if (
+      typeof valor === 'string' ||
+      typeof valor === 'number' ||
+      typeof valor === 'bigint' ||
+      typeof valor === 'boolean'
+    ) {
+      return String(valor);
+    }
+    if (valor instanceof Date) return valor.toISOString();
+    if (Prisma.Decimal.isDecimal(valor)) return valor.toString();
+    return JSON.stringify(valor) ?? '';
   }
 
   private valorComparavel(valor: unknown): string {
-    if (valor === null || valor === undefined) {
-      return '';
-    }
-
-    return String(valor);
+    if (valor === null || valor === undefined) return '';
+    return this.valorTexto(valor);
   }
 
   private valorExibicao(valor: unknown): string {
     if (valor === null || valor === undefined || valor === '') {
       return 'não informado';
     }
-
-    return String(valor);
+    return this.valorTexto(valor);
   }
 
   private montarDescricaoAlteracoes(
@@ -200,88 +241,67 @@ export class ProdutosService {
   }
 
   private async registrarHistorico(
+    cliente: ClienteProduto,
     produtoId: string,
     descricao: string,
-    usuarioLogado: AuthenticatedUser,
+    usuario: AuthenticatedUser,
   ) {
-    return this.prisma.produtoHistorico.create({
-      data: {
-        produtoId,
-        descricao,
-        usuarioId: usuarioLogado.id,
-      },
+    return cliente.produtoHistorico.create({
+      data: { produtoId, descricao, usuarioId: usuario.id },
     });
   }
 
+  private async buscarProduto(
+    cliente: ClienteProduto,
+    empresaId: string,
+    id: string,
+  ) {
+    const produto = await cliente.produto.findFirst({
+      where: { id, empresaId },
+      include: this.includeProduto,
+    });
+    if (!produto) throw new NotFoundException('Produto não encontrado');
+    return produto;
+  }
+
   private async validarVinculos(
+    cliente: ClienteProduto,
+    empresaId: string,
     dados: {
       categoriaId?: string;
       marcaId?: string;
       unidadeMedidaId?: string;
     },
-    empresaId: string,
   ) {
     if (dados.categoriaId) {
-      const categoria = await this.prisma.categoriaProduto.findUnique({
-        where: {
-          id: dados.categoriaId,
-        },
+      const categoria = await cliente.categoriaProduto.findFirst({
+        where: { id: dados.categoriaId, empresaId },
       });
-
-      if (!categoria) {
-        throw new NotFoundException('Categoria não encontrada');
-      }
-
-      if (categoria.empresaId !== empresaId) {
-        throw new ForbiddenException('Categoria pertence a outra empresa');
-      }
-
+      if (!categoria) throw new NotFoundException('Categoria não encontrada');
       if (!categoria.ativo) {
         throw new BadRequestException(
           'Não é possível vincular uma categoria inativa',
         );
       }
     }
-
     if (dados.marcaId) {
-      const marca = await this.prisma.marcaProduto.findUnique({
-        where: {
-          id: dados.marcaId,
-        },
+      const marca = await cliente.marcaProduto.findFirst({
+        where: { id: dados.marcaId, empresaId },
       });
-
-      if (!marca) {
-        throw new NotFoundException('Marca não encontrada');
-      }
-
-      if (marca.empresaId !== empresaId) {
-        throw new ForbiddenException('Marca pertence a outra empresa');
-      }
-
+      if (!marca) throw new NotFoundException('Marca não encontrada');
       if (!marca.ativo) {
         throw new BadRequestException(
           'Não é possível vincular uma marca inativa',
         );
       }
     }
-
     if (dados.unidadeMedidaId) {
-      const unidade = await this.prisma.unidadeMedida.findUnique({
-        where: {
-          id: dados.unidadeMedidaId,
-        },
+      const unidade = await cliente.unidadeMedida.findFirst({
+        where: { id: dados.unidadeMedidaId, empresaId },
       });
-
       if (!unidade) {
         throw new NotFoundException('Unidade de medida não encontrada');
       }
-
-      if (unidade.empresaId !== empresaId) {
-        throw new ForbiddenException(
-          'Unidade de medida pertence a outra empresa',
-        );
-      }
-
       if (!unidade.ativo) {
         throw new BadRequestException(
           'Não é possível vincular uma unidade de medida inativa',
@@ -290,324 +310,209 @@ export class ProdutosService {
     }
   }
 
-  async criar(dados: CriarProdutoDto, usuarioLogado: AuthenticatedUser) {
-    const empresaId = obterEmpresaId(usuarioLogado);
-
-    await this.validarVinculos(
-      {
-        categoriaId: dados.categoriaId,
-        marcaId: dados.marcaId,
-        unidadeMedidaId: dados.unidadeMedidaId,
-      },
-      empresaId,
-    );
-
+  async criar(
+    empresaId: string,
+    dados: CriarProdutoDto,
+    usuario: AuthenticatedUser,
+  ) {
     try {
-      const produto = await this.prisma.produto.create({
-        data: {
-          nome: dados.nome,
-          descricao: dados.descricao,
-          codigo: dados.codigo,
-          codigoBarras: dados.codigoBarras,
-          ncm: dados.ncm,
-          precoCusto: dados.precoCusto ?? 0,
-          precoVenda: dados.precoVenda,
-          peso: dados.peso,
-          altura: dados.altura,
-          largura: dados.largura,
-          comprimento: dados.comprimento,
-          estoqueMinimo: dados.estoqueMinimo ?? 0,
-          estoqueMaximo: dados.estoqueMaximo,
-          categoriaId: dados.categoriaId,
-          marcaId: dados.marcaId,
-          unidadeMedidaId: dados.unidadeMedidaId,
-          empresaId,
-        },
-        include: this.includeProduto,
+      return await this.prisma.$transaction(async (tx) => {
+        await this.validarVinculos(tx, empresaId, dados);
+        const produto = await tx.produto.create({
+          data: {
+            nome: dados.nome,
+            descricao: dados.descricao,
+            codigo: dados.codigo,
+            codigoBarras: dados.codigoBarras,
+            ncm: dados.ncm,
+            precoCusto: dados.precoCusto ?? 0,
+            precoVenda: dados.precoVenda,
+            peso: dados.peso,
+            altura: dados.altura,
+            largura: dados.largura,
+            comprimento: dados.comprimento,
+            estoqueMinimo: dados.estoqueMinimo ?? 0,
+            estoqueMaximo: dados.estoqueMaximo,
+            categoriaId: dados.categoriaId,
+            marcaId: dados.marcaId,
+            unidadeMedidaId: dados.unidadeMedidaId,
+            empresaId,
+          },
+          include: this.includeProduto,
+        });
+        await this.registrarHistorico(
+          tx,
+          produto.id,
+          `Produto criado com preço de venda de R$ ${Number(
+            produto.precoVenda,
+          ).toFixed(2)}.`,
+          usuario,
+        );
+        return produto;
       });
-
-      await this.registrarHistorico(
-        produto.id,
-        `Produto criado com preço de venda de R$ ${Number(
-          produto.precoVenda,
-        ).toFixed(2)}.`,
-        usuarioLogado,
-      );
-
-      return produto;
     } catch (error) {
       this.tratarErroPrisma(error);
     }
   }
 
-  async listar(usuarioLogado: AuthenticatedUser, filtros: FiltroProdutosDto) {
+  async listar(empresaId: string, filtros: FiltroProdutosDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
-
     const { skip, take } = calcularPaginacao(page, limit);
-
-    const where: Prisma.ProdutoWhereInput =
-      usuarioLogado.tipo === 'SUPER_ADMIN'
-        ? {}
-        : {
-            empresaId: obterEmpresaId(usuarioLogado),
-          };
-
+    const where: Prisma.ProdutoWhereInput = { empresaId };
     if (filtros.search) {
       where.OR = [
-        {
-          nome: {
-            contains: filtros.search,
-            mode: 'insensitive',
-          },
-        },
-        {
-          descricao: {
-            contains: filtros.search,
-            mode: 'insensitive',
-          },
-        },
-        {
-          codigo: {
-            contains: filtros.search,
-            mode: 'insensitive',
-          },
-        },
-        {
-          codigoBarras: {
-            contains: filtros.search,
-            mode: 'insensitive',
-          },
-        },
-        {
-          ncm: {
-            contains: filtros.search,
-            mode: 'insensitive',
-          },
-        },
+        { nome: { contains: filtros.search, mode: 'insensitive' } },
+        { descricao: { contains: filtros.search, mode: 'insensitive' } },
+        { codigo: { contains: filtros.search, mode: 'insensitive' } },
+        { codigoBarras: { contains: filtros.search, mode: 'insensitive' } },
+        { ncm: { contains: filtros.search, mode: 'insensitive' } },
         {
           categoria: {
-            nome: {
-              contains: filtros.search,
-              mode: 'insensitive',
-            },
+            nome: { contains: filtros.search, mode: 'insensitive' },
           },
         },
         {
           marca: {
-            nome: {
-              contains: filtros.search,
-              mode: 'insensitive',
-            },
+            nome: { contains: filtros.search, mode: 'insensitive' },
           },
         },
       ];
     }
-
-    if (filtros.ativo !== undefined) {
-      where.ativo = filtros.ativo;
-    }
-
-    if (filtros.categoriaId) {
-      where.categoriaId = filtros.categoriaId;
-    }
-
-    if (filtros.marcaId) {
-      where.marcaId = filtros.marcaId;
-    }
-
+    if (filtros.ativo !== undefined) where.ativo = filtros.ativo;
+    if (filtros.categoriaId) where.categoriaId = filtros.categoriaId;
+    if (filtros.marcaId) where.marcaId = filtros.marcaId;
     if (filtros.unidadeMedidaId) {
       where.unidadeMedidaId = filtros.unidadeMedidaId;
     }
-
+    const campo =
+      filtros.sortBy && ehCampoOrdenacao(filtros.sortBy)
+        ? CAMPOS_ORDENACAO[filtros.sortBy]
+        : 'createdAt';
+    const orderBy: Prisma.ProdutoOrderByWithRelationInput = {
+      [campo]: filtros.order ?? 'desc',
+    };
     const [data, total] = await this.prisma.$transaction([
       this.prisma.produto.findMany({
         where,
         include: this.includeProduto,
-        orderBy: {
-          [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
-        },
+        orderBy,
         skip,
         take,
       }),
-
-      this.prisma.produto.count({
-        where,
-      }),
+      this.prisma.produto.count({ where }),
     ]);
-
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuarioLogado: AuthenticatedUser) {
-    const produto = await this.prisma.produto.findUnique({
-      where: {
-        id,
-      },
-      include: this.includeProduto,
-    });
-
-    if (!produto) {
-      throw new NotFoundException('Produto não encontrado');
-    }
-
-    if (
-      usuarioLogado.tipo !== 'SUPER_ADMIN' &&
-      produto.empresaId !== usuarioLogado.empresaId
-    ) {
-      throw new ForbiddenException('Acesso negado a produto de outra empresa');
-    }
-
-    return produto;
+  async buscarPorId(empresaId: string, id: string) {
+    return this.buscarProduto(this.prisma, empresaId, id);
   }
 
   async atualizar(
+    empresaId: string,
     id: string,
     dados: AtualizarProdutoDto,
-    usuarioLogado: AuthenticatedUser,
+    usuario: AuthenticatedUser,
   ) {
-    const produtoAnterior = await this.buscarPorId(id, usuarioLogado);
-
-    await this.validarVinculos(
-      {
-        categoriaId: dados.categoriaId,
-        marcaId: dados.marcaId,
-        unidadeMedidaId: dados.unidadeMedidaId,
-      },
-      produtoAnterior.empresaId,
-    );
-
     try {
-      const produtoAtualizado = await this.prisma.produto.update({
-        where: {
-          id,
-        },
-        data: {
-          nome: dados.nome,
-          descricao: dados.descricao,
-          codigo: dados.codigo,
-          codigoBarras: dados.codigoBarras,
-          ncm: dados.ncm,
-          precoCusto: dados.precoCusto,
-          precoVenda: dados.precoVenda,
-          peso: dados.peso,
-          altura: dados.altura,
-          largura: dados.largura,
-          comprimento: dados.comprimento,
-          estoqueMinimo: dados.estoqueMinimo,
-          estoqueMaximo: dados.estoqueMaximo,
-          categoriaId: dados.categoriaId,
-          marcaId: dados.marcaId,
-          unidadeMedidaId: dados.unidadeMedidaId,
-        },
-        include: this.includeProduto,
+      return await this.prisma.$transaction(async (tx) => {
+        const anterior = await this.buscarProduto(tx, empresaId, id);
+        await this.validarVinculos(tx, empresaId, dados);
+        const atualizado = await tx.produto.update({
+          where: { id },
+          data: {
+            nome: dados.nome,
+            descricao: dados.descricao,
+            codigo: dados.codigo,
+            codigoBarras: dados.codigoBarras,
+            ncm: dados.ncm,
+            precoCusto: dados.precoCusto,
+            precoVenda: dados.precoVenda,
+            peso: dados.peso,
+            altura: dados.altura,
+            largura: dados.largura,
+            comprimento: dados.comprimento,
+            estoqueMinimo: dados.estoqueMinimo,
+            estoqueMaximo: dados.estoqueMaximo,
+            categoriaId: dados.categoriaId,
+            marcaId: dados.marcaId,
+            unidadeMedidaId: dados.unidadeMedidaId,
+          },
+          include: this.includeProduto,
+        });
+        const descricao = this.montarDescricaoAlteracoes(anterior, atualizado);
+        if (descricao) {
+          await this.registrarHistorico(tx, id, descricao, usuario);
+        }
+        return atualizado;
       });
-
-      const descricaoHistorico = this.montarDescricaoAlteracoes(
-        produtoAnterior,
-        produtoAtualizado,
-      );
-
-      if (descricaoHistorico) {
-        await this.registrarHistorico(id, descricaoHistorico, usuarioLogado);
-      }
-
-      return produtoAtualizado;
     } catch (error) {
       this.tratarErroPrisma(error);
     }
   }
 
-  async ativar(id: string, usuarioLogado: AuthenticatedUser) {
-    const produto = await this.buscarPorId(id, usuarioLogado);
-
-    if (produto.ativo) {
-      return produto;
-    }
-
-    const produtoAtualizado = await this.prisma.produto.update({
-      where: {
-        id,
-      },
-      data: {
-        ativo: true,
-      },
-      include: this.includeProduto,
+  async ativar(empresaId: string, id: string, usuario: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const produto = await this.buscarProduto(tx, empresaId, id);
+      if (produto.ativo) return produto;
+      const atualizado = await tx.produto.update({
+        where: { id },
+        data: { ativo: true },
+        include: this.includeProduto,
+      });
+      await this.registrarHistorico(tx, id, 'Produto ativado.', usuario);
+      return atualizado;
     });
-
-    await this.registrarHistorico(id, 'Produto ativado.', usuarioLogado);
-
-    return produtoAtualizado;
   }
 
-  async desativar(id: string, usuarioLogado: AuthenticatedUser) {
-    const produto = await this.buscarPorId(id, usuarioLogado);
-
-    if (!produto.ativo) {
-      return produto;
-    }
-
-    const produtoAtualizado = await this.prisma.produto.update({
-      where: {
-        id,
-      },
-      data: {
-        ativo: false,
-      },
-      include: this.includeProduto,
+  async desativar(empresaId: string, id: string, usuario: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const produto = await this.buscarProduto(tx, empresaId, id);
+      if (!produto.ativo) return produto;
+      const atualizado = await tx.produto.update({
+        where: { id },
+        data: { ativo: false },
+        include: this.includeProduto,
+      });
+      await this.registrarHistorico(tx, id, 'Produto desativado.', usuario);
+      return atualizado;
     });
-
-    await this.registrarHistorico(id, 'Produto desativado.', usuarioLogado);
-
-    return produtoAtualizado;
   }
 
   async adicionarHistorico(
+    empresaId: string,
     produtoId: string,
     dados: CriarProdutoHistoricoDto,
-    usuarioLogado: AuthenticatedUser,
+    usuario: AuthenticatedUser,
   ) {
-    await this.buscarPorId(produtoId, usuarioLogado);
-
-    return this.prisma.produtoHistorico.create({
-      data: {
-        produtoId,
-        descricao: dados.descricao,
-        usuarioId: usuarioLogado.id,
-      },
-      include: {
-        usuario: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-            tipo: true,
+    return this.prisma.$transaction(async (tx) => {
+      await this.buscarProduto(tx, empresaId, produtoId);
+      return tx.produtoHistorico.create({
+        data: {
+          produtoId,
+          descricao: dados.descricao,
+          usuarioId: usuario.id,
+        },
+        include: {
+          usuario: {
+            select: { id: true, nome: true, email: true, tipo: true },
           },
         },
-      },
+      });
     });
   }
 
-  async listarHistorico(produtoId: string, usuarioLogado: AuthenticatedUser) {
-    await this.buscarPorId(produtoId, usuarioLogado);
-
+  async listarHistorico(empresaId: string, produtoId: string) {
+    await this.buscarPorId(empresaId, produtoId);
     return this.prisma.produtoHistorico.findMany({
-      where: {
-        produtoId,
-      },
+      where: { produtoId },
       include: {
         usuario: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-            tipo: true,
-          },
+          select: { id: true, nome: true, email: true, tipo: true },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 }

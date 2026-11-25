@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -14,13 +14,23 @@ import {
   atualizarMarcaProduto,
   MarcaProduto,
 } from "@/services/marcas-produtos.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { PERMISSAO_MARCAS_EDITAR } from "@/lib/auth";
+import { estoqueQueryKeys } from "@/lib/estoque-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
 
 type Props = {
   marca: MarcaProduto;
 };
 
 export function EditarMarcaProdutoModal({ marca }: Props) {
+  const nomeId = useId();
+  const descricaoId = useId();
   const queryClient = useQueryClient();
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeEditar = temPermissao(PERMISSAO_MARCAS_EDITAR);
 
   const [aberto, setAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -29,6 +39,7 @@ export function EditarMarcaProdutoModal({ marca }: Props) {
   const [descricao, setDescricao] = useState(marca.descricao ?? "");
 
   async function salvar() {
+    if (!podeEditar || !empresaEfetivaId || carregando) return;
     try {
       setSalvando(true);
 
@@ -41,14 +52,16 @@ export function EditarMarcaProdutoModal({ marca }: Props) {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["marcas-produtos"],
+        queryKey: estoqueQueryKeys.marcas(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao atualizar marca");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao atualizar marca"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeEditar || !empresaEfetivaId || carregando) return null;
 
   return (
     <FormDialog
@@ -56,29 +69,42 @@ export function EditarMarcaProdutoModal({ marca }: Props) {
       onOpenChange={setAberto}
       title="Editar marca"
       trigger={
-        <Button variant="outline" size="sm">
-          <Pencil size={14} className="mr-2" />
+        <Button className="shrink-0" variant="outline" size="sm">
+          <Pencil aria-hidden="true" />
           Editar
         </Button>
       }
     >
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <div>
-          <label className="text-sm font-medium text-slate-700">Nome</label>
-          <Input value={nome} onChange={(e) => setNome(e.target.value)} />
+          <label
+            htmlFor={nomeId}
+            className="text-sm font-medium text-slate-700"
+          >
+            Nome
+          </label>
+          <Input
+            id={nomeId}
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+          />
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor={descricaoId}
+            className="text-sm font-medium text-slate-700"
+          >
             Descrição
           </label>
           <Textarea
+            id={descricaoId}
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky -bottom-4 -mx-4 flex flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

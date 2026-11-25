@@ -3,7 +3,6 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, StatusContaPagar, StatusContaReceber } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { FiltroResumoFinanceiroDto } from './dto/filtro-resumo-financeiro.dto';
 
 @Injectable()
@@ -43,17 +42,11 @@ export class FinanceiroService {
     return filtro;
   }
 
-  private async atualizarVencimentos(empresaId?: string) {
-    const filtroEmpresa = empresaId
-      ? {
-          empresaId,
-        }
-      : {};
-
+  private async atualizarVencimentos(empresaId: string) {
     await this.prisma.$transaction([
       this.prisma.contaPagar.updateMany({
         where: {
-          ...filtroEmpresa,
+          empresaId,
 
           dataVencimento: {
             lt: this.inicioHoje(),
@@ -75,7 +68,7 @@ export class FinanceiroService {
 
       this.prisma.contaReceber.updateMany({
         where: {
-          ...filtroEmpresa,
+          empresaId,
 
           dataVencimento: {
             lt: this.inicioHoje(),
@@ -100,12 +93,7 @@ export class FinanceiroService {
     ]);
   }
 
-  async resumo(usuario: AuthenticatedUser, filtros: FiltroResumoFinanceiroDto) {
-    const empresaId =
-      usuario.tipo === 'SUPER_ADMIN'
-        ? undefined
-        : (usuario.empresaId ?? undefined);
-
+  async resumo(empresaId: string, filtros: FiltroResumoFinanceiroDto) {
     await this.atualizarVencimentos(empresaId);
 
     const filtroPeriodo = this.criarFiltroPeriodo(
@@ -114,11 +102,7 @@ export class FinanceiroService {
     );
 
     const wherePagar: Prisma.ContaPagarWhereInput = {
-      ...(empresaId
-        ? {
-            empresaId,
-          }
-        : {}),
+      empresaId,
 
       ...(filtroPeriodo
         ? {
@@ -132,11 +116,7 @@ export class FinanceiroService {
     };
 
     const whereReceber: Prisma.ContaReceberWhereInput = {
-      ...(empresaId
-        ? {
-            empresaId,
-          }
-        : {}),
+      empresaId,
 
       ...(filtroPeriodo
         ? {

@@ -1,16 +1,25 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AcessoNegado } from "@/components/common/AcessoNegado";
+import { EmpresaNaoSelecionada } from "@/components/common/EmpresaNaoSelecionada";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CrudCard } from "@/components/crud/CrudCard";
 import { CrudLoading } from "@/components/crud/CrudLoading";
 import { CrudStatusBadge } from "@/components/crud/CrudStatusBadge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import {
+  PERMISSAO_FORNECEDORES_EDITAR,
+  PERMISSAO_FORNECEDORES_VISUALIZAR,
+} from "@/lib/auth";
 
 import { FornecedorHistoricoCard } from "@/components/fornecedores/FornecedorHistoricoCard";
 import { EditarFornecedorModal } from "@/components/fornecedores/EditarFornecedorModal";
@@ -23,17 +32,53 @@ import {
 
 export default function FornecedorDetalhesPage() {
   const params = useParams();
-  const id = String(params.id);
+  const id = typeof params.id === "string" ? params.id : "";
+  const { temPermissao } = useAuth();
+  const { empresaSelecionadaId, empresaEfetivaId, carregando, requerSelecao } =
+    useEmpresaSelecionada();
+  const possuiEmpresaEfetiva = !requerSelecao || Boolean(empresaSelecionadaId);
+  const podeVisualizarFornecedores = temPermissao(
+    PERMISSAO_FORNECEDORES_VISUALIZAR,
+  );
+  const podeEditarFornecedor = temPermissao(PERMISSAO_FORNECEDORES_EDITAR);
 
   const {
     data: fornecedor,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["fornecedor", id],
+    queryKey: ["fornecedor", empresaEfetivaId, id],
     queryFn: () => buscarFornecedorPorId(id),
-    enabled: Boolean(id),
+    enabled:
+      podeVisualizarFornecedores &&
+      possuiEmpresaEfetiva &&
+      !carregando &&
+      Boolean(id),
   });
+
+  if (!podeVisualizarFornecedores) {
+    return (
+      <AppLayout>
+        <AcessoNegado />
+      </AppLayout>
+    );
+  }
+
+  if (carregando) {
+    return (
+      <AppLayout>
+        <CrudLoading />
+      </AppLayout>
+    );
+  }
+
+  if (!possuiEmpresaEfetiva) {
+    return (
+      <AppLayout>
+        <EmpresaNaoSelecionada />
+      </AppLayout>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -47,7 +92,9 @@ export default function FornecedorDetalhesPage() {
     return (
       <AppLayout>
         <div className="rounded-lg bg-red-50 p-4 text-red-700">
-          Fornecedor não encontrado.
+          {error && !(isAxiosError(error) && error.response?.status === 404)
+            ? "Erro ao carregar fornecedor."
+            : "Fornecedor não encontrado."}
         </div>
       </AppLayout>
     );
@@ -55,51 +102,36 @@ export default function FornecedorDetalhesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
-          title={
-            fornecedor.nomeFantasia ||
-            fornecedor.razaoSocial
-          }
+          title={fornecedor.nomeFantasia || fornecedor.razaoSocial}
           description="Ficha detalhada do fornecedor."
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 lg:flex lg:w-auto lg:flex-wrap [&>*]:w-full md:[&>*]:w-full lg:[&>*]:w-auto">
               <Button variant="outline" asChild>
                 <Link href="/fornecedores">
-                  <ArrowLeft
-                    size={16}
-                    className="mr-2"
-                  />
+                  <ArrowLeft aria-hidden="true" />
                   Voltar
                 </Link>
               </Button>
 
-              <EditarFornecedorModal
-                fornecedor={fornecedor}
-              />
-
-              <AlterarStatusFornecedorButton
-                fornecedor={fornecedor}
-              />
+              {podeEditarFornecedor && (
+                <>
+                  <EditarFornecedorModal fornecedor={fornecedor} />
+                  <AlterarStatusFornecedorButton fornecedor={fornecedor} />
+                </>
+              )}
             </div>
           }
         />
 
         <CrudCard>
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            <Campo
-              label="Razão social"
-              valor={fornecedor.razaoSocial}
-            />
-            <Campo
-              label="Nome fantasia"
-              valor={fornecedor.nomeFantasia}
-            />
+          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <Campo label="Razão social" valor={fornecedor.razaoSocial} />
+            <Campo label="Nome fantasia" valor={fornecedor.nomeFantasia} />
             <Campo
               label="Documento"
-              valor={formatarDocumento(
-                fornecedor.documento
-              )}
+              valor={formatarDocumento(fornecedor.documento)}
             />
             <Campo
               label="Inscrição estadual"
@@ -109,37 +141,17 @@ export default function FornecedorDetalhesPage() {
               label="Inscrição municipal"
               valor={fornecedor.inscricaoMunicipal}
             />
-            <Campo
-              label="Contato"
-              valor={fornecedor.contato}
-            />
-            <Campo
-              label="E-mail"
-              valor={fornecedor.email}
-            />
-            <Campo
-              label="Telefone"
-              valor={fornecedor.telefone}
-            />
-            <Campo
-              label="Celular"
-              valor={fornecedor.celular}
-            />
-            <Campo
-              label="CEP"
-              valor={fornecedor.cep}
-            />
-            <Campo
-              label="Endereço"
-              valor={montarEndereco(fornecedor)}
-            />
+            <Campo label="Contato" valor={fornecedor.contato} />
+            <Campo label="E-mail" valor={fornecedor.email} />
+            <Campo label="Telefone" valor={fornecedor.telefone} />
+            <Campo label="Celular" valor={fornecedor.celular} />
+            <Campo label="CEP" valor={fornecedor.cep} />
+            <Campo label="Endereço" valor={montarEndereco(fornecedor)} />
             <Campo
               label="Cidade/UF"
               valor={
                 fornecedor.cidade || fornecedor.estado
-                  ? `${fornecedor.cidade || "-"} / ${
-                      fornecedor.estado || "-"
-                    }`
+                  ? `${fornecedor.cidade || "-"} / ${fornecedor.estado || "-"}`
                   : null
               }
             />
@@ -149,9 +161,7 @@ export default function FornecedorDetalhesPage() {
               </p>
 
               <div className="mt-1">
-                <CrudStatusBadge
-                  ativo={fornecedor.ativo}
-                />
+                <CrudStatusBadge ativo={fornecedor.ativo} />
               </div>
             </div>
           </div>
@@ -174,31 +184,21 @@ export default function FornecedorDetalhesPage() {
             Histórico do fornecedor
           </h2>
 
-          <FornecedorHistoricoCard
-            fornecedorId={fornecedor.id}
-          />
+          <FornecedorHistoricoCard fornecedorId={fornecedor.id} />
         </CrudCard>
       </div>
     </AppLayout>
   );
 }
 
-function Campo({
-  label,
-  valor,
-}: {
-  label: string;
-  valor?: string | null;
-}) {
+function Campo({ label, valor }: { label: string; valor?: string | null }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
         {label}
       </p>
 
-      <p className="mt-1 text-sm text-slate-900">
-        {valor || "-"}
-      </p>
+      <p className="mt-1 break-words text-sm text-slate-900">{valor || "-"}</p>
     </div>
   );
 }
@@ -207,15 +207,12 @@ function formatarDocumento(documento: string) {
   if (documento.length === 14) {
     return documento.replace(
       /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
-      "$1.$2.$3/$4-$5"
+      "$1.$2.$3/$4-$5",
     );
   }
 
   if (documento.length === 11) {
-    return documento.replace(
-      /^(\d{3})(\d{3})(\d{3})(\d{2})$/,
-      "$1.$2.$3-$4"
-    );
+    return documento.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
   }
 
   return documento;

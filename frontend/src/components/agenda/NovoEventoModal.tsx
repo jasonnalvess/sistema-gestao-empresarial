@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -14,13 +14,25 @@ import { FormDialog } from "@/components/forms/FormDialog";
 
 import { criarAgendaEvento } from "@/services/agenda.service";
 import { listarClientes } from "@/services/clientes.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmpresaSelecionada } from "@/contexts/EmpresaSelecionadaContext";
+import { agendaQueryKeys } from "@/lib/agenda-query-keys";
+import { obterMensagemErro } from "@/lib/api-error";
+import {
+  PERMISSAO_AGENDA_CRIAR,
+  PERMISSAO_CLIENTES_VISUALIZAR,
+} from "@/lib/auth";
 
 export function NovoEventoModal() {
+  const { temPermissao } = useAuth();
+  const { empresaEfetivaId, carregando } = useEmpresaSelecionada();
+  const podeCriar = temPermissao(PERMISSAO_AGENDA_CRIAR);
+  const podeVisualizarClientes = temPermissao(PERMISSAO_CLIENTES_VISUALIZAR);
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const clienteIdUrl = searchParams.get("clienteId");
 
-  const [aberto, setAberto] = useState(false);
+  const [aberto, setAberto] = useState(Boolean(clienteIdUrl));
   const [salvando, setSalvando] = useState(false);
 
   const [titulo, setTitulo] = useState("");
@@ -30,27 +42,33 @@ export function NovoEventoModal() {
   const [local, setLocal] = useState("");
   const [clienteNome, setClienteNome] = useState("");
   const [clienteContato, setClienteContato] = useState("");
-  const [clienteId, setClienteId] = useState("");
+  const [clienteId, setClienteId] = useState(clienteIdUrl ?? "");
 
   const { data: clientesResponse } = useQuery({
-    queryKey: ["clientes-select"],
+    queryKey: ["clientes-select", empresaEfetivaId],
     queryFn: () =>
       listarClientes({
         page: 1,
         limit: 100,
       }),
+    enabled:
+      aberto &&
+      !carregando &&
+      Boolean(empresaEfetivaId) &&
+      podeCriar &&
+      podeVisualizarClientes,
   });
 
-  useEffect(() => {
-    if (clienteIdUrl) {
-      setClienteId(clienteIdUrl);
-      setAberto(true);
-    }
-  }, [clienteIdUrl]);
-
   async function salvar() {
+    if (!podeCriar) {
+      toast.error("Você não possui permissão para esta ação.");
+      return;
+    }
+    if (carregando || !empresaEfetivaId) return;
     if (!clienteId) {
-      toast.error("Selecione um cliente cadastrado antes de criar o atendimento.");
+      toast.error(
+        "Selecione um cliente cadastrado antes de criar o atendimento.",
+      );
       return;
     }
 
@@ -81,14 +99,16 @@ export function NovoEventoModal() {
       setAberto(false);
 
       queryClient.invalidateQueries({
-        queryKey: ["agenda"],
+        queryKey: agendaQueryKeys.listas(empresaEfetivaId),
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao criar atendimento");
+    } catch (error: unknown) {
+      toast.error(obterMensagemErro(error, "Erro ao criar atendimento"));
     } finally {
       setSalvando(false);
     }
   }
+
+  if (!podeCriar) return null;
 
   return (
     <FormDialog
@@ -118,11 +138,9 @@ export function NovoEventoModal() {
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="text-sm font-medium text-slate-700">
-              Início
-            </label>
+            <label className="text-sm font-medium text-slate-700">Início</label>
             <Input
               type="datetime-local"
               value={dataInicio}
@@ -198,7 +216,7 @@ export function NovoEventoModal() {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 bg-white pt-4 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setAberto(false)}

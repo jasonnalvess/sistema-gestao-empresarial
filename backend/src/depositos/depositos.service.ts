@@ -1,154 +1,131 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Deposito } from '@prisma/client';
-
+import { Deposito, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-
-import { CriarDepositoDto } from './dto/criar-deposito.dto';
-import { AtualizarDepositoDto } from './dto/atualizar-deposito.dto';
-import { FiltroDepositoDto } from './dto/filtro-deposito.dto';
-
 import { calcularPaginacao } from '../common/utils/paginacao';
 import { respostaPaginada } from '../common/utils/resposta-paginada';
-import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
-import { obterEmpresaId } from '../common/utils/obter-empresa-id';
+import { AtualizarDepositoDto } from './dto/atualizar-deposito.dto';
+import { CriarDepositoDto } from './dto/criar-deposito.dto';
+import { FiltroDepositoDto } from './dto/filtro-deposito.dto';
+
+const CAMPOS_ORDENACAO = {
+  codigo: 'codigo',
+  nome: 'nome',
+  ativo: 'ativo',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+} as const satisfies Record<
+  string,
+  keyof Prisma.DepositoOrderByWithRelationInput
+>;
+
+function ehCampoOrdenacao(
+  campo: string,
+): campo is keyof typeof CAMPOS_ORDENACAO {
+  return campo in CAMPOS_ORDENACAO;
+}
 
 @Injectable()
 export class DepositosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private tratarErro(error: unknown): never {
+  private tratarP2002(error: unknown): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      throw new ConflictException(
-        'Já existe um depósito com esse nome ou código.',
-      );
+      const target = error.meta?.target;
+      const campos =
+        Array.isArray(target) && target.length === 2
+          ? target.map(String)
+          : null;
+      const codigo = campos
+        ? campos.includes('empresaId') && campos.includes('codigo')
+        : target === 'Deposito_empresaId_codigo_key';
+      const nome = campos
+        ? campos.includes('empresaId') && campos.includes('nome')
+        : target === 'Deposito_empresaId_nome_key';
+      if (codigo)
+        throw new ConflictException(
+          'Já existe um depósito com este código nesta empresa.',
+        );
+      if (nome)
+        throw new ConflictException(
+          'Já existe um depósito com este nome nesta empresa.',
+        );
     }
-
     throw error;
   }
 
-  async criar(dados: CriarDepositoDto, usuario: AuthenticatedUser) {
+  async criar(empresaId: string, dados: CriarDepositoDto) {
     try {
       return await this.prisma.deposito.create({
-        data: {
-          ...dados,
-          empresaId: obterEmpresaId(usuario),
-        },
+        data: { ...dados, empresaId },
       });
     } catch (error) {
-      this.tratarErro(error);
+      this.tratarP2002(error);
     }
   }
 
-  async listar(usuario: AuthenticatedUser, filtros: FiltroDepositoDto) {
+  async listar(empresaId: string, filtros: FiltroDepositoDto) {
     const page = filtros.page ?? 1;
     const limit = filtros.limit ?? 10;
-
     const { skip, take } = calcularPaginacao(page, limit);
-
-    const where: Prisma.DepositoWhereInput =
-      usuario.tipo === 'SUPER_ADMIN'
-        ? {}
-        : { empresaId: obterEmpresaId(usuario) };
-
+    const where: Prisma.DepositoWhereInput = { empresaId };
     if (filtros.search) {
       where.OR = [
-        {
-          nome: {
-            contains: filtros.search,
-            mode: 'insensitive',
-          },
-        },
-        {
-          codigo: {
-            contains: filtros.search,
-            mode: 'insensitive',
-          },
-        },
+        { nome: { contains: filtros.search, mode: 'insensitive' } },
+        { codigo: { contains: filtros.search, mode: 'insensitive' } },
       ];
     }
-
-    if (filtros.ativo !== undefined) {
-      where.ativo = filtros.ativo;
-    }
-
+    if (filtros.ativo !== undefined) where.ativo = filtros.ativo;
+    const campo =
+      filtros.sortBy && ehCampoOrdenacao(filtros.sortBy)
+        ? CAMPOS_ORDENACAO[filtros.sortBy]
+        : 'createdAt';
+    const orderBy: Prisma.DepositoOrderByWithRelationInput = {
+      [campo]: filtros.order ?? 'desc',
+    };
     const [data, total] = await this.prisma.$transaction([
-      this.prisma.deposito.findMany({
-        where,
-        orderBy: {
-          [filtros.sortBy ?? 'createdAt']: filtros.order ?? 'desc',
-        },
-        skip,
-        take,
-      }),
+      this.prisma.deposito.findMany({ where, orderBy, skip, take }),
       this.prisma.deposito.count({ where }),
     ]);
-
     return respostaPaginada(data, total, page, limit);
   }
 
-  async buscarPorId(id: string, usuario: AuthenticatedUser): Promise<Deposito> {
-    const deposito = await this.prisma.deposito.findUnique({
-      where: { id },
+  async buscarPorId(empresaId: string, id: string): Promise<Deposito> {
+    const deposito = await this.prisma.deposito.findFirst({
+      where: { id, empresaId },
     });
-
-    if (!deposito) {
-      throw new NotFoundException('Depósito não encontrado.');
-    }
-
-    if (
-      usuario.tipo !== 'SUPER_ADMIN' &&
-      deposito.empresaId !== obterEmpresaId(usuario)
-    ) {
-      throw new ForbiddenException('Depósito pertence a outra empresa.');
-    }
-
+    if (!deposito) throw new NotFoundException('Depósito não encontrado.');
     return deposito;
   }
 
-  async atualizar(
-    id: string,
-    dados: AtualizarDepositoDto,
-    usuario: AuthenticatedUser,
-  ) {
-    await this.buscarPorId(id, usuario);
-
+  async atualizar(empresaId: string, id: string, dados: AtualizarDepositoDto) {
+    await this.buscarPorId(empresaId, id);
     try {
-      return await this.prisma.deposito.update({
-        where: { id },
-        data: dados,
-      });
+      return await this.prisma.deposito.update({ where: { id }, data: dados });
     } catch (error) {
-      this.tratarErro(error);
+      this.tratarP2002(error);
     }
   }
 
-  async ativar(id: string, usuario: AuthenticatedUser) {
-    await this.buscarPorId(id, usuario);
-
+  async ativar(empresaId: string, id: string) {
+    await this.buscarPorId(empresaId, id);
     return this.prisma.deposito.update({
       where: { id },
-      data: {
-        ativo: true,
-      },
+      data: { ativo: true },
     });
   }
 
-  async desativar(id: string, usuario: AuthenticatedUser) {
-    await this.buscarPorId(id, usuario);
-
+  async desativar(empresaId: string, id: string) {
+    await this.buscarPorId(empresaId, id);
     return this.prisma.deposito.update({
       where: { id },
-      data: {
-        ativo: false,
-      },
+      data: { ativo: false },
     });
   }
 }
