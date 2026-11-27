@@ -20,6 +20,8 @@ import {
   UsuarioComPermissoesOpcionais,
 } from "@/lib/auth";
 import {
+  BloqueioComercial,
+  EVENTO_BLOQUEIO_COMERCIAL,
   EVENTO_SESSAO_EXPIRADA,
   EVENTO_TROCA_SENHA_OBRIGATORIA,
   invalidarRequisicoesDaSessao,
@@ -31,6 +33,8 @@ type AuthContextData = {
   token: string | null;
   autenticado: boolean;
   carregando: boolean;
+  bloqueioComercial: BloqueioComercial | null;
+  limparBloqueioComercial: () => void;
   login: (token: string, usuario: UsuarioComPermissoesOpcionais) => void;
   logout: () => void;
   finalizarTrocaSenha: () => void;
@@ -47,6 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const [bloqueioComercial, setBloqueioComercial] =
+    useState<BloqueioComercial | null>(null);
+
+  const limparBloqueioComercial = useCallback(() => {
+    setBloqueioComercial(null);
+  }, []);
 
   const limparCacheDaSessao = useCallback(() => {
     invalidarRequisicoesDaSessao();
@@ -63,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setToken(null);
     setUsuario(null);
+    setBloqueioComercial(null);
   }, [limparCacheDaSessao]);
 
   useEffect(() => {
@@ -83,7 +94,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setToken(tokenSalvo);
           setUsuario(usuarioConvertido);
         } else {
-          limparSessao();
+          // SGE V3.6.7: visitante anonimo nao possui sessao a limpar; a limpeza
+          // completa (incluindo incremento de geracao/remontagem) so e aplicada
+          // quando ha sessao existente.
+          limparEmpresaOperacional();
+          setToken(null);
+          setUsuario(null);
+          setBloqueioComercial(null);
         }
       } catch {
         limparSessao();
@@ -140,14 +157,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUsuario(pendente);
       router.replace("/trocar-senha");
     }
+
+    // Bloqueio comercial (V3.6.4): apenas registra o estado para o aviso
+    // global. A sessão permanece válida e nenhuma navegação é forçada.
+    function tratarBloqueioComercial(evento: Event) {
+      const detalhe = (evento as CustomEvent<BloqueioComercial>).detail;
+      if (!detalhe || typeof detalhe.codigo !== "string") return;
+      setBloqueioComercial({
+        codigo: detalhe.codigo,
+        mensagem: detalhe.mensagem,
+      });
+    }
+
     window.addEventListener(EVENTO_TROCA_SENHA_OBRIGATORIA, tratarTrocaPendente);
     window.addEventListener(EVENTO_SESSAO_EXPIRADA, tratarSessaoExpirada);
+    window.addEventListener(EVENTO_BLOQUEIO_COMERCIAL, tratarBloqueioComercial);
 
     window.addEventListener("storage", sincronizarSessaoEntreAbas);
 
     return () => {
       window.removeEventListener(EVENTO_TROCA_SENHA_OBRIGATORIA, tratarTrocaPendente);
       window.removeEventListener(EVENTO_SESSAO_EXPIRADA, tratarSessaoExpirada);
+      window.removeEventListener(EVENTO_BLOQUEIO_COMERCIAL, tratarBloqueioComercial);
 
       window.removeEventListener("storage", sincronizarSessaoEntreAbas);
     };
@@ -168,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setToken(novoToken);
     setUsuario(usuarioNormalizado);
+    setBloqueioComercial(null);
 
     router.replace(usuarioNormalizado.trocaSenhaObrigatoria ? "/trocar-senha" : "/dashboard");
   }
@@ -184,6 +216,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         autenticado: Boolean(token),
         carregando,
+        bloqueioComercial,
+        limparBloqueioComercial,
         login,
         logout: () => logout(),
         finalizarTrocaSenha: () => logout("senha-alterada"),

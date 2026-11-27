@@ -265,6 +265,22 @@ Nunca alterar relacionamentos sem autorização.
 
 ---
 
+# Ambientes
+
+O projeto possui três ambientes formais, detalhados na ADR-028:
+
+- TESTE (`/opt/sistema-gestao/teste`, banco `sistema_gestao_teste`): desenvolvimento, testes automatizados sem banco isolado, testes funcionais manuais e homologação funcional oficial, incluindo a homologação integrada final da versão.
+- INTEGRAÇÃO (banco `sistema_gestao_integracao`): testes automatizados que exigem PostgreSQL real e fixtures isoladas; jamais homologação manual; credenciais e permissões isoladas por banco.
+- PRODUÇÃO (`/opt/sistema-gestao/producao`, banco `sistema_gestao_prod`): operação definitiva somente após conclusão do roadmap e autorização expressa; o banco existente não representa produção implantada.
+
+Não é necessária uma segunda instalação permanente para homologar cada etapa.
+
+A antiga estrutura `/opt/sistema-gestao/homologacao` será descontinuada como ambiente permanente de homologação; nada dela pode ser removido sem inventário de preservação aprovado e autorização expressa.
+
+Homologação em TESTE não significa implantação em PRODUÇÃO.
+
+---
+
 # APIs
 
 Antes de alterar uma API verificar:

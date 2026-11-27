@@ -368,6 +368,28 @@ Próximos passos.
 
 ---
 
+# Ambientes e Classificação de Etapas
+
+O projeto possui três ambientes formais, conforme a ADR-028:
+
+- TESTE — ambiente principal: desenvolvimento, testes funcionais manuais e homologação funcional oficial.
+- INTEGRAÇÃO — ambiente técnico: testes automatizados que exigem PostgreSQL real e fixtures isoladas; jamais homologação manual.
+- PRODUÇÃO — ambiente futuro: implantação somente após conclusão do roadmap e autorização expressa.
+
+Todo relatório de sprint, módulo ou versão deve apresentar separadamente:
+
+1. Estado do código: implementado ou não.
+2. Estado do banco TESTE: migrations aplicadas e situação estrutural.
+3. Testes automatizados: executados, aprovados ou pendentes.
+4. Homologação funcional: realizada ou pendente, identificando o ambiente.
+5. Produção: implantada ou não implantada.
+
+Não utilizar simplesmente a expressão "concluído" sem esclarecer essas dimensões.
+
+Homologação em TESTE não significa implantação em PRODUÇÃO.
+
+---
+
 # Situações que Exigem Parada Imediata
 
 Interromper implementação quando:

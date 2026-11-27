@@ -6,7 +6,11 @@ Implementação do fluxo de recuperação de senha via e-mail com tokens tempor�
 
 ## Configurações de Ambiente (.env)
 
-As seguintes variáveis devem ser configuradas no ambiente de teste:
+As seguintes variáveis devem ser configuradas no ambiente correspondente, sem valores versionados:
+
+### Backend
+
+- `BACKEND_PORT`: porta de escuta do backend, consumida em `backend/src/main.ts`. Quando ausente, o código usa o fallback `5101`. O nome `PORT` não é consumido pela aplicação.
 
 ### SMTP
 
@@ -14,12 +18,20 @@ As seguintes variáveis devem ser configuradas no ambiente de teste:
 - `SMTP_PORT`: Porta do servidor SMTP.
 - `SMTP_SECURE`: `true` para TLS/SSL, `false` caso contrário.
 - `SMTP_USER`: Nome de usuário para autenticação SMTP.
-- `SMTP_PASS`: Senha para autenticação SMTP.
-- `SMTP_FROM`: E-mail do remetente (ex: `suporte@sge.com.br`).
+- `SMTP_PASSWORD`: Senha para autenticação SMTP (nome consumido por `backend/src/common/services/mail.service.ts`; sem fallback para `SMTP_PASS`).
+- `EMAIL_FROM`: E-mail do remetente (nome consumido como `from`; sem valor versionado).
+
+### Links de e-mail (backend)
+
+- `PUBLIC_APP_URL`: URL base pública usada nos links de recuperação e verificação. Nome consumido por `backend/src/common/services/mail.service.ts`, com validação `http`/`https`; sem valor versionado.
 
 ### Frontend
 
-- `FRONTEND_URL`: URL base do frontend (ex: `https://app.sge.com.br`).
+- `NEXT_PUBLIC_API_URL`: `baseURL` do Axios em `frontend/src/services/api.ts`. Não há fallback nem `.env.example` versionado no frontend. O rewrite `/api/:path*` em `frontend/next.config.ts` encaminha as chamadas ao backend; a origem pública em PRODUÇÃO depende de decisão específica, fora deste escopo.
+
+### Variáveis de teste (não usadas em runtime)
+
+- `INTEGRATION_DATABASE_URL`: usada somente pelas suítes de integração. Não possui fallback para `DATABASE_URL` e não deve ser usada no runtime de produção.
 
 ## Detalhes Técnicos
 

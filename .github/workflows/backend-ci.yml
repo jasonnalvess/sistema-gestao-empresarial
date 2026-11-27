@@ -6,6 +6,7 @@ on:
       - develop
       - main
       - "feature/**"
+      - "feat/**"
       - "fix/**"
       - "chore/**"
   pull_request:
@@ -13,6 +14,7 @@ on:
       - develop
       - main
       - "feature/**"
+      - "feat/**"
       - "fix/**"
       - "chore/**"
 
@@ -43,3 +45,34 @@ jobs:
 
       - name: Build backend
         run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: backend
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run E2E tests (isolated, mock-based, no database)
+        run: >
+          npx jest --config ./test/jest-e2e.json
+          test/usuarios-rbac.e2e-spec.ts
+          test/auth-login-email-verificado.e2e-spec.ts
+          test/cadastro-publico-conclusao-surrogate.e2e-spec.ts
+          test/usuarios-reset-manual.e2e-spec.ts
+          test/validacao-comercial.e2e-spec.ts

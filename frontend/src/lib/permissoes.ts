@@ -22,6 +22,8 @@ export const permissoes = {
     "/ordens-servico",
     "/usuarios",
     "/perfis",
+    "/modulos",
+    "/configuracoes",
     "/unidades-medida",
     "/fornecedores",  
     "/pedidos-compra",

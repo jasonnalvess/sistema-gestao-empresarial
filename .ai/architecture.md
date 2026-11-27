@@ -35,14 +35,19 @@ Estrutura principal observada:
 - `backend/prisma/migrations/`: historico de migrations;
 - `backend/test/`: configuracao e testes E2E.
 
-Modulos registrados no `AppModule` no momento desta documentacao:
+Modulos registrados no `AppModule` no momento desta atualizacao (V3.6.6-A):
 
 - Prisma;
+- funcionarios;
+- departamentos;
+- cargos;
+- perfis;
+- permissoes;
 - empresas;
 - usuarios;
-- autenticacao;
-- modulos do sistema;
-- modulos por empresa;
+- autenticacao (auth);
+- modulos do sistema (modulos);
+- modulos por empresa (empresa-modulos);
 - categorias de produtos;
 - produtos;
 - estoque;
@@ -51,9 +56,21 @@ Modulos registrados no `AppModule` no momento desta documentacao:
 - dashboard;
 - agenda;
 - clientes;
-- ordens de servico.
+- ordens de servico;
+- unidades de medida;
+- marcas de produtos;
+- depositos;
+- inventarios de estoque;
+- fornecedores;
+- pedidos de compra;
+- contas a pagar;
+- contas a receber;
+- financeiro;
+- caixas;
+- vendas;
+- crm.
 
-Existem diretorios de `inventarios-estoque`, `pedidos-compra` e `contas-receber` no worktree, mas eles nao estao registrados no `AppModule` atual. Sua integracao e seu estado devem ser confirmados antes de uso.
+Todos os diretorios de modulo existentes em `backend/src/` estao registrados no `AppModule` no momento desta atualizacao.
 
 Padroes observados:
 
@@ -75,7 +92,7 @@ Estrutura principal observada:
 - `frontend/src/lib/`: menu, permissoes, autenticacao e utilitarios;
 - `frontend/public/`: ativos publicos.
 
-Paginas observadas incluem login, dashboard, produtos, categorias, estoque, movimentacoes, agenda, auditoria, clientes, ordens de servico e usuarios.
+Paginas existentes incluem login, esqueci-senha, recuperar-senha, trocar-senha, dashboard, funcionarios, clientes, produtos, categorias, marcas-produtos, fornecedores, pedidos-compra, vendas, crm, estoque, depositos, movimentacoes, inventarios, agenda, ordens-servico, financeiro, caixas, contas-pagar, contas-receber, unidades-medida, usuarios, perfis, auditoria e, desde a V3.6.6-A, empresas, modulos e configuracoes.
 
 Padroes observados:
 
@@ -95,6 +112,14 @@ Componentes informados como reutilizaveis para dashboards:
 - `PieChartCard`.
 
 Esses seis componentes nao aparecem na arvore atual examinada; existem outros componentes `Dashboard*`. Confirmar a branch ou a implementacao antes de importar os nomes acima.
+
+## Ambientes
+
+- TESTE (`/opt/sistema-gestao/teste`, banco `sistema_gestao_teste`): ambiente principal; homologacao funcional oficial.
+- INTEGRACAO (banco `sistema_gestao_integracao`): PostgreSQL real para testes automatizados e fixtures isoladas.
+- PRODUCAO (`/opt/sistema-gestao/producao`, banco `sistema_gestao_prod`): futuro; implantacao somente com autorizacao expressa.
+
+Detalhes e classificacao de etapas na ADR-028 (DECISIONS.md).
 
 ## Limites arquitetonicos
 

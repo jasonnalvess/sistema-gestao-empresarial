@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EmpresasController } from './empresas.controller';
 import { EmpresasService } from './empresas.service';
+import { IpUtil } from '../common/utils/ip.util';
 
 describe('EmpresasController', () => {
   let controller: EmpresasController;
@@ -23,6 +24,7 @@ describe('EmpresasController', () => {
           provide: EmpresasService,
           useValue: empresasServiceMock,
         },
+        IpUtil,
       ],
     }).compile();
 

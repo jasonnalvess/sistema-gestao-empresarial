@@ -222,11 +222,22 @@ enum TipoInteracaoCRM {
   OUTRO
 }
 
+enum SolicitacaoCadastroEstado {
+  PENDENTE
+  CONCLUIDA
+}
+
 model Empresa {
   id        String   @id @default(uuid())
   nome      String
   cnpj      String?  @unique
   ativa     Boolean  @default(true)
+
+  // Validade comercial/trial (V3.6.4). Ambos nulos = empresa legada/sem
+  // validade limitada. Persistidos e comparados em UTC, intervalo [inicio, fim).
+  validadeComercialInicio DateTime?
+  validadeComercialFim    DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -265,6 +276,8 @@ model Empresa {
   crmOportunidades          CrmOportunidade[]
   crmInteracoes             ClienteInteracao[]
   crmOportunidadeHistoricos CrmOportunidadeHistorico[]
+
+  @@index([validadeComercialFim])
 }
 
 model Usuario {
@@ -276,6 +289,10 @@ model Usuario {
   ativo                 Boolean  @default(true)
   versaoAutorizacao     Int      @default(0)
   trocaSenhaObrigatoria Boolean  @default(false)
+  // Verificacao de e-mail (V3.6.5). Default true: usuarios legados e criados por
+  // fluxos administrativos permanecem considerados verificados. Somente o
+  // onboarding publico (Fase B) cria usuario com e-mail ja comprovadamente verificado.
+  emailVerificado       Boolean  @default(true)
 
   funcionario                  Funcionario?           @relation("FuncionarioUsuario")
   funcionarioHistoricosAtor    FuncionarioHistorico[] @relation("FuncionarioHistoricoAtor")
@@ -359,6 +376,40 @@ model RateLimit {
 
   @@unique([clientIp, endpoint, windowStart], map: "uq_rate_limit_window")
   @@index([clientIp, endpoint])
+}
+
+// Solicitacao publica de cadastro (V3.6.5, Fase A). Nao cria empresa nem
+// usuario: apenas registra a pendencia ate a verificacao do e-mail (Fase B).
+// Sem FK: no momento da solicitacao as entidades ainda nao existem, e as
+// restritivas impediriam a limpeza futura de solicitacoes antigas.
+model SolicitacaoCadastro {
+  id String @id @default(uuid())
+
+  // Dados coletados na Fase A; a criacao efetiva ocorre somente na Fase B.
+  nomeEmpresa     String
+  cnpjEmpresa     String?
+  nomeResponsavel String
+  email           String
+
+  // Token de verificacao: persistido apenas como hash SHA-256, nunca em texto
+  // puro. Uso unico (usedAt) e validade de 24 horas (expiresAt, UTC).
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  estado SolicitacaoCadastroEstado @default(PENDENTE)
+
+  // Controle de envio: falha SMTP NAO elimina a pendencia; permite reenvio
+  // justificado com novo token (que invalida o anterior por substituicao).
+  tentativasEnvio Int      @default(0)
+  ultimoEnvioEm   DateTime?
+  ultimoErroEnvio String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([expiresAt])
 }
 
 model ModuloSistema {
